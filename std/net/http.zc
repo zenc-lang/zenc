@@ -16,19 +16,20 @@ fn _parse_headers(lines: Vec<String>, start_idx: usize) -> Vec<Header> {
     let headers = Vec<Header>::new();
     let len = lines.len;
     for (let i = start_idx; i < len; i = i + 1) {
-        let line = lines.get(i);
+        let line = lines.get_ref(i);
         if (line.is_empty()) break; // End of headers
         
         let parts = line.split(':');
         if (parts.len >= 2) {
-            let key = parts.get(0);
-            let val = parts.get(1); // TODO: Join rest if multiple ':'?
-            // Trim
+            let key = parts.get_ref(0);
+            let val = parts.get_ref(1); // TODO: Join rest if multiple ':'?
             let key_t = key.trim();
             let val_t = val.trim();
             headers.push(Header { key: key_t, value: val_t });
-            
-            // Auto drop takes care of split arrays and temporary string
+        }
+        for (let j: usize = 0; j < parts.len; j = j + 1) {
+            let p_str = parts.get_ref(j);
+            p_str.destroy();
         }
     }
     return headers;
@@ -133,11 +134,11 @@ impl Server {
                      // Parse Request
                      let lines = req_str.split('\n');
                      if (lines.len > 0) {
-                         let first_line = lines.get(0);
+                         let first_line = lines.get_ref(0);
                          let fl_parts = first_line.split(' ');
                          if (fl_parts.len >= 2) {
-                             let method = fl_parts.get(0).trim();
-                             let path = fl_parts.get(1).trim();
+                             let method = fl_parts.get_ref(0).trim();
+                             let path = fl_parts.get_ref(1).trim();
                              
                              let req = Request::new(method, path);
                              let res = Response::new(200);
@@ -155,7 +156,7 @@ impl Server {
                              
                              // Headers
                              for (let i = 0; i < res.headers.len; i = i + 1) {
-                                 let header = res.headers.get(i);
+                                 let header = res.headers.get_ref(i);
                                  response_str.append(&header.key);
                                  response_str.append_c(": ");
                                  response_str.append(&header.value);
@@ -174,9 +175,15 @@ impl Server {
                              response_str.append(&res.body);
                              
                              client.write((u8*)response_str.c_str(), response_str.length());
-                             // Clean up fl_parts (now handled by auto-drop)
                          }
-                         // Clean up lines (handled by auto-drop)
+                         for (let j: usize = 0; j < fl_parts.len; j = j + 1) {
+                             let p_str = fl_parts.get_ref(j);
+                             p_str.destroy();
+                         }
+                     }
+                     for (let j: usize = 0; j < lines.len; j = j + 1) {
+                         let l_str = lines.get_ref(j);
+                         l_str.destroy();
                      }
                 }
             }

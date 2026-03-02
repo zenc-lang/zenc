@@ -62,9 +62,11 @@ struct String {
 | **c_str** | `c_str(self) -> char*` | Returns the underlying C string pointer. |
 | **length** | `length(self) -> usize` | Returns the length of the string (excluding null terminator). |
 | **is_empty** | `is_empty(self) -> bool` | Returns true if length is 0. |
+| **to_string** | `to_string(self) -> char*` | Allows smooth, implicit `{var}` bracket interpolation. Maps to `c_str()`. |
 | **starts_with** | `starts_with(self, prefix: char*) -> bool` | Checks if the string starts with the given prefix. |
 | **ends_with** | `ends_with(self, suffix: char*) -> bool` | Checks if the string ends with the given suffix. |
 | **contains** | `contains(self, target: char) -> bool` | Checks if the string contains the given character. |
+| **contains_str** | `contains_str(self, target: char*) -> bool` | Checks if the string contains the given substring. |
 | **find** | `find(self, target: char) -> Option<usize>` | Returns the index of the first occurrence of `target`. |
 | **substring** | `substring(self, start: usize, len: usize) -> String` | Returns a new String containing the specified substring. |
 
@@ -83,6 +85,8 @@ These methods handle UTF-8 character boundaries correctly, contrasting with the 
 
 | Method | Signature | Description |
 | :--- | :--- | :--- |
+| **to_lowercase** | `to_lowercase(self) -> String` | Returns a new string converted into lowercase. |
+| **to_uppercase** | `to_uppercase(self) -> String` | Returns a new string converted into uppercase. |
 | **split** | `split(self, delim: char) -> Vec<String>` | Splits the string into a vector of substrings separated by `delim`. |
 | **trim** | `trim(self) -> String` | Returns a new string with leading and trailing whitespace removed. |
 | **replace** | `replace(self, target: char*, replacement: char*) -> String` | Returns a new string with all occurrences of `target` replaced by `replacement`. |

@@ -1,0 +1,50 @@
+// Zen C Standard Random Library
+// Provides an idiomatic, object-oriented wrapper over the C <stdlib.h> RNG.
+
+import "std/core.zc"
+import "std/time.zc"
+import "stdlib.h" as c_stdlib;
+
+struct Random {
+    seed: U32;
+}
+
+impl Random {
+    // Creates a new random generator initialized with the current time
+    fn new() -> Random {
+        let seed = (U32)Time::now();
+        c_stdlib::srand(seed);
+        return Random { seed: seed };
+    }
+
+    // Creates a new random generator with a specific seed
+    fn from_seed(seed: U32) -> Random {
+        c_stdlib::srand(seed);
+        return Random { seed: seed };
+    }
+
+    // Returns a pseudo-random integer in the range [0, RAND_MAX]
+    fn next_int(self) -> int {
+        return c_stdlib::rand();
+    }
+
+    // Returns a pseudo-random integer in the range [min, max] inclusive
+    fn next_int_range(self, min: int, max: int) -> int {
+        if (min > max) { panic("next_int_range: min > max"); }
+        let range = max - min + 1;
+        return min + (c_stdlib::rand() % range);
+    }
+
+    // Returns a pseudo-random double in the range [0.0, 1.0)
+    fn next_double(self) -> double {
+        // Explicitly casting to double
+        let raw = (double)c_stdlib::rand();
+        let max = (double)2147483647; // RAND_MAX on most platforms
+        return raw / (max + 1.0);
+    }
+
+    // Returns a pseudo-random boolean
+    fn next_bool(self) -> bool {
+        return (c_stdlib::rand() % 2) == 1;
+    }
+}

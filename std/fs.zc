@@ -117,6 +117,65 @@ impl File {
         return Result<bool>::Ok(true);
     }
 
+    fn read_lines(path: char*) -> Result< Vec<String> > {
+        let res = File::read_all(path);
+        if (res.is_err()) {
+            return Result< Vec<String> >::Err(res.err);
+        }
+        let content = res.unwrap();
+        
+        let lines = content.split('\n');
+        
+        // Remove trailing \r from lines if on windows or CRLF
+        for (let i: usize = 0; i < lines.len; i = i + 1) {
+            let line = lines.get_ref(i);
+            let len = line.length();
+            if (len > 0) {
+                let last_char = line.vec.get(len - 1);
+                if (last_char == '\r') {
+                    let trimmed = line.substring(0, len - 1);
+                    line.destroy();
+                    lines.set(i, trimmed);
+                }
+            }
+        }
+        
+        // Remove the final blank line if ending in a delimiter
+        if (lines.len > 0) {
+            let last_idx = lines.len - 1;
+            let last_line = lines.get_ref(last_idx);
+            if (last_line.length() == 0) {
+                let empty = lines.pop(); // Safe because it's the element itself
+                empty.destroy();
+            }
+        }
+        
+        content.destroy();
+        
+        let ret_res = Result< Vec<String> >::Ok(lines);
+        lines.forget();
+        let ret = ret_res;
+        ret_res.forget();
+        return ret;
+    }
+
+    fn write_lines(path: char*, lines: Vec<String>*) -> Result<bool> {
+        let res = File::open(path, "wb");
+        if (res.is_err()) {
+            return Result<bool>::Err(res.err);
+        }
+        let f = res.unwrap();
+        
+        for (let i: usize = 0; i < lines.len; i = i + 1) {
+            let line = lines.get_ref(i);
+            f.write_string(line.c_str());
+            f.write_string("\n");
+        }
+        
+        f.close();
+        return Result<bool>::Ok(true);
+    }
+
     fn exists(path: char*) -> bool {
         let zero: c_int = 0;
         return access(path, Z_F_OK) == zero;

@@ -1,6 +1,7 @@
 
 import "./core.zc"
 import "./iter.zc"
+import "./sort.zc"
 
 struct Vec<T> {
     data: T*;
@@ -282,6 +283,8 @@ impl Vec<T> {
         self.len = 0;
         self.cap = 0;
     }
+
+
 
     fn clone(self) -> Vec<T> {
         if (self.len == 0) {

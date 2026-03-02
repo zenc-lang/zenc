@@ -1,0 +1,53 @@
+import "std/core.zc"
+
+// Generic sorting utilities for Zen C
+
+struct Sort {}
+
+import "std/core.zc"
+
+// Generic macro-based polymorphic sorting engine for Zen C.
+// Zen C compiler expands these macros into concrete type functions instantly preserving zero-overhead natively.
+
+raw {
+    #define ZC_IMPL_SORT(T) \
+    static int _z_partition_##T(T* arr, int low, int high) { \
+        T pivot = arr[high]; \
+        int i = low - 1; \
+        for (int j = low; j < high; j++) { \
+            if (arr[j] < pivot) { \
+                i++; \
+                T temp = arr[i]; \
+                arr[i] = arr[j]; \
+                arr[j] = temp; \
+            } \
+        } \
+        T temp2 = arr[i + 1]; \
+        arr[i + 1] = arr[high]; \
+        arr[high] = temp2; \
+        return i + 1; \
+    } \
+    static void _z_quick_sort_##T(T* arr, int low, int high) { \
+        if (low < high) { \
+            int pivot_idx = _z_partition_##T(arr, low, high); \
+            _z_quick_sort_##T(arr, low, pivot_idx - 1); \
+            _z_quick_sort_##T(arr, pivot_idx + 1, high); \
+        } \
+    } \
+    void sort_##T(T* arr, size_t len) { \
+        if (len > 1) { \
+            _z_quick_sort_##T(arr, 0, (int)len - 1); \
+        } \
+    }
+
+    // Pre-declare standard library types
+    ZC_IMPL_SORT(int)
+    ZC_IMPL_SORT(long)
+    ZC_IMPL_SORT(float)
+    ZC_IMPL_SORT(double)
+}
+
+extern fn sort_int(arr: int*, len: usize);
+extern fn sort_long(arr: long*, len: usize);
+extern fn sort_float(arr: float*, len: usize);
+extern fn sort_double(arr: double*, len: usize);

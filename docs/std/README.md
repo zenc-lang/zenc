@@ -9,6 +9,7 @@
 - [Iterator (Iter)](./iter.md) - Iterator traits.
 - [JSON](./json.md) - JSON parsing and serialization.
 - [Map](./map.md) - Hash map implementation.
+- [Math](./math.md) - Mathematical constants and functions.
 - [Memory (Mem)](./mem.md) - Allocators and memory traits (`Drop`, `Copy`).
 - [Networking (Net)](./net.md) - TCP, UDP, HTTP, DNS, and URL parsing.
 - [Option](./option.md) - Optional values (Some/None).
@@ -16,10 +17,12 @@
 - [Process](./process.md) - Process execution and management.
 - [Result](./result.md) - Error handling (Ok/Err).
 - [Regex](./regex.md) - Regular expressions.
+- [Random](./random.md) - Pseudo-random number generator.
 - [SIMD](./simd.md) - Native SIMD vector types and operations.
 - [Queue](./queue.md) - FIFO queue (Ring Buffer).
 - [Set](./set.md) - Hash set implementation.
 - [Slice](./slice.md) - Array slicing.
+- [Sort](./sort.md) - Array and Vector sorting polymorphic engine.
 - [Stack](./stack.md) - LIFO stack.
 - [String](./string.md) - Growable, heap-allocated string type.
 - [Thread (Concurrency)](./thread.md) - Multithreading and synchronization.

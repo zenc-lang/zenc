@@ -72,8 +72,10 @@ impl Url {
         }
         
         // Free split parts
-        // Clean up parts
-        // Memory cleanup for Vec (elements will leak currently without array drop but double free is avoided)
+        for (let i: usize = 0; i < parts.len; i = i + 1) {
+            let part = parts.get_ref(i);
+            part.destroy();
+        }
         parts.free();
         host_str.free();
         

@@ -35,6 +35,10 @@ impl String {
         return self.vec.data;
     }
 
+    fn to_string(self) -> char* {
+        return self.c_str();
+    }
+
     fn destroy(self) {
         self.vec.free();
     }
@@ -120,6 +124,62 @@ impl String {
         v.forget();
         
         return String { vec: Vec<char> { data: d, len: l, cap: c } };
+    }
+    fn contains_str(self, target: char*) -> bool {
+        let t_len = strlen(target);
+        if t_len == 0 { return true; }
+        let s_len = self.length();
+        if t_len > s_len { return false; }
+        
+        for (let i: usize = 0; i <= s_len - t_len; i = i + 1) {
+            let is_match = true;
+            for (let k: usize = 0; k < t_len; k = k + 1) {
+                if self.vec.get(i + k) != target[k] {
+                    is_match = false;
+                    break;
+                }
+            }
+            if is_match { return true; }
+        }
+        return false;
+    }
+
+    fn to_lowercase(self) -> String {
+        let len = self.length();
+        let v = Vec<char>::new();
+        for (let i: usize = 0; i < len; i = i + 1) {
+            let c = self.vec.get(i);
+            if (c >= 'A' && c <= 'Z') {
+                v.push((char)((int)c + 32));
+            } else {
+                v.push(c);
+            }
+        }
+        v.push(0);
+        let d = v.data;
+        let l = v.len;
+        let c_cap = v.cap;
+        v.forget();
+        return String { vec: Vec<char> { data: d, len: l, cap: c_cap } };
+    }
+
+    fn to_uppercase(self) -> String {
+        let len = self.length();
+        let v = Vec<char>::new();
+        for (let i: usize = 0; i < len; i = i + 1) {
+            let c = self.vec.get(i);
+            if (c >= 'a' && c <= 'z') {
+                v.push((char)((int)c - 32));
+            } else {
+                v.push(c);
+            }
+        }
+        v.push(0);
+        let d = v.data;
+        let l = v.len;
+        let c_cap = v.cap;
+        v.forget();
+        return String { vec: Vec<char> { data: d, len: l, cap: c_cap } };
     }
 
     fn find(self, target: char) -> Option<usize> {

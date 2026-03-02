@@ -338,10 +338,15 @@ int main(int argc, char **argv)
         }
         else if (strncmp(arg, "-W", 2) == 0 || strncmp(arg, "-f", 2) == 0 ||
                  strncmp(arg, "-m", 2) == 0 || strncmp(arg, "-x", 2) == 0 ||
-                 strcmp(arg, "-S") == 0 || strcmp(arg, "-E") == 0 || strcmp(arg, "-shared") == 0)
+                 strcmp(arg, "-S") == 0 || strcmp(arg, "-E") == 0 || strcmp(arg, "-shared") == 0 ||
+                 strcmp(arg, "--shared") == 0)
         {
             // Standard C compiler flags that we want to pass directly to the backend
             main_append_flag(g_config.gcc_flags, sizeof(g_config.gcc_flags), arg, NULL);
+            if (strcmp(arg, "-shared") == 0 || strcmp(arg, "--shared") == 0)
+            {
+                main_append_flag(g_config.gcc_flags, sizeof(g_config.gcc_flags), "-fPIC", NULL);
+            }
         }
         else if (arg[0] == '-')
         {

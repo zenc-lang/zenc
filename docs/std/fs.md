@@ -77,7 +77,9 @@ struct DirEntry {
 | :--- | :--- | :--- |
 | **read_to_string** | `read_to_string(self) -> Result<String>` | Reads the entire file content into a String. |
 | **read_all** | `File::read_all(path: char*) -> Result<String>` | Static utility to open, read, and close a file in one go. |
-| **write_string** | `write_string(self, content: char*) -> Result<bool>` | Writes a string to the file. |
+| **read_lines** | `File::read_lines(path: char*) -> Result<Vec<String>>` | Static utility to read a file entirely into an array of split line Strings. |
+| **write_string** | `write_string(self, content: char*) -> Result<bool>` | Writes a single string to the file. |
+| **write_lines** | `File::write_lines(path: char*, lines: Vec<String>*) -> Result<bool>` | Static utility to sequentially write an array of String lines to a file separated by newlines. |
 
 ## Static Utilities
 
