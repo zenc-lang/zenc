@@ -393,42 +393,10 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                     fprintf(out, ")");
                 }
             }
-            else if (t1 && (strcmp(t1, "string") == 0 || strcmp(t1, "char*") == 0 ||
-                            strcmp(t1, "const char*") == 0))
+            else if (t1 && (strcmp(t1, "string") == 0))
             {
-                int is_null_compare = 0;
-                if (node->binary.right->type == NODE_EXPR_VAR &&
-                    strcmp(node->binary.right->var_ref.name, "NULL") == 0)
-                {
-                    is_null_compare = 1;
-                }
-                else if (node->binary.left->type == NODE_EXPR_VAR &&
-                         strcmp(node->binary.left->var_ref.name, "NULL") == 0)
-                {
-                    is_null_compare = 1;
-                }
-                else if (node->binary.right->type == NODE_EXPR_LITERAL &&
-                         node->binary.right->literal.type_kind == LITERAL_INT &&
-                         node->binary.right->literal.int_val == 0)
-                {
-                    is_null_compare = 1;
-                }
-                else if (node->binary.left->type == NODE_EXPR_LITERAL &&
-                         node->binary.left->literal.type_kind == LITERAL_INT &&
-                         node->binary.left->literal.int_val == 0)
-                {
-                    is_null_compare = 1;
-                }
-
-                if (is_null_compare)
-                {
-                    fprintf(out, "(");
-                    codegen_expression(ctx, node->binary.left, out);
-                    fprintf(out, " %s ", node->binary.op);
-                    codegen_expression(ctx, node->binary.right, out);
-                    fprintf(out, ")");
-                }
-                else
+                char *t2 = infer_type(ctx, node->binary.right);
+                if (t2 && (strcmp(t2, "string") == 0))
                 {
                     fprintf(out, "(strcmp(");
                     codegen_expression(ctx, node->binary.left, out);
@@ -442,6 +410,14 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                     {
                         fprintf(out, ") != 0)");
                     }
+                }
+                else
+                {
+                    fprintf(out, "(");
+                    codegen_expression(ctx, node->binary.left, out);
+                    fprintf(out, " %s ", node->binary.op);
+                    codegen_expression(ctx, node->binary.right, out);
+                    fprintf(out, ")");
                 }
             }
             else
