@@ -4,6 +4,11 @@ struct Container {
     val: int;
 }
 
+@derive(Eq)
+opaque struct OpaqueContainer {
+    val: int;
+}
+
 // Ensure derived eq uses pointers by trying to use 'c2' after comparison
 test "eq_moves" {
     let c1 = Container { val: 10 };
@@ -23,4 +28,25 @@ test "eq_moves" {
     assert(c2.val == 20, "c2 invalid");
     
     println "Smart Derive Eq Works!";
+}
+
+// Ensure eq is derived correctly on opaque structs also
+test "eq_moves_opaque" {
+    let c1 = OpaqueContainer { val: 10 };
+    let c2 = OpaqueContainer { val: 10 };
+    
+    // This should call OpaqueContainer__eq(&c1, &c2)
+    // If it passed by value, c2 would be moved here
+    if c1 == c2 {
+        // c2 must still be valid
+        assert(c2.val == 10, "c2 moved during equality check in opaque struct!");
+    } else {
+        assert(false, "c1 != c2 in opaque struct");
+    }
+    
+    // Explicitly verify c2 is still valid
+    c2.val = 20;
+    assert(c2.val == 20, "c2 invalid in opaque struct");
+    
+    println "Smart Derive Eq Works in opaque struct!";
 }
