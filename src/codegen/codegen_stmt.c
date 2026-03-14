@@ -569,6 +569,8 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
             fprintf(out, "#if %s\n", node->cfg_condition);
         }
 
+        emit_source_mapping(node, out);
+
         if (node->func.is_async)
         {
             fprintf(out, "struct %s_Args {\n", node->func.name);
@@ -805,6 +807,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
                 // Check if type implements Drop
                 int has_drop = 0;
                 char *drop_type_name = NULL;
+                Token drop_token;
 
                 if (arg_type->kind == TYPE_FUNCTION ||
                     (arg_type->kind == TYPE_STRUCT && arg_type->name))
@@ -830,9 +833,11 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
 
                 if (has_drop)
                 {
+                    emit_source_mapping_duplicate(node, out);
                     fprintf(out, "    int __z_drop_flag_%s = 1;\n", arg_name);
 
                     ASTNode *defer_node = xmalloc(sizeof(ASTNode));
+                    defer_node->token = node->token;
                     defer_node->type = NODE_RAW_STMT;
                     char *stmt_str = NULL;
                     if (arg_type->kind == TYPE_FUNCTION)
@@ -1144,6 +1149,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
                     // Synthesize Defer: if (__z_drop_flag_name) Name__Drop_drop(&name);
                     ASTNode *defer_node = xmalloc(sizeof(ASTNode));
                     defer_node->type = NODE_RAW_STMT;
+                    defer_node->token = node->token;
                     char *stmt_str =
                         xmalloc(256 + strlen(node->var_decl.name) * 2 + strlen(clean_type));
                     sprintf(stmt_str, "if (__z_drop_flag_%s) %s__Drop_glue(&%s);",
@@ -1230,6 +1236,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
                         // Synthesize Defer: if (__z_drop_flag_name) Name__Drop_drop(&name);
                         ASTNode *defer_node = xmalloc(sizeof(ASTNode));
                         defer_node->type = NODE_RAW_STMT;
+                        defer_node->token = node->token;
                         // Build string
                         char *stmt_str = NULL;
                         if (node->var_decl.init_expr && node->var_decl.init_expr->type_info &&
@@ -2109,6 +2116,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
         }
         else
         {
+            emit_source_mapping_duplicate(node, out);
             fprintf(out, "    %s\n", node->raw_stmt.content);
         }
         break;
