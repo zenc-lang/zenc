@@ -409,6 +409,29 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // Backend detection for @cfg purposes
+    if (strstr(g_config.cc, "tcc"))
+    {
+        if (g_config.cfg_define_count < 64)
+        {
+            g_config.cfg_defines[g_config.cfg_define_count++] = xstrdup("__TINYC__");
+        }
+    }
+    else if (strstr(g_config.cc, "clang"))
+    {
+        if (g_config.cfg_define_count < 64)
+        {
+            g_config.cfg_defines[g_config.cfg_define_count++] = xstrdup("__clang__");
+        }
+    }
+    else if (strstr(g_config.cc, "zig"))
+    {
+        if (g_config.cfg_define_count < 64)
+        {
+            g_config.cfg_defines[g_config.cfg_define_count++] = xstrdup("__ZIG__");
+        }
+    }
+
     init_builtins();
     zen_init();
 
