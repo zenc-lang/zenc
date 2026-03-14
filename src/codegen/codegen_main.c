@@ -392,8 +392,8 @@ void codegen_node(ParserContext *ctx, ASTNode *node, FILE *out)
 
         for (int i = 0; i < g_config.cfg_define_count; i++)
         {
-            fprintf(out, "#ifndef %s\n#define %s 1\n#endif\n", g_config.cfg_defines[i],
-                    g_config.cfg_defines[i]);
+            fprintf(out, "#ifndef ZC_CFG_%s\n#define ZC_CFG_%s 1\n#endif\n",
+                    g_config.cfg_defines[i], g_config.cfg_defines[i]);
         }
 
         emit_includes_and_aliases(kids, out);

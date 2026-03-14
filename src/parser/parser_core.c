@@ -87,13 +87,13 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                     if (!res.cfg_condition)
                     {
                         res.cfg_condition = xmalloc(strlen(cfg_name) + 32);
-                        sprintf(res.cfg_condition, "!defined(%s)", cfg_name);
+                        sprintf(res.cfg_condition, "!defined(ZC_CFG_%s)", cfg_name);
                     }
                     else
                     {
                         char *old = res.cfg_condition;
                         res.cfg_condition = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                        sprintf(res.cfg_condition, "%s && !defined(%s)", old, cfg_name);
+                        sprintf(res.cfg_condition, "%s && !defined(ZC_CFG_%s)", old, cfg_name);
                         free(old);
                     }
                     free(cfg_name);
@@ -131,13 +131,13 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                             if (!any_cond)
                             {
                                 any_cond = xmalloc(strlen(cfg_name) + 32);
-                                sprintf(any_cond, "!defined(%s)", cfg_name);
+                                sprintf(any_cond, "!defined(ZC_CFG_%s)", cfg_name);
                             }
                             else
                             {
                                 char *old = any_cond;
                                 any_cond = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                                sprintf(any_cond, "%s || !defined(%s)", old, cfg_name);
+                                sprintf(any_cond, "%s || !defined(ZC_CFG_%s)", old, cfg_name);
                                 free(old);
                             }
                             free(cfg_name);
@@ -152,13 +152,13 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                             if (!any_cond)
                             {
                                 any_cond = xmalloc(strlen(cfg_name) + 32);
-                                sprintf(any_cond, "defined(%s)", cfg_name);
+                                sprintf(any_cond, "defined(ZC_CFG_%s)", cfg_name);
                             }
                             else
                             {
                                 char *old = any_cond;
                                 any_cond = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                                sprintf(any_cond, "%s || defined(%s)", old, cfg_name);
+                                sprintf(any_cond, "%s || defined(ZC_CFG_%s)", old, cfg_name);
                                 free(old);
                             }
                             free(cfg_name);
@@ -226,13 +226,13 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                             if (!all_cond)
                             {
                                 all_cond = xmalloc(strlen(cfg_name) + 32);
-                                sprintf(all_cond, "!defined(%s)", cfg_name);
+                                sprintf(all_cond, "!defined(ZC_CFG_%s)", cfg_name);
                             }
                             else
                             {
                                 char *old = all_cond;
                                 all_cond = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                                sprintf(all_cond, "%s && !defined(%s)", old, cfg_name);
+                                sprintf(all_cond, "%s && !defined(ZC_CFG_%s)", old, cfg_name);
                                 free(old);
                             }
                             free(cfg_name);
@@ -247,13 +247,13 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                             if (!all_cond)
                             {
                                 all_cond = xmalloc(strlen(cfg_name) + 32);
-                                sprintf(all_cond, "defined(%s)", cfg_name);
+                                sprintf(all_cond, "defined(ZC_CFG_%s)", cfg_name);
                             }
                             else
                             {
                                 char *old = all_cond;
                                 all_cond = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                                sprintf(all_cond, "%s && defined(%s)", old, cfg_name);
+                                sprintf(all_cond, "%s && defined(ZC_CFG_%s)", old, cfg_name);
                                 free(old);
                             }
                             free(cfg_name);
@@ -298,13 +298,13 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                     if (!res.cfg_condition)
                     {
                         res.cfg_condition = xmalloc(strlen(cfg_name) + 32);
-                        sprintf(res.cfg_condition, "defined(%s)", cfg_name);
+                        sprintf(res.cfg_condition, "defined(ZC_CFG_%s)", cfg_name);
                     }
                     else
                     {
                         char *old = res.cfg_condition;
                         res.cfg_condition = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                        sprintf(res.cfg_condition, "%s && defined(%s)", old, cfg_name);
+                        sprintf(res.cfg_condition, "%s && defined(ZC_CFG_%s)", old, cfg_name);
                         free(old);
                     }
                     free(cfg_name);
@@ -689,13 +689,13 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                         if (!cfg_condition)
                         {
                             cfg_condition = xmalloc(strlen(cfg_name) + 32);
-                            sprintf(cfg_condition, "!defined(%s)", cfg_name);
+                            sprintf(cfg_condition, "!defined(ZC_CFG_%s)", cfg_name);
                         }
                         else
                         {
                             char *old = cfg_condition;
                             cfg_condition = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                            sprintf(cfg_condition, "%s && !defined(%s)", old, cfg_name);
+                            sprintf(cfg_condition, "%s && !defined(ZC_CFG_%s)", old, cfg_name);
                             free(old);
                         }
                         free(cfg_name);
@@ -733,13 +733,13 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                                 if (!any_cond)
                                 {
                                     any_cond = xmalloc(strlen(cfg_name) + 32);
-                                    sprintf(any_cond, "!defined(%s)", cfg_name);
+                                    sprintf(any_cond, "!defined(ZC_CFG_%s)", cfg_name);
                                 }
                                 else
                                 {
                                     char *old = any_cond;
                                     any_cond = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                                    sprintf(any_cond, "%s || !defined(%s)", old, cfg_name);
+                                    sprintf(any_cond, "%s || !defined(ZC_CFG_%s)", old, cfg_name);
                                     free(old);
                                 }
                                 free(cfg_name);
@@ -754,13 +754,13 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                                 if (!any_cond)
                                 {
                                     any_cond = xmalloc(strlen(cfg_name) + 32);
-                                    sprintf(any_cond, "defined(%s)", cfg_name);
+                                    sprintf(any_cond, "defined(ZC_CFG_%s)", cfg_name);
                                 }
                                 else
                                 {
                                     char *old = any_cond;
                                     any_cond = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                                    sprintf(any_cond, "%s || defined(%s)", old, cfg_name);
+                                    sprintf(any_cond, "%s || defined(ZC_CFG_%s)", old, cfg_name);
                                     free(old);
                                 }
                                 free(cfg_name);
@@ -828,13 +828,13 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                                 if (!all_cond)
                                 {
                                     all_cond = xmalloc(strlen(cfg_name) + 32);
-                                    sprintf(all_cond, "!defined(%s)", cfg_name);
+                                    sprintf(all_cond, "!defined(ZC_CFG_%s)", cfg_name);
                                 }
                                 else
                                 {
                                     char *old = all_cond;
                                     all_cond = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                                    sprintf(all_cond, "%s && !defined(%s)", old, cfg_name);
+                                    sprintf(all_cond, "%s && !defined(ZC_CFG_%s)", old, cfg_name);
                                     free(old);
                                 }
                                 free(cfg_name);
@@ -849,13 +849,13 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                                 if (!all_cond)
                                 {
                                     all_cond = xmalloc(strlen(cfg_name) + 32);
-                                    sprintf(all_cond, "defined(%s)", cfg_name);
+                                    sprintf(all_cond, "defined(ZC_CFG_%s)", cfg_name);
                                 }
                                 else
                                 {
                                     char *old = all_cond;
                                     all_cond = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                                    sprintf(all_cond, "%s && defined(%s)", old, cfg_name);
+                                    sprintf(all_cond, "%s && defined(ZC_CFG_%s)", old, cfg_name);
                                     free(old);
                                 }
                                 free(cfg_name);
@@ -901,13 +901,13 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                         if (!cfg_condition)
                         {
                             cfg_condition = xmalloc(strlen(cfg_name) + 32);
-                            sprintf(cfg_condition, "defined(%s)", cfg_name);
+                            sprintf(cfg_condition, "defined(ZC_CFG_%s)", cfg_name);
                         }
                         else
                         {
                             char *old = cfg_condition;
                             cfg_condition = xmalloc(strlen(old) + strlen(cfg_name) + 32);
-                            sprintf(cfg_condition, "%s && defined(%s)", old, cfg_name);
+                            sprintf(cfg_condition, "%s && defined(ZC_CFG_%s)", old, cfg_name);
                             free(old);
                         }
                         free(cfg_name);
