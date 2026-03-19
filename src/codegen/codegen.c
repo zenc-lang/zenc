@@ -711,7 +711,8 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                     }
                 }
 
-                char *mangled_base = base;
+                const char *normalized = normalize_type_name(base);
+                char *mangled_base = (char *)normalized;
                 char base_buf[256];
 
                 // Mangle generic types: Slice<int> -> Slice_int, Vec<Point> -> Vec_Point
