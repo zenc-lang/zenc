@@ -1,0 +1,9 @@
+// EXPECT: FAIL
+
+fn main() {
+  let original = 100
+  let fail     = x -> original += x
+  println "Original before : { original }"
+  fail(10)
+  println "Original after  : { original }"
+}

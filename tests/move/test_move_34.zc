@@ -1,0 +1,16 @@
+// EXPECT: FAIL
+
+// Use-after-move inside lambda body must fail.
+struct M { val: int }
+
+fn consume(m: M) { println "{m.val}" }
+
+fn main() {
+  let f = fn() {
+    let m = M { val: 1 }
+    consume(m)
+    consume(m)
+  }
+  f()
+}
+

@@ -1,0 +1,24 @@
+// EXPECT: PASS
+
+// match arm contains nested if/else, all paths move exactly once.
+struct M { val: int }
+
+fn consume(m: M) {
+  println "consume {m.val}"
+}
+
+fn main(argc: int, argv: char**) {
+  let m = M { val: 70 }
+
+  match argc {
+    0 => { consume(m) }
+    _ => {
+      if argc > 10 {
+        consume(m)
+      } else {
+        consume(m)
+      }
+    }
+  }
+}
+

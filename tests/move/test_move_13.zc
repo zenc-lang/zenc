@@ -1,0 +1,19 @@
+// EXPECT: FAIL
+
+struct M { val: int }
+
+fn consume(m: M) {
+  println "consume"
+}
+
+fn main(argc: int, argv: char**) {
+  let m = M { val: 10 }
+  consume(m)
+
+  if argc == 1 {
+    m = M { val: 20 }
+  }
+
+  consume(m)
+}
+

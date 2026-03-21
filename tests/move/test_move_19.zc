@@ -1,0 +1,17 @@
+// EXPECT: FAIL
+
+struct M { val: int }
+
+fn consume(m: M) {
+  println "consume"
+}
+
+test "move in test block" {
+  let m = M { val: 10 }
+  consume(m)
+  let x = m.val
+  assert(x == 10, "must fail")
+}
+
+fn main() {}
+

@@ -1,0 +1,14 @@
+// EXPECT: FAIL
+
+struct M { val: int }
+
+fn consume(m: M) { println "{m.val}" }
+
+fn main() {
+  let take = fn(x: M) { consume(x) }
+  let m = M { val: 5 }
+
+  take(m)
+  consume(m)
+}
+
