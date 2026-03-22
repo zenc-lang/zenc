@@ -1140,6 +1140,8 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                 {
                     // extern struct Name; -> opaque struct declaration
                     s = parse_struct(ctx, l, 0, 1);
+                    register_extern_symbol(ctx, s->strct.name);
+                    s = NULL;
                 }
                 else if ((peek.type == TOK_IDENT && peek.len == 5 &&
                           strncmp(peek.start, "union", 5) == 0) ||
@@ -1147,6 +1149,8 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                 {
                     // extern union Name; -> opaque union declaration
                     s = parse_struct(ctx, l, 1, 1);
+                    register_extern_symbol(ctx, s->strct.name);
+                    s = NULL;
                 }
                 else
                 {
