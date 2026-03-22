@@ -39,6 +39,7 @@ typedef struct ParserContext ParserContext;
 typedef struct DeclarationAttributes
 {
     int is_packed;
+    int is_pure;
     int align;
     char *cfg_condition;
     int vector_size;
@@ -109,6 +110,7 @@ typedef struct FuncSig
     Type *ret_type;       ///< Return type.
     int is_varargs;       ///< 1 if variadic.
     int is_async;         ///< 1 if async.
+    int is_pure;          ///< 1 if pure function.
     int required;         ///< 1 if return value must be used.
     struct FuncSig *next; ///< Next function in registry.
 } FuncSig;

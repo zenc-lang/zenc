@@ -36,6 +36,7 @@ typedef struct TypeChecker
 
     // Tracking
     int is_assign_lhs; ///< If true, currently evaluating LHS of assignment.
+    int is_pure; ///< If true, currently checking a @pure function to ensure it only calls other pure functions.
 } TypeChecker;
 
 /**

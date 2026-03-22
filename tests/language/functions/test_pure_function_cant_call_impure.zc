@@ -1,0 +1,38 @@
+// EXPECT: FAIL
+// REQUIRE: CHECK
+
+fn possibly_impure_function(x: int) -> int {
+    return x + 10;
+}
+
+@pure
+fn marked_pure_function(x: int) -> int {
+    // A pure function calling an impure function is not allowed
+    return possibly_impure_function(x) + 5;
+}
+
+struct Test {}
+impl Test {
+    fn impure(self) -> int {
+        return 0;
+    }
+    
+    @pure
+    fn pure(self) -> int {
+        return .impure();
+    }
+
+    fn free_impure() -> int {
+        return 0;
+    }
+
+    @pure
+    fn free_pure() -> int {
+        return Test::free_impure();
+    }
+}
+
+test "impure_function_can_call_pure_function" {
+    let val = marked_pure_function(0);
+    assert(val == 15, "Expected 15, got {val}");
+}

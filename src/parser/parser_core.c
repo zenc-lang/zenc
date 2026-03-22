@@ -44,6 +44,10 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         {
             res.is_packed = 1;
         }
+        else if (0 == strncmp(attr.start, "pure", 4) && 4 == attr.len)
+        {
+            res.is_pure = 1;
+        }
         else if (0 == strncmp(attr.start, "align", 5) && 5 == attr.len)
         {
             if (lexer_peek(l).type == TOK_LPAREN)
@@ -1310,17 +1314,21 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             s->func.cuda_host = attr_cuda_host;
             s->func.attributes = current_custom_attributes;
 
-            if (attr_deprecated && s->func.name)
+            if (s->func.name)
             {
-                register_deprecated_func(ctx, s->func.name, deprecated_msg);
-            }
-
-            if (attr_required && s->func.name)
-            {
-                FuncSig *sig = find_func(ctx, s->func.name);
-                if (sig)
+                if (attr_deprecated)
                 {
-                    sig->required = 1;
+                    register_deprecated_func(ctx, s->func.name, deprecated_msg);
+                }
+
+                if (attr_required || attr_pure)
+                {
+                    FuncSig *sig = find_func(ctx, s->func.name);
+                    if (sig)
+                    {
+                        sig->required |= attr_required;
+                        sig->is_pure |= attr_pure;
+                    }
                 }
             }
         }

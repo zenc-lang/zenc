@@ -748,6 +748,11 @@ ASTNode *parse_impl(ParserContext *ctx, Lexer *l)
                             f->cfg_condition = attrs.cfg_condition;
                         }
 
+                        if (attrs.is_pure)
+                        {
+                            f->func.pure = attrs.is_pure;
+                        }
+
                         if (f->func.generic_params)
                         {
                             register_func_template(ctx, mangled, f->func.generic_params, f);

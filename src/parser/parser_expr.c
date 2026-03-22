@@ -6531,6 +6531,7 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
                                         // Construct temporary signature for checking
                                         sig = xmalloc(sizeof(FuncSig));
                                         memset(sig, 0, sizeof(FuncSig));
+                                        sig->is_pure = 1;
                                         sig->ret_type = m->func.ret_type_info;
                                         sig->arg_types = m->func.arg_types;
                                         sig->total_args = m->func.arg_count;

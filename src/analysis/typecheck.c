@@ -606,6 +606,17 @@ static void check_expr_call(TypeChecker *tc, ASTNode *node)
         }
     }
 
+    // Check purity restriction
+    if (func_name && tc->is_pure && tc->current_func && (!sig || !sig->is_pure))
+    {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Calling possibly impure function '%s' from pure function '%s'",
+                 func_name, tc->current_func->func.name);
+        const char *hints[] = {"Consider if the called function is @pure",
+                               NULL};
+        tc_error_with_hints(tc, node->call.callee->token, msg, hints);
+    }
+
     // Count arguments
     int arg_count = 0;
     ASTNode *arg = node->call.args;
@@ -1019,6 +1030,9 @@ static void check_function(TypeChecker *tc, ASTNode *node)
     tc->current_func = node;
     tc_enter_scope(tc);
 
+    int prev_pure = tc->is_pure;
+    tc->is_pure = node->func.pure;
+
     int prev_unreachable = tc->is_unreachable;
     tc->is_unreachable = 0;
 
@@ -1068,6 +1082,7 @@ static void check_function(TypeChecker *tc, ASTNode *node)
     tc->pctx->move_state = prev_move_state;
 
     tc->is_unreachable = prev_unreachable;
+    tc->is_pure = prev_pure;
     tc_exit_scope(tc);
     tc->current_func = NULL;
 }
@@ -1491,6 +1506,22 @@ static void check_node(TypeChecker *tc, ASTNode *node)
         }
     }
     break;
+    case NODE_IMPL:
+        if (node->impl.methods)
+        {
+            ASTNode *prev_impl_methods = tc->pctx->current_impl_methods;
+            tc->pctx->current_impl_methods = node->impl.methods;
+
+            ASTNode *next = node->impl.methods;
+            while (next)
+            {
+                check_node(tc, next);
+                next = next->next;
+            }
+
+            tc->pctx->current_impl_methods = prev_impl_methods;
+        }
+        break;
     case NODE_BLOCK:
         check_block(tc, node);
         break;

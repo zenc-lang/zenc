@@ -687,6 +687,7 @@ void register_func(ParserContext *ctx, const char *name, int count, char **defau
     f->ret_type = ret_type;
     f->is_varargs = is_varargs;
     f->is_async = is_async;
+    f->is_pure = 0;
     f->required = 0; // Default: can discard result
     f->next = ctx->func_registry;
     ctx->func_registry = f;
@@ -2435,6 +2436,7 @@ FuncSig *find_func(ParserContext *ctx, const char *name)
                 sig->ret_type = n->func.ret_type_info;
                 sig->is_varargs = n->func.is_varargs;
                 sig->is_async = n->func.is_async;
+                sig->is_pure = n->func.pure;
                 sig->required = 0;
                 sig->next = NULL;
                 return sig;

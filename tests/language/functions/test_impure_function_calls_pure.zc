@@ -1,0 +1,62 @@
+// REQUIRE: CHECK
+
+@pure
+fn marked_pure_function(x: int) -> int {
+    return x + 5;
+}
+
+@pure
+fn marked_pure_function_two(x: int) -> int {
+    return marked_pure_function(x) + 10;
+}
+
+fn possibly_impure_function(x: int) -> int {
+    return possibly_impure_function_two(x) + 10;
+}
+
+fn possibly_impure_function_two(x: int) -> int {
+    return marked_pure_function_two(x) + 10;
+}
+
+struct Test {}
+impl Test {
+    fn impure(self) -> int {
+        return .pure();
+    }
+
+    @pure
+    fn pure(self) -> int {
+        return 0;
+    }
+
+    fn free_impure() -> int {
+        return Test::free_pure();
+    }
+
+    @pure
+    fn free_pure() -> int {
+        return 0;
+    }
+}
+
+test "impure_function_can_call_pure_function" {
+    let val = possibly_impure_function_two(0);
+    assert(val == 15, "Expected 15, got {val}");
+}
+
+test "pure_function_can_call_pure_function" {
+    let val = marked_pure_function_two(0);
+    assert(val == 15, "Expected 15, got {val}");
+}
+
+test "lambda_function_can_call_pure_function" {
+    let lambda = x -> marked_pure_function(x) + 10;
+    let val = lambda(0);
+    assert(val == 15, "Expected 15, got {val}");
+}
+
+test "lambda_function_can_call_impure_function" {
+    let lambda = x -> possibly_impure_function_two(x);
+    let val = lambda(0);
+    assert(val == 15, "Expected 15, got {val}");
+}
