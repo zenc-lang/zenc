@@ -46,7 +46,6 @@ void z_setup_terminal(void)
     }
     dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
     SetConsoleMode(hErr, dwMode);
-    SetConsoleErrorCP(CP_UTF8);
 #endif
 }
 

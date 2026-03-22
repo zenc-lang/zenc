@@ -226,6 +226,12 @@ static void codegen_var_expr(ParserContext *ctx, ASTNode *node, FILE *out)
 // Emit lambda expression
 static void codegen_lambda_expr(ParserContext *ctx, ASTNode *node, FILE *out)
 {
+    if (node->lambda.is_bare)
+    {
+        fprintf(out, "((void*)_lambda_%d)", node->lambda.lambda_id);
+        return;
+    }
+
     if (node->lambda.num_captures > 0)
     {
         int lid = node->lambda.lambda_id;

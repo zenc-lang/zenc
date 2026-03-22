@@ -589,6 +589,7 @@ struct ASTNode
             int num_params;
             int lambda_id;
             int is_expression;
+            int is_bare; // 1 if should be emitted without void* ctx (for fn*)
             char **captured_vars;
             char **captured_types;
             int num_captures;

@@ -1930,10 +1930,18 @@ char *process_printf_sugar(ParserContext *ctx, Token srctoken, const char *conte
             lex.col = srctoken.col;
 
             Token t;
+            Token prev = {0};
             while ((t = lexer_next(&lex)).type != TOK_EOF)
             {
                 if (t.type == TOK_IDENT)
                 {
+                    // Skip if preceded by '.' (member access)
+                    if (prev.type == TOK_OP && prev.len == 1 && prev.start[0] == '.')
+                    {
+                        prev = t;
+                        continue;
+                    }
+
                     char *name = token_strdup(t);
                     ZenSymbol *sym = find_symbol_entry(ctx, name);
                     if (sym)
@@ -1952,6 +1960,7 @@ char *process_printf_sugar(ParserContext *ctx, Token srctoken, const char *conte
                         free(name);
                     }
                 }
+                prev = t;
             }
         }
 

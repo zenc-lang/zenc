@@ -752,6 +752,10 @@ void analyze_lambda_captures(ParserContext *ctx, ASTNode *lambda)
 
         if (strcmp(var_name, "printf") == 0 || strcmp(var_name, "malloc") == 0 ||
             strcmp(var_name, "strcmp") == 0 || strcmp(var_name, "free") == 0 ||
+            strcmp(var_name, "sprintf") == 0 || strcmp(var_name, "snprintf") == 0 ||
+            strcmp(var_name, "fprintf") == 0 || strcmp(var_name, "stderr") == 0 ||
+            strcmp(var_name, "stdout") == 0 || strcmp(var_name, "strcat") == 0 ||
+            strcmp(var_name, "strcpy") == 0 || strcmp(var_name, "strlen") == 0 ||
             strcmp(var_name, "Vec_new") == 0 || strcmp(var_name, "Vec_push") == 0)
         {
             continue;

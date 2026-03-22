@@ -325,6 +325,10 @@ static void check_expr_binary(TypeChecker *tc, ASTNode *node)
         tc->is_assign_lhs = 1;
         check_node(tc, node->binary.left);
         tc->is_assign_lhs = old_is_assign_lhs;
+        if (node->binary.left->type_info && node->binary.right->type == NODE_LAMBDA)
+        {
+            node->binary.right->type_info = node->binary.left->type_info;
+        }
         check_node(tc, node->binary.right);
     }
     else
@@ -892,6 +896,10 @@ static void check_var_decl(TypeChecker *tc, ASTNode *node)
 {
     if (node->var_decl.init_expr)
     {
+        if (node->type_info && node->var_decl.init_expr->type == NODE_LAMBDA)
+        {
+            node->var_decl.init_expr->type_info = node->type_info;
+        }
         check_node(tc, node->var_decl.init_expr);
 
         Type *decl_type = node->type_info;
@@ -1072,6 +1080,27 @@ static void check_expr_var(TypeChecker *tc, ASTNode *node)
     {
         node->type_info = sym->type_info;
     }
+    else
+    {
+        // Check if it's a mangled function name (e.g. from :: operator)
+        FuncSig *sig = find_func(tc->pctx, node->var_ref.name);
+        if (sig)
+        {
+            Type *fn_type = type_new(TYPE_FUNCTION);
+            fn_type->is_raw = 1;
+            fn_type->inner = sig->ret_type ? sig->ret_type : type_new(TYPE_VOID);
+            fn_type->arg_count = sig->total_args;
+            if (sig->total_args > 0)
+            {
+                fn_type->args = xmalloc(sizeof(Type *) * sig->total_args);
+                for (int i = 0; i < sig->total_args; i++)
+                {
+                    fn_type->args[i] = sig->arg_types[i];
+                }
+            }
+            node->type_info = fn_type;
+        }
+    }
 
     if (!tc->is_assign_lhs)
     {
@@ -1117,9 +1146,6 @@ static void check_struct_init(TypeChecker *tc, ASTNode *node)
     ASTNode *field_init = node->struct_init.fields;
     while (field_init)
     {
-        // Check the initialization expression
-        check_node(tc, field_init->var_decl.init_expr);
-
         // Find corresponding field in definition
         ASTNode *def_field = def->strct.fields;
         Type *expected_type = NULL;
@@ -1136,6 +1162,14 @@ static void check_struct_init(TypeChecker *tc, ASTNode *node)
             }
             def_field = def_field->next;
         }
+
+        if (found && expected_type && field_init->var_decl.init_expr->type == NODE_LAMBDA)
+        {
+            field_init->var_decl.init_expr->type_info = expected_type;
+        }
+
+        // Check the initialization expression
+        check_node(tc, field_init->var_decl.init_expr);
 
         if (!found)
         {
@@ -2037,6 +2071,22 @@ static void check_node(TypeChecker *tc, ASTNode *node)
 
 static void check_expr_lambda(TypeChecker *tc, ASTNode *node)
 {
+    Type *expected = get_inner_type(node->type_info);
+    if (expected && expected->kind == TYPE_FUNCTION && expected->is_raw)
+    {
+        if (node->lambda.num_captures == 0)
+        {
+            node->lambda.is_bare = 1;
+        }
+        else
+        {
+            const char *hints[] = {
+                "Only non-capturing lambdas can be converted to raw function pointers", NULL};
+            tc_error_with_hints(tc, node->token,
+                                "Cannot convert capturing lambda to raw function pointer", hints);
+        }
+    }
+
     if (node->lambda.captured_vars)
     {
         for (int i = 0; i < node->lambda.num_captures; i++)

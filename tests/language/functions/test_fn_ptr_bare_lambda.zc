@@ -1,0 +1,61 @@
+
+trait Greeting {
+    fn greet(self);
+}
+
+struct Person {
+    name: char*;
+    age: int;
+}
+
+impl Greeting for Person {
+    fn greet(self) {
+        println "Trait greet: My name is {self.name}, age {self.age}";
+    }
+}
+
+impl Person {
+    fn speak(self) {
+        println "Inherent speak: Hello from {self.name}";
+    }
+}
+
+struct Runner {
+    callback: fn*(Person*);
+}
+
+test "test_fn_ptr_resolution" {
+    let p = Person { name: "TestBot", age: 42 };
+
+    // Test Trait Method as raw fn*
+    let f1: fn*(Person*) = Person::Greeting::greet;
+    println "Calling f1 (trait method)...";
+    f1(&p);
+
+    // Test Inherent Method as raw fn*
+    let f2: fn*(Person*) = Person::speak;
+    println "Calling f2 (inherent method)...";
+    f2(&p);
+
+    // Test Non-capturing Lambda as raw fn*
+    let f3: fn*(Person*) = fn(ptr: Person*) {
+        println "Lambda: Person {ptr.name} is here";
+    };
+    println "Calling f3 (non-capturing lambda)...";
+    f3(&p);
+
+    // Test within a struct (Runner)
+    let r1 = Runner { callback: Person::Greeting::greet };
+    println "Calling r1.callback (trait method)...";
+    r1.callback(&p);
+
+    let r2 = Runner { callback: Person::speak };
+    println "Calling r2.callback (inherent method)...";
+    r2.callback(&p);
+
+    let r3 = Runner { callback: fn(ptr: Person*) { println "Runner Lambda: {ptr.age}"; } };
+    println "Calling r3.callback (lambda)...";
+    r3.callback(&p);
+
+    println "All function pointer tests passed!";
+}

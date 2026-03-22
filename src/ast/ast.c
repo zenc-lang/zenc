@@ -215,6 +215,29 @@ int type_eq(Type *a, Type *b)
     {
         return type_eq(a->inner, b->inner);
     }
+    if (a->kind == TYPE_FUNCTION)
+    {
+        if (a->is_raw != b->is_raw)
+        {
+            return 0;
+        }
+        if (a->arg_count != b->arg_count)
+        {
+            return 0;
+        }
+        if (!type_eq(a->inner, b->inner))
+        {
+            return 0;
+        }
+        for (int i = 0; i < a->arg_count; i++)
+        {
+            if (!type_eq(a->args[i], b->args[i]))
+            {
+                return 0;
+            }
+        }
+        return 1;
+    }
     if (a->kind == TYPE_ARRAY || a->kind == TYPE_VECTOR)
     {
         return a->array_size == b->array_size && type_eq(a->inner, b->inner);
