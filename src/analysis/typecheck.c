@@ -612,8 +612,7 @@ static void check_expr_call(TypeChecker *tc, ASTNode *node)
         char msg[256];
         snprintf(msg, sizeof(msg), "Calling possibly impure function '%s' from pure function '%s'",
                  func_name, tc->current_func->func.name);
-        const char *hints[] = {"Consider if the called function is @pure",
-                               NULL};
+        const char *hints[] = {"Consider if the called function is @pure", NULL};
         tc_error_with_hints(tc, node->call.callee->token, msg, hints);
     }
 
