@@ -405,6 +405,7 @@ ASTNode *parse_impl(ParserContext *ctx, Lexer *l)
 
         while (1)
         {
+            ctx->current_impl_methods = h;
             skip_comments(l);
             if (lexer_peek(l).type == TOK_RBRACE)
             {
@@ -720,6 +721,7 @@ ASTNode *parse_impl(ParserContext *ctx, Lexer *l)
             ASTNode *h = 0, *tl = 0;
             while (1)
             {
+                ctx->current_impl_methods = h;
                 skip_comments(l);
                 if (lexer_peek(l).type == TOK_RBRACE)
                 {

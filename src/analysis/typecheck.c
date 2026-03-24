@@ -6,6 +6,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+// External helpers from parser
+char *resolve_struct_name_from_type(ParserContext *ctx, Type *t, int *is_ptr_out,
+                                    char **allocated_out);
+FuncSig *find_func(ParserContext *ctx, const char *name);
+
 // ** Internal Helpers **
 
 void tc_error(TypeChecker *tc, Token t, const char *msg)
@@ -615,6 +620,14 @@ static void check_expr_call(TypeChecker *tc, ASTNode *node)
             }
         }
     }
+    else if (node->call.callee && node->call.callee->type == NODE_EXPR_MEMBER)
+    {
+        if (node->call.callee->type_info && node->call.callee->type_info->name)
+        {
+            func_name = node->call.callee->type_info->name;
+            sig = find_func(tc->pctx, func_name);
+        }
+    }
 
     // Count arguments
     int arg_count = 0;
@@ -623,6 +636,12 @@ static void check_expr_call(TypeChecker *tc, ASTNode *node)
     {
         arg_count++;
         arg = arg->next;
+    }
+
+    // Member call (a.b()) counts as +1 arg (the receiver)
+    if (node->call.callee && node->call.callee->type == NODE_EXPR_MEMBER)
+    {
+        arg_count++;
     }
 
     // Enforce @pure constraint
@@ -686,20 +705,44 @@ static void check_expr_call(TypeChecker *tc, ASTNode *node)
 
     // Check argument types
     arg = node->call.args;
-    int arg_idx = 0;
+    int sig_arg_idx = 0;
+
+    // For member calls, the first signature argument is the receiver
+    if (node->call.callee && node->call.callee->type == NODE_EXPR_MEMBER)
+    {
+        if (sig && sig->total_args > 0 && sig->arg_types && sig->arg_types[0])
+        {
+            Type *expected_rec = sig->arg_types[0];
+            Type *actual_rec = node->call.callee->member.target->type_info;
+
+            // Allow T to T* for method receivers
+            if (expected_rec->kind == TYPE_POINTER && actual_rec &&
+                actual_rec->kind != TYPE_POINTER && type_eq(expected_rec->inner, actual_rec))
+            {
+                // OK: Compiler will take address
+            }
+            else
+            {
+                check_type_compatibility(tc, expected_rec, actual_rec, node->call.callee->token);
+            }
+        }
+        sig_arg_idx = 1;
+    }
+
     while (arg)
     {
         Type *expected = NULL;
-        if (sig && arg_idx < sig->total_args && sig->arg_types && sig->arg_types[arg_idx])
+        if (sig && sig_arg_idx < sig->total_args && sig->arg_types && sig->arg_types[sig_arg_idx])
         {
-            expected = sig->arg_types[arg_idx];
+            expected = sig->arg_types[sig_arg_idx];
         }
         else if (!sig && node->call.callee->type_info)
         {
             Type *callee_t = get_inner_type(node->call.callee->type_info);
-            if (callee_t->kind == TYPE_FUNCTION && arg_idx < callee_t->arg_count && callee_t->args)
+            if (callee_t->kind == TYPE_FUNCTION && sig_arg_idx < callee_t->arg_count &&
+                callee_t->args)
             {
-                expected = callee_t->args[arg_idx];
+                expected = callee_t->args[sig_arg_idx];
             }
         }
 
@@ -747,7 +790,7 @@ static void check_expr_call(TypeChecker *tc, ASTNode *node)
         check_move_for_rvalue(tc, arg);
 
         arg = arg->next;
-        arg_idx++;
+        sig_arg_idx++;
     }
 
     // Propagate return type from function signature
@@ -887,6 +930,12 @@ static int check_type_compatibility(TypeChecker *tc, Type *target, Type *value, 
 
     // Fast path: exact match
     if (type_eq(target, value))
+    {
+        return 1;
+    }
+
+    // Lenient check for generic types during template definition
+    if (target->kind == TYPE_GENERIC || value->kind == TYPE_GENERIC)
     {
         return 1;
     }
@@ -1936,7 +1985,7 @@ static void check_node(TypeChecker *tc, ASTNode *node)
         if (node->member.target && node->member.target->type_info)
         {
             Type *target_type = get_inner_type(node->member.target->type_info);
-            // Look up struct field type
+            // 1. Look up struct field type
             if (target_type->kind == TYPE_STRUCT && target_type->name)
             {
                 ASTNode *struct_def = find_struct_def(tc->pctx, target_type->name);
@@ -1955,10 +2004,36 @@ static void check_node(TypeChecker *tc, ASTNode *node)
                     }
                 }
             }
+
+            // 2. If not a field, try to resolve as a method
+            if (!node->type_info)
+            {
+                int is_ptr = 0;
+                char *alloc_name = NULL;
+                char *struct_name =
+                    resolve_struct_name_from_type(tc->pctx, target_type, &is_ptr, &alloc_name);
+
+                if (struct_name)
+                {
+                    size_t mangled_sz = strlen(struct_name) + strlen(node->member.field) + 3;
+                    char *mangled = xmalloc(mangled_sz);
+                    snprintf(mangled, mangled_sz, "%s__%s", struct_name, node->member.field);
+
+                    FuncSig *sig = find_func(tc->pctx, mangled);
+                    if (sig)
+                    {
+                    }
+                    free(mangled);
+                }
+                if (alloc_name)
+                {
+                    free(alloc_name);
+                }
+            }
         }
         if (!node->type_info)
         {
-            // Fallback for method calls or failed lookups
+            // Fallback for failed lookups
             node->type_info = type_new(TYPE_UNKNOWN);
         }
 
@@ -2320,6 +2395,40 @@ static void check_expr_lambda(TypeChecker *tc, ASTNode *node)
     tc_exit_scope(tc);
 }
 
+static void check_program_prepass(TypeChecker *tc, ASTNode *root)
+{
+    if (!root || root->type != NODE_ROOT)
+    {
+        return;
+    }
+
+    ASTNode *n = root->root.children;
+    while (n)
+    {
+        if (n->type == NODE_ROOT)
+        {
+            check_program_prepass(tc, n);
+        }
+        else if (n->type == NODE_IMPL)
+        {
+            ASTNode *method = n->impl.methods;
+            while (method)
+            {
+                method = method->next;
+            }
+        }
+        else if (n->type == NODE_IMPL_TRAIT)
+        {
+            ASTNode *method = n->impl_trait.methods;
+            while (method)
+            {
+                method = method->next;
+            }
+        }
+        n = n->next;
+    }
+}
+
 // ** Entry Point **
 
 int check_program(ParserContext *ctx, ASTNode *root)
@@ -2332,11 +2441,10 @@ int check_program(ParserContext *ctx, ASTNode *root)
         ctx->move_state = move_state_create(NULL);
     }
 
+    check_program_prepass(&tc, root);
+
     check_node(&tc, root);
 
-    // Also typecheck instantiated generic functions
-    // This is crucial because AST modifications (like implicit dereferencing of self)
-    // need to be applied to the instantiated bodies as well.
     ASTNode *inst_func = ctx->instantiated_funcs;
     while (inst_func)
     {

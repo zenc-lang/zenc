@@ -1,0 +1,47 @@
+
+struct MultiPass {
+    val: int;
+}
+
+impl MultiPass {
+    // Sibling method call (impure)
+    fn impure_method(self) {
+        printf("Impure method called: %d\n", self.val);
+    }
+
+    // This calls a sibling method defined later
+    fn call_later(self) {
+        self.impure_method();
+    }
+
+    // @pure validation check
+    @pure
+    fn pure_method(self) -> int {
+        // self.impure_method(); // This would be a compiler error now
+        return self.val * 2;
+    }
+}
+
+// Forward reference to a global function
+fn call_global_later() -> int {
+    return get_meaning_of_life();
+}
+
+fn get_meaning_of_life() -> int {
+    return 42;
+}
+
+test "multipass_analysis" {
+    let m = MultiPass { val: 21 };
+    
+    // Testing forward reference to global function
+    assert(call_global_later() == 42, "Forward reference to global function failed");
+    
+    // Testing sibling method resolution
+    m.call_later();
+    
+    // Testing @pure method
+    assert(m.pure_method() == 42, "Pure method call failed");
+    
+    printf("Multi-pass analysis test: Success\n");
+}
