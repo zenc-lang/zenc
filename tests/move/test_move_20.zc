@@ -1,0 +1,15 @@
+// EXPECT: FAIL
+
+struct M { val: int }
+
+fn bad() -> M {
+  let m = M { val: 10 }
+  let n = m
+  return m
+}
+
+fn main() {
+  let x = bad()
+  println "{x.val}"
+}
+

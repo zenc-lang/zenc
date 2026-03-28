@@ -1,0 +1,15 @@
+// EXPECT: PASS
+
+struct M { val: int }
+
+impl Copy for M {}
+
+fn consume(m: M) {
+  println "{m.val}"
+}
+
+fn main() {
+  let m = M { val: 10 }
+  consume(m)
+  consume(m)
+}

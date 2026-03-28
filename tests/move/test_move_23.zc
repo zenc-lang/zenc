@@ -1,0 +1,22 @@
+// EXPECT: FAIL
+
+// True semantic should FAIL: if loop doesn't run, m remains moved.
+struct M { val: int }
+
+fn consume(m: M) {
+  println "consume {m.val}"
+}
+
+fn main(argc: int, argv: char**) {
+  let m = M { val: 1 }
+  consume(m)
+
+  let i = 0
+  while i < argc {
+    m = M { val: 2 }
+    break
+  }
+
+  consume(m)
+}
+

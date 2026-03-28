@@ -1,0 +1,20 @@
+// EXPECT: PASS
+
+// RHS may be skipped by || short-circuit.
+struct M { val: int }
+
+fn consume_and_true(m: M) -> bool {
+  println "consume"
+  return true
+}
+
+fn main(argc: int, argv: char**) {
+  let m = M { val: 60 }
+
+  if (argc > 0) || consume_and_true(m) {
+    println "path"
+  }
+
+  consume_and_true(m)
+}
+

@@ -1,0 +1,22 @@
+// EXPECT: PASS
+
+// if + match nesting, still one move on every concrete path.
+struct M { val: int }
+
+fn consume(m: M) {
+  println "consume {m.val}"
+}
+
+fn main(argc: int, argv: char**) {
+  let m = M { val: 20 }
+
+  if argc > 0 {
+    match argc {
+      1 => { consume(m) }
+      _ => { consume(m) }
+    }
+  } else {
+    consume(m)
+  }
+}
+

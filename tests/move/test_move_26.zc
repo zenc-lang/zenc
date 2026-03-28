@@ -1,0 +1,20 @@
+// EXPECT: PASS
+
+// Generic wrapper + mutually exclusive branches.
+struct Box<T> {
+  value: T
+}
+
+fn consume_box(b: Box<int>) {
+  println "consume {b.value}"
+}
+
+fn main(argc: int, argv: char**) {
+  let b = Box<int> { value: 55 }
+
+  if argc == 1 {
+    consume_box(b)
+  } else {
+    consume_box(b)
+  }
+}

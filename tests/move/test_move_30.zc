@@ -1,0 +1,20 @@
+// EXPECT: PASS
+
+// Methods use pointer-style self receiver semantics; repeated calls are valid.
+struct Holder {
+  val: int
+}
+
+impl Holder {
+  fn take(self) -> int {
+    return self.val
+  }
+}
+
+fn main() {
+  let h = Holder { val: 90 }
+  let x = h.take()
+  println "x={x}"
+  let y = h.take()
+  println "y={y}"
+}

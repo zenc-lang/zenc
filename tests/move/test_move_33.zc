@@ -1,0 +1,10 @@
+// EXPECT: FAIL
+
+// Capture-by-value is immutable; mutating captured value must fail.
+fn main() {
+  let original = 100
+  let fail_mutate = x -> original += x
+
+  fail_mutate(10)
+  println "{original}"
+}

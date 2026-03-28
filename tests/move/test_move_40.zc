@@ -1,0 +1,17 @@
+// EXPECT: PASS
+
+import "std/mem.zc"
+
+struct MyBox { val: int; }
+
+impl Clone for MyBox {
+    fn clone(self) -> MyBox {
+        return MyBox{val: self.val};
+    }
+}
+
+fn main() {
+    let b1 = MyBox{val: 42};
+    let b2 = b1.clone(); // Explicit copy
+    println "{b2.val}"
+}
