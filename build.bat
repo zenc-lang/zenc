@@ -25,6 +25,7 @@ set SRCS=src\main.c ^
  src\parser\parser_decl.c ^
  src\parser\parser_struct.c ^
  src\ast\ast.c ^
+ src\ast\primitives.c ^
  src\codegen\codegen.c ^
  src\codegen\codegen_stmt.c ^
  src\codegen\codegen_decl.c ^

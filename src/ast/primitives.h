@@ -31,4 +31,9 @@ const ZenPrimitive *find_primitive_by_c_name(const char *c_name);
  */
 const char *get_primitive_c_name(const char *name);
 
+/**
+ * @brief Returns the TypeKind for a given primitive name (Zen or C).
+ */
+TypeKind find_primitive_kind(const char *name);
+
 #endif

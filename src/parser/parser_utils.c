@@ -168,90 +168,12 @@ Token expect(Lexer *l, ZenTokenType type, const char *msg)
 // Helper to check if a type name is a primitive type
 int is_primitive_type_name(const char *name)
 {
-    if (!name)
-    {
-        return 0;
-    }
-
-    return strcmp(name, "int") == 0 || strcmp(name, "i32") == 0 || strcmp(name, "u8") == 0 ||
-           strcmp(name, "i8") == 0 || strcmp(name, "i16") == 0 || strcmp(name, "u16") == 0 ||
-           strcmp(name, "u32") == 0 || strcmp(name, "i64") == 0 || strcmp(name, "u64") == 0 ||
-           strcmp(name, "f32") == 0 || strcmp(name, "float") == 0 || strcmp(name, "f64") == 0 ||
-           strcmp(name, "double") == 0 || strcmp(name, "void") == 0 || strcmp(name, "bool") == 0 ||
-           strcmp(name, "char") == 0 || strcmp(name, "usize") == 0 || strcmp(name, "isize") == 0 ||
-           strcmp(name, "uint") == 0 || strcmp(name, "byte") == 0 ||
-           // C-style types returned by type_to_string
-           strcmp(name, "int8_t") == 0 || strcmp(name, "uint8_t") == 0 ||
-           strcmp(name, "int16_t") == 0 || strcmp(name, "uint16_t") == 0 ||
-           strcmp(name, "int32_t") == 0 || strcmp(name, "uint32_t") == 0 ||
-           strcmp(name, "size_t") == 0 || strcmp(name, "ptrdiff_t") == 0;
+    return find_primitive_kind(name) != TYPE_UNKNOWN;
 }
 
 TypeKind get_primitive_type_kind(const char *name)
 {
-    if (!name)
-    {
-        return TYPE_UNKNOWN;
-    }
-
-    if (strcmp(name, "int") == 0 || strcmp(name, "i32") == 0 || strcmp(name, "int32_t") == 0)
-    {
-        return TYPE_I32;
-    }
-    if (strcmp(name, "u8") == 0 || strcmp(name, "uint8_t") == 0 || strcmp(name, "byte") == 0)
-    {
-        return TYPE_U8;
-    }
-    if (strcmp(name, "i8") == 0 || strcmp(name, "int8_t") == 0 || strcmp(name, "char") == 0)
-    {
-        return TYPE_I8;
-    }
-    if (strcmp(name, "i16") == 0 || strcmp(name, "short") == 0 || strcmp(name, "int16_t") == 0)
-    {
-        return TYPE_I16;
-    }
-    if (strcmp(name, "u16") == 0 || strcmp(name, "ushort") == 0 || strcmp(name, "uint16_t") == 0)
-    {
-        return TYPE_U16;
-    }
-    if (strcmp(name, "u32") == 0 || strcmp(name, "uint") == 0 || strcmp(name, "uint32_t") == 0)
-    {
-        return TYPE_U32;
-    }
-    if (strcmp(name, "i64") == 0 || strcmp(name, "long") == 0 || strcmp(name, "int64_t") == 0)
-    {
-        return TYPE_I64;
-    }
-    if (strcmp(name, "u64") == 0 || strcmp(name, "ulong") == 0 || strcmp(name, "uint64_t") == 0)
-    {
-        return TYPE_U64;
-    }
-    if (strcmp(name, "f32") == 0 || strcmp(name, "float") == 0)
-    {
-        return TYPE_F32;
-    }
-    if (strcmp(name, "f64") == 0 || strcmp(name, "double") == 0)
-    {
-        return TYPE_F64;
-    }
-    if (strcmp(name, "void") == 0)
-    {
-        return TYPE_VOID;
-    }
-    if (strcmp(name, "bool") == 0)
-    {
-        return TYPE_BOOL;
-    }
-    if (strcmp(name, "usize") == 0 || strcmp(name, "size_t") == 0)
-    {
-        return TYPE_USIZE;
-    }
-    if (strcmp(name, "isize") == 0 || strcmp(name, "ptrdiff_t") == 0)
-    {
-        return TYPE_ISIZE;
-    }
-
-    return TYPE_UNKNOWN;
+    return find_primitive_kind(name);
 }
 
 // Forward declaration

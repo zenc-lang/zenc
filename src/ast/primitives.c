@@ -31,6 +31,8 @@ static const ZenPrimitive primitives[] = {{"U0", TYPE_VOID, "void"},
                                           {"U64", TYPE_U64, "uint64_t"},
                                           {"u64", TYPE_U64, "uint64_t"},
                                           {"ulong", TYPE_U64, "uint64_t"},
+                                          {"unsigned", TYPE_U32, "uint32_t"},
+                                          {"signed", TYPE_I32, "int32_t"},
                                           {"I128", TYPE_I128, "__int128"},
                                           {"U128", TYPE_U128, "unsigned __int128"},
                                           {"F32", TYPE_F32, "float"},
@@ -42,6 +44,17 @@ static const ZenPrimitive primitives[] = {{"U0", TYPE_VOID, "void"},
                                           {"f128", TYPE_F64, "__float128"},
                                           {"usize", TYPE_USIZE, "size_t"},
                                           {"isize", TYPE_ISIZE, "ptrdiff_t"},
+                                          {"ssize_t", TYPE_ISIZE, "ssize_t"},
+                                          {"c_int", TYPE_C_INT, "int"},
+                                          {"c_uint", TYPE_C_UINT, "unsigned int"},
+                                          {"c_long", TYPE_C_LONG, "long"},
+                                          {"c_ulong", TYPE_C_ULONG, "unsigned long"},
+                                          {"c_long_long", TYPE_C_LONG_LONG, "long long"},
+                                          {"c_ulong_long", TYPE_C_ULONG_LONG, "unsigned long long"},
+                                          {"c_short", TYPE_C_SHORT, "short"},
+                                          {"c_ushort", TYPE_C_USHORT, "unsigned short"},
+                                          {"c_char", TYPE_C_CHAR, "char"},
+                                          {"c_uchar", TYPE_C_UCHAR, "unsigned char"},
                                           {"string", TYPE_STRING, "char*"}};
 
 const ZenPrimitive *get_zen_primitives(int *count)
@@ -83,4 +96,19 @@ const char *get_primitive_c_name(const char *name)
 {
     const ZenPrimitive *p = find_primitive_by_name(name);
     return p ? p->c_name : name;
+}
+
+TypeKind find_primitive_kind(const char *name)
+{
+    const ZenPrimitive *p = find_primitive_by_name(name);
+    if (p)
+    {
+        return p->kind;
+    }
+    p = find_primitive_by_c_name(name);
+    if (p)
+    {
+        return p->kind;
+    }
+    return TYPE_UNKNOWN;
 }
