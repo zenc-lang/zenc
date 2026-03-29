@@ -2587,6 +2587,19 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
     {
         return parse_impl(ctx, l);
     }
+    if (tk.type == TOK_IDENT && strncmp(tk.start, "struct", 6) == 0 && tk.len == 6)
+    {
+        return parse_struct(ctx, l, 0, 0);
+    }
+    if (tk.type == TOK_UNION)
+    {
+        return parse_struct(ctx, l, 1, 0);
+    }
+    if (tk.type == TOK_IDENT && strncmp(tk.start, "enum", 4) == 0 && tk.len == 4)
+    {
+        return parse_enum(ctx, l);
+    }
+
     if (tk.type == TOK_AUTOFREE)
     {
         lexer_next(l);

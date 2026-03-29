@@ -43,11 +43,32 @@ fn main() {
     let log = Log {};
     log.verbose("Hello, mars!");
 
+    struct LocalPoint {
+        x: int;
+        y: int;
+    }
+
+    enum LocalState {
+        Ready,
+        Busy,
+    }
+
+    union LocalValue {
+        i: int;
+    }
+
+    let local_point = LocalPoint { x: 3, y: 4 };
+    let local_state = LocalState::Ready;
+    let local_value = LocalValue { i: 8 };
+
     let point = Point {
         x: (f64)my_function(),
         y: 512.0,
     };
     point.mark_unused();
+    assert(local_point.x == 3, "local struct failed");
+    assert(local_state == LocalState::Ready, "local enum failed");
+    assert(local_value.i == 8, "local union failed");
 
     for(let i = 0; i < 10; ++i)
     {
