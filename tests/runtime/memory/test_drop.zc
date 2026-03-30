@@ -1,4 +1,4 @@
-import "../../../std/mem.zc"
+import "std/mem.zc"
 
 let DROP_CALLED = 0;
 

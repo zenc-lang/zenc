@@ -1,4 +1,4 @@
-import "../../../std/vec.zc"
+import "std/vec.zc"
 
 test "vec_simple" {
     let v = Vec<int>::new();

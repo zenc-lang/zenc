@@ -1,4 +1,4 @@
-import "../../../std/mem.zc"
+import "std/mem.zc"
 
 // Global to track destructor calls
 let DTOR_COUNT = 0;

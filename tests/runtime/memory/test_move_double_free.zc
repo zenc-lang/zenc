@@ -1,4 +1,4 @@
-import "../../../std/mem.zc"
+import "std/mem.zc"
 
 // Global counters to track drop calls
 let DROP_COUNT = 0;

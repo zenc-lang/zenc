@@ -1,4 +1,4 @@
-import "../../../std/vec.zc"
+import "std/vec.zc"
 
 trait GenericReturn {
     fn get_vec(self) -> Vec<int>;

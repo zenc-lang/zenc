@@ -2,7 +2,8 @@
 test "test_embed" {
     "=> Static File Analyzer";
     
-    let data = embed "std.zc";
+    let data = embed "std.zc"; // Relative to root if run from root, or use ../../../../std.zc 
+    // Actually, std.zc is always searchable from root.
     
     "Target File: 'std.zc'";
     "File Size:   {data.len} bytes";
@@ -57,7 +58,7 @@ test "test_embed" {
 
 test "typed_embed" {
     // String
-    let s = embed "tests/language/features/embed_data.txt" as string;
+    let s = embed "tests/language/features/embedding/embed_data.txt" as string;
     // "Hello World!\n" ? No newline in my file creation? 
     // echo "Hello World!" > ... likely adds newline.
     // My previous tool 'write_to_file' wrote "Hello World!". It usually doesn't add newline unless specified?
@@ -65,17 +66,17 @@ test "typed_embed" {
     if (s[0] != 'H') exit(101);
     
     // Fixed array
-    let arr = embed "tests/language/features/embed_data.txt" as u8[5];
+    let arr = embed "tests/language/features/embedding/embed_data.txt" as u8[5];
     if (arr[0] != 'H') exit(102);
     if (arr[4] != 'o') exit(103);
     
     // Slice
-    let sl = embed "tests/language/features/embed_data.txt" as u8[];
+    let sl = embed "tests/language/features/embedding/embed_data.txt" as u8[];
     if (sl.len < 5) exit(104);
     if (sl.data[0] != 'H') exit(105);
     
     // Untyped regression
-    let raw = embed "tests/language/features/embed_data.txt";
+    let raw = embed "tests/language/features/embedding/embed_data.txt";
     if (raw.len < 5) exit(106);
     if (raw.data[0] != 'H') exit(107);
     

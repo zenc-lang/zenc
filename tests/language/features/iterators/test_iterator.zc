@@ -1,5 +1,5 @@
-import "../../../std/iter.zc"
-import "../../../std/option.zc"
+import "std/iter.zc"
+import "std/option.zc"
 
 struct RangeIter {
     current: int;

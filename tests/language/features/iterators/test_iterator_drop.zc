@@ -1,5 +1,5 @@
-import "../../../std/iter.zc"
-import "../../../std/mem.zc"
+import "std/iter.zc"
+import "std/mem.zc"
 
 let DROP_CALLED = 0;
 

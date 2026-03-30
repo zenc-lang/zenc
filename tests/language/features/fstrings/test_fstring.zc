@@ -1,4 +1,4 @@
-import "tests/language/features/_fstring_mod.zc" as Mod;
+import "tests/language/features/fstrings/_fstring_mod.zc" as Mod;
 
 test "alias namespace fstring" {
     // Tests that {Mod::get_val()} is parsed correctly (Mod_get_val)
@@ -9,7 +9,7 @@ test "alias namespace fstring" {
     println "Val: {Mod::get_val()}";
 }
 
-import "tests/language/features/fstring_lib.h" as Lib;
+import "tests/language/features/fstrings/fstring_lib.h" as Lib;
 
 test "alias C header fstring" {
     // Tests that {Lib::lib_val()} resolves to lib_val() (no mangling/prefix)
