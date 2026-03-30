@@ -3290,6 +3290,17 @@ ASTNode *copy_fields_replacing(ParserContext *ctx, ASTNode *fields, const char *
                 if (found)
                 {
                     char *unmangled = unmangle_ptr_suffix(concrete_arg);
+                    if (concrete)
+                    {
+                        char *clean_concrete = sanitize_mangled_name(concrete);
+                        if (strcmp(concrete_arg, clean_concrete) == 0)
+                        {
+                            free(unmangled);
+                            unmangled = xstrdup(concrete);
+                        }
+                        free(clean_concrete);
+                    }
+
                     instantiate_generic(ctx, template_name, concrete_arg, unmangled, fields->token);
                     free(unmangled);
                 }
@@ -3329,6 +3340,16 @@ ASTNode *copy_fields_replacing(ParserContext *ctx, ASTNode *fields, const char *
             if (template_name && concrete_arg)
             {
                 char *unmangled = unmangle_ptr_suffix(concrete_arg);
+                if (concrete)
+                {
+                    char *clean_concrete = sanitize_mangled_name(concrete);
+                    if (strcmp(concrete_arg, clean_concrete) == 0)
+                    {
+                        free(unmangled);
+                        unmangled = xstrdup(concrete);
+                    }
+                    free(clean_concrete);
+                }
                 instantiate_generic(ctx, template_name, concrete_arg, unmangled, fields->token);
                 free(unmangled);
             }
