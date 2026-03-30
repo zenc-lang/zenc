@@ -2342,6 +2342,8 @@ static void check_expr_lambda(TypeChecker *tc, ASTNode *node)
     // Add captured variables to the scope to ensure visibility and immutability inside the lambda.
     if (node->lambda.captured_vars)
     {
+        int saved_silent = tc->pctx->silent_warnings;
+        tc->pctx->silent_warnings = 1;
         for (int i = 0; i < node->lambda.num_captures; i++)
         {
             char *var_name = node->lambda.captured_vars[i];
@@ -2357,6 +2359,7 @@ static void check_expr_lambda(TypeChecker *tc, ASTNode *node)
                 tc_add_symbol(tc, var_name, orig_sym->type_info, node->token, (mode == 0));
             }
         }
+        tc->pctx->silent_warnings = saved_silent;
     }
 
     MoveState *prev_move_state = tc->pctx->move_state;

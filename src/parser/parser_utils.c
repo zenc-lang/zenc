@@ -497,7 +497,7 @@ void add_symbol_with_token(ParserContext *ctx, const char *n, const char *t, Typ
             ZenSymbol *sh = p->symbols;
             while (sh)
             {
-                if (strcmp(sh->name, n) == 0)
+                if (strcmp(sh->name, n) == 0 && !ctx->silent_warnings)
                 {
                     warn_shadowing(tok, n);
                     break;
