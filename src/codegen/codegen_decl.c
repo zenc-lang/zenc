@@ -481,7 +481,7 @@ void emit_lambda_defs(ParserContext *ctx, FILE *out)
                     {
                         tstr = xstrdup(node->lambda.captured_types[i]);
                     }
-                    fprintf(out, "    %s const %s;\n", tstr, node->lambda.captured_vars[i]);
+                    fprintf(out, "    %s %s;\n", tstr, node->lambda.captured_vars[i]);
                     free(tstr);
 
                     char *tname = node->lambda.captured_types[i];
