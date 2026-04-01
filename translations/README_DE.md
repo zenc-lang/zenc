@@ -161,7 +161,7 @@ Alternativ kannst du `make` verwenden, wenn du eine Unix-ähnliche Umgebung (MSY
 Zen C kann als **Actually Portable Executable (APE)** mit [Cosmopolitan Libc](https://github.com/jart/cosmopolitan) kompiliert werden. Dies erzeugt eine einzige Datei (`.com`), die nativ auf Linux, macOS, Windows, FreeBSD, OpenBSD und NetBSD sowohl auf x86_64- als auch auf aarch64-Architekturen läuft.
 
 **Voraussetzungen:**
--`cosmocc`-Toolchain (muss sich im PATH befinden)
+- `cosmocc`-Toolchain (muss sich im PATH befinden)
 
 **Build & Installation:**
 ```bash
