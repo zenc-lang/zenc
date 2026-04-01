@@ -14,7 +14,7 @@ Der allgemeine Workflow für Mitwirkende ist wie folgt:
 git checkout -b feature/NewThing
 ```
 3. **Änderungen vornehmen**: Schreibe deinen Code oder deine Dokumentationsänderungen.
-4. **Überprüfen**: Stelle sicher, dass deine Änderungen wie erwartet funktionieren und keine bestehenden Funktionen beeinträchtigen (siehe [Tests ausführen](#running-tests)).
+4. **Überprüfen**: Stelle sicher, dass deine Änderungen wie erwartet funktionieren und keine bestehenden Funktionen beeinträchtigen (siehe [Tests ausführen](#testausfuehrung)).
 5. **Pull Request einreichen**: Pushen deinen Branch in deinen Fork und sende einen Pull Request (PR) an das Haupt-Repository von Zen C.
 
 ## Issues und Pull Requests
