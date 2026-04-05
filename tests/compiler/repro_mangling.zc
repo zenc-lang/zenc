@@ -1,0 +1,21 @@
+import "std.zc";
+
+struct MyGeneric<T> {
+    val: T;
+}
+
+impl<T> MyGeneric<T> {
+    fn _private_method(self) {
+        printf("Private method called!\n");
+    }
+
+    fn public_method(self) {
+        self._private_method();
+    }
+}
+
+test "underscore mangling" {
+    let m = MyGeneric<int>{val: 10};
+    m.public_method();
+    printf("Success!\n");
+}

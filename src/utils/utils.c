@@ -94,6 +94,40 @@ char *xstrdup(const char *s)
     return d;
 }
 
+char *merge_underscores(const char *name)
+{
+    if (!name)
+    {
+        return NULL;
+    }
+
+    size_t len = strlen(name);
+    char *res = xmalloc(len + 1);
+    char *out = res;
+    const char *in = name;
+
+    while (*in)
+    {
+        if (in[0] == '_' && in[1] == '_' && in[2] == '_')
+        {
+            // Triple or more underscores -> collapse to double
+            *out++ = '_';
+            *out++ = '_';
+            in += 3;
+            while (*in == '_')
+            {
+                in++;
+            }
+        }
+        else
+        {
+            *out++ = *in++;
+        }
+    }
+    *out = '\0';
+    return res;
+}
+
 char *sanitize_path_for_c_string(const char *path)
 {
     if (!path)

@@ -173,56 +173,7 @@ static void codegen_var_expr(ParserContext *ctx, ASTNode *node, FILE *out)
 
         // Handle generic types: Slice<int> -> Slice_int
         char *mangled_type;
-        if (strchr(type_name, '<'))
-        {
-            // Generic type - need to mangle it
-            char *lt = strchr(type_name, '<');
-            char *gt = strchr(type_name, '>');
-
-            if (lt && gt)
-            {
-                // Extract base type and type argument
-                *lt = 0;
-                char *type_arg = lt + 1;
-                *gt = 0;
-
-                // Trim leading whitespace from type_arg
-                while (*type_arg && isspace((unsigned char)*type_arg))
-                {
-                    type_arg++;
-                }
-                // Trim trailing whitespace
-                char *end = type_arg + strlen(type_arg) - 1;
-                while (end > type_arg && isspace((unsigned char)*end))
-                {
-                    *end = 0;
-                    end--;
-                }
-
-                char clean_arg[256];
-                strncpy(clean_arg, type_arg, sizeof(clean_arg));
-                clean_arg[sizeof(clean_arg) - 1] = 0;
-                for (int j = 0; clean_arg[j]; j++)
-                {
-                    if (!isalnum(clean_arg[j]))
-                    {
-                        clean_arg[j] = '_';
-                    }
-                }
-
-                size_t mt_sz = strlen(type_name) + strlen(clean_arg) + 2;
-                mangled_type = xmalloc(mt_sz);
-                snprintf(mangled_type, mt_sz, "%s_%s", type_name, clean_arg);
-            }
-            else
-            {
-                mangled_type = xstrdup(type_name);
-            }
-        }
-        else
-        {
-            mangled_type = xstrdup(type_name);
-        }
+        mangled_type = xstrdup(type_name);
 
         // Output as Type__method
         if (ctx)
@@ -231,14 +182,13 @@ static void codegen_var_expr(ParserContext *ctx, ASTNode *node, FILE *out)
             const char *alias = (ta && !ta->is_opaque) ? ta->original_type : NULL;
             if (alias)
             {
-
-                fprintf(out, "%s__%s", alias, method_name);
+                emit_mangled_name(out, alias, method_name);
                 free(type_name);
                 free(mangled_type);
                 return;
             }
         }
-        fprintf(out, "%s__%s", mangled_type, method_name);
+        emit_mangled_name(out, mangled_type, method_name);
         free(type_name);
         free(mangled_type);
         return;
@@ -272,7 +222,7 @@ static void codegen_var_expr(ParserContext *ctx, ASTNode *node, FILE *out)
                  strncmp(base, "JsonType", 8) == 0);
             if (is_common_enum || (def && def->type == NODE_ENUM))
             {
-                fprintf(out, "%s__%s", base, underscore + 1);
+                emit_mangled_name(out, base, underscore + 1);
                 return;
             }
         }
@@ -522,22 +472,27 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                     fprintf(out, "(!");
                 }
                 char meth[256];
-                snprintf(meth, sizeof(meth), "%s__Eq_eq", base);
-                FuncSig *sig = find_func(ctx, meth);
+                snprintf(meth, sizeof(meth), "%s__Eq__eq", base);
+                ZenSymbol *sym = find_symbol_in_all(ctx, meth);
+                FuncSig *sig = sym ? sym->data.sig : NULL;
                 if (!sig)
                 {
                     snprintf(meth, sizeof(meth), "%s__eq", base);
-                    sig = find_func(ctx, meth);
+                    sym = find_symbol_in_all(ctx, meth);
+                    sig = sym ? sym->data.sig : NULL;
                 }
 
-                if (sig)
+                // If specialized Eq fails, try constructed name directly
+                const char *call_name = sig ? sig->name : NULL;
+                if (!call_name)
                 {
-                    fprintf(out, "%s(", sig->name);
+                    // If no signature found, default to Type__Eq__eq and assume it's there
+                    // (The typechecker should ensure this where appropriate, or it's a legacy __eq)
+                    snprintf(meth, sizeof(meth), "%s__Eq__eq", base);
+                    call_name = meth;
                 }
-                else
-                {
-                    fprintf(out, "%s__eq(", base);
-                }
+
+                fprintf(out, "%s(", call_name);
 
                 if (node->binary.left->type == NODE_EXPR_VAR ||
                     node->binary.left->type == NODE_EXPR_INDEX ||
@@ -565,8 +520,11 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
 
                 fprintf(out, ", ");
 
-                int needs_ptr =
-                    (sig && sig->total_args > 1 && sig->arg_types[1]->kind == TYPE_POINTER);
+                int needs_ptr = 1; // Default for Eq on structs
+                if (sig)
+                {
+                    needs_ptr = (sig->total_args > 1 && sig->arg_types[1]->kind == TYPE_POINTER);
+                }
 
                 if (needs_ptr && (node->binary.right->type == NODE_EXPR_VAR ||
                                   node->binary.right->type == NODE_EXPR_INDEX ||
@@ -708,12 +666,12 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
 
                 if (node->binary.left->type == NODE_EXPR_VAR)
                 {
-                    fprintf(out, "if (__z_drop_flag_%s) %s__Drop_glue(_z_dest); ",
+                    fprintf(out, "if (__z_drop_flag_%s) %s__Drop__glue(_z_dest); ",
                             node->binary.left->var_ref.name, clean_type);
                 }
                 else
                 {
-                    fprintf(out, "%s__Drop_glue(_z_dest); ", clean_type);
+                    fprintf(out, "%s__Drop__glue(_z_dest); ", clean_type);
                 }
 
                 fprintf(out, "*_z_dest = (");
@@ -801,53 +759,6 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                 type_name[sizeof(type_name) - 1] = 0;
 
                 char *mangled_type = type_name;
-                char tmp[256];
-
-                char *lt = strchr(type_name, '<');
-                char *gt = strchr(type_name, '>');
-
-                if (lt && gt)
-                {
-                    *lt = 0;
-                    char *type_arg = lt + 1;
-                    *gt = 0;
-
-                    // Trim leading whitespace
-                    while (*type_arg && isspace((unsigned char)*type_arg))
-                    {
-                        type_arg++;
-                    }
-                    // Trim trailing whitespace
-                    char *end_ptr = type_arg + strlen(type_arg) - 1;
-                    while (end_ptr > type_arg && isspace((unsigned char)*end_ptr))
-                    {
-                        *end_ptr = 0;
-                        end_ptr--;
-                    }
-
-                    // Skip leading whitespace
-                    char *start_ptr = type_arg;
-                    while (*start_ptr && isspace((unsigned char)*start_ptr))
-                    {
-                        start_ptr++;
-                    }
-
-                    char clean_arg[256];
-                    strncpy(clean_arg, start_ptr, sizeof(clean_arg));
-                    clean_arg[sizeof(clean_arg) - 1] = 0;
-                    for (int j = 0; clean_arg[j]; j++)
-                    {
-                        if (!isalnum(clean_arg[j]) && clean_arg[j] != '_')
-                        {
-                            clean_arg[j] = '_';
-                        }
-                    }
-
-                    char tmp_mangled[512];
-                    snprintf(tmp_mangled, sizeof(tmp_mangled), "%s_%s", type_name, clean_arg);
-                    strncpy(tmp, tmp_mangled, sizeof(tmp));
-                    mangled_type = tmp;
-                }
 
                 ASTNode *def = find_struct_def(ctx, mangled_type);
                 if (def && def->type == NODE_ENUM)
@@ -871,7 +782,7 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                                 (arg_idx < sig->total_args) ? sig->arg_types[arg_idx] : NULL;
 
                             if (param_t && param_t->kind == TYPE_STRUCT &&
-                                strncmp(param_t->name, "Tuple_", 6) == 0 && sig->total_args == 1 &&
+                                strncmp(param_t->name, "Tuple__", 7) == 0 && sig->total_args == 1 &&
                                 node->call.arg_count > 1)
                             {
                                 fprintf(out, "(%s){", param_t->name);
@@ -928,56 +839,44 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
 
                 const char *normalized = normalize_type_name(base);
                 char *mangled_base = (char *)normalized;
-                char base_buf[512];
+                char base_buf[1024];
 
-                // Mangle generic types: Slice<int> -> Slice_int, Vec<Point> -> Vec_Point
+                // Mangle generic types: Slice<int> -> Slice__int
                 char *lt = strchr(base, '<');
                 if (lt)
                 {
-                    char *gt = strchr(lt, '>');
+                    char *gt = strrchr(base, '>');
                     if (gt)
                     {
                         int prefix_len = lt - base;
                         char prefix[256];
+                        if (prefix_len >= 255)
+                        {
+                            prefix_len = 255;
+                        }
                         strncpy(prefix, base, prefix_len);
                         prefix[prefix_len] = 0;
-                        // Trim trailing whitespace from prefix
-                        char *p_end = prefix + prefix_len - 1;
-                        while (p_end > prefix && isspace((unsigned char)*p_end))
+
+                        // Strip trailing underscores from prefix
+                        char *p_end = prefix + strlen(prefix);
+                        while (p_end > prefix && *(p_end - 1) == '_')
                         {
-                            *p_end = 0;
-                            p_end--;
+                            *(--p_end) = '\0';
                         }
 
-                        char *type_arg = lt + 1;
-                        while (*type_arg && isspace((unsigned char)*type_arg))
+                        char *args_ptr = xstrdup(lt + 1);
+                        char *args_end = strrchr(args_ptr, '>');
+                        if (args_end)
                         {
-                            type_arg++;
-                        }
-                        char *arg_end = gt - 1;
-                        while (arg_end > type_arg && isspace((unsigned char)*arg_end))
-                        {
-                            arg_end--;
-                        }
-                        int arg_len = arg_end - type_arg + 1;
-
-                        char clean_arg[256];
-                        if (arg_len >= (int)sizeof(clean_arg))
-                        {
-                            arg_len = sizeof(clean_arg) - 1;
-                        }
-                        strncpy(clean_arg, type_arg, arg_len);
-                        clean_arg[arg_len] = 0;
-                        for (int j = 0; clean_arg[j]; j++)
-                        {
-                            if (!isalnum(clean_arg[j]) && clean_arg[j] != '_')
-                            {
-                                clean_arg[j] = '_';
-                            }
+                            *args_end = 0;
                         }
 
-                        snprintf(base_buf, sizeof(base_buf), "%s_%s", prefix, clean_arg);
+                        char *clean_arg = sanitize_mangled_name(args_ptr);
+                        snprintf(base_buf, sizeof(base_buf), "%s__%s", prefix, clean_arg);
                         mangled_base = base_buf;
+
+                        free(args_ptr);
+                        free(clean_arg);
                     }
                 }
 
@@ -992,57 +891,47 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                         mangled_base = type_mangled;
                     }
 
-                    char type_buf[512];
+                    char type_buf[1024];
                     char *t_lt = strchr(type, '<');
                     if (t_lt)
                     {
-                        char *t_gt = strchr(t_lt, '>');
+                        char *t_gt = strrchr(type, '>');
                         if (t_gt)
                         {
                             int p_len = t_lt - type;
                             char prefix[256];
+                            if (p_len >= 255)
+                            {
+                                p_len = 255;
+                            }
                             strncpy(prefix, type, p_len);
                             prefix[p_len] = 0;
-                            char *p_end = prefix + p_len - 1;
-                            while (p_end > prefix && isspace((unsigned char)*p_end))
+
+                            // Strip trailing underscores from prefix
+                            char *p_end = prefix + strlen(prefix);
+                            while (p_end > prefix && *(p_end - 1) == '_')
                             {
-                                *p_end = 0;
-                                p_end--;
+                                *(--p_end) = '\0';
                             }
 
-                            char *type_arg = t_lt + 1;
-                            while (*type_arg && isspace((unsigned char)*type_arg))
+                            char *args_ptr = xstrdup(t_lt + 1);
+                            char *args_end = strrchr(args_ptr, '>');
+                            if (args_end)
                             {
-                                type_arg++;
-                            }
-                            char *arg_end = t_gt - 1;
-                            while (arg_end > type_arg && isspace((unsigned char)*arg_end))
-                            {
-                                arg_end--;
-                            }
-                            int arg_len = arg_end - type_arg + 1;
-
-                            char clean_arg[256];
-                            if (arg_len >= (int)sizeof(clean_arg))
-                            {
-                                arg_len = sizeof(clean_arg) - 1;
-                            }
-                            strncpy(clean_arg, type_arg, arg_len);
-                            clean_arg[arg_len] = 0;
-                            for (int j = 0; clean_arg[j]; j++)
-                            {
-                                if (!isalnum(clean_arg[j]) && clean_arg[j] != '_')
-                                {
-                                    clean_arg[j] = '_';
-                                }
+                                *args_end = 0;
                             }
 
-                            snprintf(type_buf, sizeof(type_buf), "%s_%s", prefix, clean_arg);
+                            char *clean_arg = sanitize_mangled_name(args_ptr);
+                            snprintf(type_buf, sizeof(type_buf), "%s__%s", prefix, clean_arg);
                             type_mangled = type_buf;
+
+                            free(args_ptr);
+                            free(clean_arg);
                         }
                     }
 
-                    fprintf(out, "%s__%s((%s[]){", mangled_base, method, type_mangled);
+                    emit_mangled_name(out, mangled_base, method);
+                    fprintf(out, "((%s[]){", type_mangled);
                     codegen_expression(ctx, target, out);
                     fprintf(out, "}");
                     ASTNode *arg = node->call.args;
@@ -1060,8 +949,13 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                     char *call_base = mangled_base;
 
                     int need_cast = 0;
+                    char mixin_func_base[1024];
+                    snprintf(mixin_func_base, sizeof(mixin_func_base), "%s__%s", call_base, method);
+                    char *mixin_func_name_ptr = merge_underscores(mixin_func_base);
                     char mixin_func_name[1024];
-                    snprintf(mixin_func_name, sizeof(mixin_func_name), "%s__%s", call_base, method);
+                    strncpy(mixin_func_name, mixin_func_name_ptr, sizeof(mixin_func_name) - 1);
+                    mixin_func_name[sizeof(mixin_func_name) - 1] = 0;
+                    free(mixin_func_name_ptr);
 
                     char *resolved_method_suffix = NULL;
 
@@ -1074,15 +968,16 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                         {
                             if (strcmp(ta->original_type, call_base) == 0)
                             {
-                                char alias_func_name[512];
-                                snprintf(alias_func_name, sizeof(alias_func_name), "%s__%s",
+                                char alias_func_base[1024];
+                                snprintf(alias_func_base, sizeof(alias_func_base), "%s__%s",
                                          ta->alias, method);
+                                char *alias_func_name = merge_underscores(alias_func_base);
                                 if (find_func(ctx, alias_func_name))
                                 {
-                                    // Found method under alias name — use the resolved name
-                                    // since that's what the function definition will be emitted as
+                                    free(alias_func_name);
                                     break;
                                 }
+                                free(alias_func_name);
                             }
                             ta = ta->next;
                         }
@@ -1092,19 +987,20 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                             if (ref->node && ref->node->type == NODE_IMPL_TRAIT &&
                                 strcmp(ref->node->impl_trait.target_type, base) == 0)
                             {
-                                char trait_mangled[256];
-                                snprintf(trait_mangled, sizeof(trait_mangled), "%s__%s_%s", base,
+                                char trait_base[512];
+                                snprintf(trait_base, sizeof(trait_base), "%s__%s__%s", base,
                                          ref->node->impl_trait.trait_name, method);
+                                char *trait_mangled = merge_underscores(trait_base);
                                 if (find_func(ctx, trait_mangled))
                                 {
-                                    size_t suffix_len = strlen(ref->node->impl_trait.trait_name) +
-                                                        strlen(method) + 2;
-                                    char *suffix = xmalloc(suffix_len);
-                                    snprintf(suffix, suffix_len, "%s_%s",
+                                    char suffix_base[512];
+                                    snprintf(suffix_base, sizeof(suffix_base), "%s__%s",
                                              ref->node->impl_trait.trait_name, method);
-                                    resolved_method_suffix = suffix;
+                                    resolved_method_suffix = merge_underscores(suffix_base);
+                                    free(trait_mangled);
                                     break;
                                 }
+                                free(trait_mangled);
                             }
                             ref = ref->next;
                         }
@@ -1118,17 +1014,20 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                                 if (it->impl_node && it->impl_node->type == NODE_IMPL_TRAIT)
                                 {
                                     tname = it->impl_node->impl_trait.trait_name;
-                                    char trait_mangled[512];
-                                    snprintf(trait_mangled, sizeof(trait_mangled), "%s__%s_%s",
-                                             base, tname, method);
+                                    char trait_base[1024];
+                                    snprintf(trait_base, sizeof(trait_base), "%s__%s__%s", base,
+                                             tname, method);
+                                    char *trait_mangled = merge_underscores(trait_base);
                                     if (find_func(ctx, trait_mangled))
                                     {
-                                        size_t suffix_len = strlen(tname) + strlen(method) + 2;
-                                        char *suffix = xmalloc(suffix_len);
-                                        snprintf(suffix, suffix_len, "%s_%s", tname, method);
-                                        resolved_method_suffix = suffix;
+                                        char suffix_base[1024];
+                                        snprintf(suffix_base, sizeof(suffix_base), "%s__%s", tname,
+                                                 method);
+                                        resolved_method_suffix = merge_underscores(suffix_base);
+                                        free(trait_mangled);
                                         break;
                                     }
+                                    free(trait_mangled);
                                 }
                                 it = it->next;
                             }
@@ -1145,21 +1044,25 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                             {
                                 for (int k = 0; k < def->strct.used_struct_count; k++)
                                 {
-                                    char mixin_check[128];
-                                    snprintf(mixin_check, sizeof(mixin_check), "%s__%s",
+                                    char mixin_base[1024];
+                                    snprintf(mixin_base, sizeof(mixin_base), "%s__%s",
                                              def->strct.used_structs[k], method);
+                                    char *mixin_check = merge_underscores(mixin_base);
                                     if (find_func(ctx, mixin_check))
                                     {
                                         call_base = def->strct.used_structs[k];
                                         need_cast = 1;
+                                        free(mixin_check);
                                         break;
                                     }
+                                    free(mixin_check);
                                 }
                             }
                         }
                     }
 
-                    fprintf(out, "%s__%s(", call_base, method);
+                    emit_mangled_name(out, call_base, method);
+                    fprintf(out, "(");
                     if (need_cast)
                     {
                         fprintf(out, "(%s*)%s", call_base, strchr(type, '*') ? "" : "&");
@@ -1282,7 +1185,7 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                          strncmp(base, "JsonType", 8) == 0);
                     if (is_common_enum || (def && def->type == NODE_ENUM))
                     {
-                        fprintf(out, "%s__%s", base, underscore + 1);
+                        emit_mangled_name(out, base, underscore + 1);
                         goto skip_callee_gen;
                     }
                 }
@@ -1400,7 +1303,7 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                         arg_t && arg_t->kind == TYPE_ARRAY && arg_t->array_size > 0)
                     {
                         char *inner = type_to_c_string(param_t->inner);
-                        fprintf(out, "(Slice_%s){.data = ", inner);
+                        fprintf(out, "(Slice__%s){.data = ", inner);
                         codegen_expression(ctx, arg, out);
                         fprintf(out, ", .len = %d, .cap = %d}", arg_t->array_size,
                                 arg_t->array_size);
@@ -1408,7 +1311,7 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                         handled = 1;
                     }
                     else if (param_t && param_t->kind == TYPE_STRUCT &&
-                             strncmp(param_t->name, "Tuple_", 6) == 0 && sig->total_args == 1 &&
+                             strncmp(param_t->name, "Tuple__", 7) == 0 && sig->total_args == 1 &&
                              node->call.arg_count > 1)
                     {
                         fprintf(out, "(%s){", param_t->name);
@@ -1498,11 +1401,6 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
                 ASTNode *def = find_struct_def(ctx, node->member.target->var_ref.name);
                 if (def && def->type == NODE_ENUM)
                 {
-                    if (strstr(node->member.target->var_ref.name, "Option"))
-                    {
-                        fprintf(stderr, "DEBUG CALL 2: target='%s' field='%s'\n",
-                                node->member.target->var_ref.name, node->member.field);
-                    }
                     fprintf(out, "%s__%s", node->member.target->var_ref.name, node->member.field);
                     break;
                 }
@@ -1545,7 +1443,7 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
 
         if (!is_slice_struct && node->index.array->resolved_type)
         {
-            if (strncmp(node->index.array->resolved_type, "Slice_", 6) == 0)
+            if (strncmp(node->index.array->resolved_type, "Slice__", 7) == 0)
             {
                 is_slice_struct = 1;
             }
@@ -1554,7 +1452,7 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
         if (!is_slice_struct && !node->index.array->type_info && !node->index.array->resolved_type)
         {
             char *inferred = infer_type(ctx, node->index.array);
-            if (inferred && strncmp(inferred, "Slice_", 6) == 0)
+            if (inferred && strncmp(inferred, "Slice__", 7) == 0)
             {
                 is_slice_struct = 1;
             }
@@ -1726,13 +1624,13 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
         if (is_slice_struct)
         {
             fprintf(out,
-                    "(Slice_%s){ .data = _arr.data + _start, .len = _len, .cap = "
+                    "(Slice__%s){ .data = _arr.data + _start, .len = _len, .cap = "
                     "_len }; })",
                     tname);
         }
         else
         {
-            fprintf(out, "(Slice_%s){ .data = _arr + _start, .len = _len, .cap = _len }; })",
+            fprintf(out, "(Slice__%s){ .data = _arr + _start, .len = _len, .cap = _len }; })",
                     tname);
         }
         if (tname && strcmp(tname, "unknown") != 0)

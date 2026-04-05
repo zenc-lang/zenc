@@ -1059,7 +1059,7 @@ void register_slice(ParserContext *ctx, const char *type)
 
     // Register Struct Def for Reflection
     char slice_name[256];
-    sprintf(slice_name, "Slice_%s", type);
+    sprintf(slice_name, "Slice__%s", type);
 
     ASTNode *len_f = ast_create(NODE_FIELD);
     len_f->field.name = xstrdup("len");
@@ -1081,6 +1081,14 @@ void register_slice(ParserContext *ctx, const char *type)
     def->strct.fields = data_f;
 
     register_struct_def(ctx, slice_name, def);
+
+    // Backward compatibility: alias Slice_T to Slice__T
+    char legacy_name[256];
+    sprintf(legacy_name, "Slice_%s", type);
+    if (strcmp(slice_name, legacy_name) != 0)
+    {
+        register_type_alias(ctx, legacy_name, slice_name, NULL, 0, NULL);
+    }
 }
 
 void register_tuple(ParserContext *ctx, const char *sig)
@@ -1101,7 +1109,7 @@ void register_tuple(ParserContext *ctx, const char *sig)
 
     char struct_name[1024];
     char *clean_sig = sanitize_mangled_name(sig);
-    sprintf(struct_name, "Tuple_%s", clean_sig);
+    sprintf(struct_name, "Tuple__%s", clean_sig);
     free(clean_sig);
 
     ASTNode *s_def = ast_create(NODE_STRUCT);
@@ -1497,7 +1505,7 @@ char *replace_in_string(const char *src, const char *old_w, const char *new_w)
     int in_string = 0;
     for (i = 0; src[i] != '\0'; i++)
     {
-        if (src[i] == '"' && (i == 0 || src[i - 1] != '\\'))
+        if (src[i] == '\"' && (i == 0 || src[i - 1] != '\\'))
         {
             in_string = !in_string;
         }
@@ -1510,7 +1518,7 @@ char *replace_in_string(const char *src, const char *old_w, const char *new_w)
             {
                 valid = 0;
             }
-            if (valid && is_ident_char(src[i + oldWlen]))
+            if (valid && (is_ident_char(src[i + oldWlen]) || src[i + oldWlen] == '<'))
             {
                 valid = 0;
             }
@@ -1534,7 +1542,7 @@ char *replace_in_string(const char *src, const char *old_w, const char *new_w)
 
     while (src[src_idx] != '\0')
     {
-        if (src[src_idx] == '"' && (src_idx == 0 || src[src_idx - 1] != '\\'))
+        if (src[src_idx] == '\"' && (src_idx == 0 || src[src_idx - 1] != '\\'))
         {
             in_string = !in_string;
         }
@@ -1547,7 +1555,7 @@ char *replace_in_string(const char *src, const char *old_w, const char *new_w)
             {
                 valid = 0;
             }
-            if (valid && is_ident_char(src[src_idx + oldWlen]))
+            if (valid && (is_ident_char(src[src_idx + oldWlen]) || src[src_idx + oldWlen] == '<'))
             {
                 valid = 0;
             }
@@ -1570,6 +1578,118 @@ char *replace_in_string(const char *src, const char *old_w, const char *new_w)
     return result;
 }
 
+Type *replace_type_formal(Type *t, const char *p, const char *c, const char *os, const char *ns);
+// Helper to replace generic params in mangled names (e.g. Option_V_None ->
+// Option_int_None)
+char *replace_mangled_part(const char *src, const char *param, const char *concrete)
+{
+    // fprintf(stderr, "[replace_mangled_part] src='%s' param='%s' concrete='%s'\n", src?src:"NULL",
+    // param?param:"NULL", concrete?concrete:"NULL");
+    if (!src || !param || !concrete)
+    {
+        return src ? xstrdup(src) : NULL;
+    }
+
+    size_t plen = strlen(param);
+    size_t clen = strlen(concrete);
+    size_t src_len = strlen(src);
+
+    // Initial estimate for result size
+    size_t res_cap = src_len + 512;
+    char *result = xmalloc(res_cap);
+    result[0] = 0;
+
+    const char *curr = src;
+    char *out = result;
+    size_t current_len = 0;
+
+    while (*curr)
+    {
+        // Ensure enough space (including the next character or replacement)
+        if (current_len + (clen > 1 ? clen : 1) + 1 >= res_cap)
+        {
+            res_cap = res_cap * 2 + clen;
+            char *new_res = xmalloc(res_cap);
+            memcpy(new_res, result, current_len);
+            free(result);
+            result = new_res;
+            out = result + current_len;
+        }
+
+        // Check if param matches here
+        if (strncmp(curr, param, plen) == 0)
+        {
+            int valid = 1;
+            int has_underscore_boundary = 0;
+
+            if (curr > src)
+            {
+                if (*(curr - 1) == '_')
+                {
+                    has_underscore_boundary = 1;
+                }
+                else if (is_ident_char(*(curr - 1)))
+                {
+                    valid = 0;
+                }
+            }
+
+            if (valid && curr[plen] != 0 && curr[plen] != '_' && is_ident_char(curr[plen]))
+            {
+                if (strncmp(curr + plen, "Ptr", 3) != 0)
+                {
+                    valid = 0;
+                }
+            }
+            if (valid && curr[plen] == '_')
+            {
+                has_underscore_boundary = 1;
+            }
+
+            if (valid && !has_underscore_boundary)
+            {
+                // Also allow <, ,, (, [ as boundaries
+                char prev = (curr > src) ? *(curr - 1) : 0;
+                if (prev == '<' || prev == ',' || prev == '(' || prev == '[' || prev == ' ')
+                {
+                    // OK
+                }
+                else
+                {
+                    valid = 0;
+                }
+            }
+
+            if (valid)
+            {
+                // Ensure double underscore boundary for the replacement
+                if (curr > src && *(curr - 1) == '_' && (curr == src + 1 || *(curr - 2) != '_'))
+                {
+                    *out++ = '_';
+                    current_len++;
+                }
+
+                memcpy(out, concrete, clen);
+                out += clen;
+                current_len += clen;
+
+                if (curr[plen] == '_' && curr[plen + 1] != '_')
+                {
+                    *out++ = '_';
+                    current_len++;
+                }
+
+                curr += plen;
+                continue;
+            }
+        }
+        *out++ = *curr++;
+        current_len++;
+    }
+    *out = 0;
+    return result;
+}
+
 char *replace_type_str(const char *src, const char *param, const char *concrete,
                        const char *old_struct, const char *new_struct)
 {
@@ -1577,28 +1697,86 @@ char *replace_type_str(const char *src, const char *param, const char *concrete,
     {
         return NULL;
     }
+    if (!param || !concrete)
+    {
+        return xstrdup(src);
+    }
 
-    // Handle multi-param match
+    // 1. Exact match (base case)
+    if (strcmp(src, param) == 0)
+    {
+        return xstrdup(concrete);
+    }
+
+    // 2. Handle simple pointer cases recursively (safe as src shrinks)
+    size_t slen = strlen(src);
+    if (slen > 1 && src[slen - 1] == '*')
+    {
+        char *base = xmalloc(slen);
+        strncpy(base, src, slen - 1);
+        base[slen - 1] = 0;
+        char *nb = replace_type_str(base, param, concrete, old_struct, new_struct);
+        char *res = xmalloc(strlen(nb) + 2);
+        sprintf(res, "%s*", nb);
+        free(base);
+        free(nb);
+        return res;
+    }
+
+    // 3. Structural fallback for complex strings (e.g. "Self", "Option<T>")
+    char *res = xstrdup(src);
+
+    // Case 3a: Explicit template replacement (e.g. Vec<T> -> Vec__int32_t)
+    if (old_struct && new_struct && param)
+    {
+        char tpl_w[256];
+        snprintf(tpl_w, sizeof(tpl_w), "%s<%s>", old_struct, param);
+        if (strstr(res, tpl_w))
+        {
+            char *tmp = replace_in_string(res, tpl_w, new_struct);
+            free(res);
+            res = tmp;
+        }
+    }
+
+    // Case 3b: Base struct replacement (e.g. Vec -> Vec__int32_t)
+    if (old_struct && new_struct && strstr(res, old_struct))
+    {
+        char *tmp = replace_in_string(res, old_struct, new_struct);
+        free(res);
+        res = tmp;
+    }
+
+    // 4. Boundary-safe mangled replacement (e.g. "Option_T" or "Option__T")
+    // Split multi-param strings (X, Y, Z) and replace each individually
+    char *final_res = xstrdup(res);
     if (param && concrete && strchr(param, ','))
     {
         char *p_ptr = (char *)param;
         char *c_ptr = (char *)concrete;
-
         while (*p_ptr && *c_ptr)
         {
             char *p_end = strchr(p_ptr, ',');
             int p_len = p_end ? (int)(p_end - p_ptr) : (int)strlen(p_ptr);
-
             char *c_end = strchr(c_ptr, ',');
             int c_len = c_end ? (int)(c_end - c_ptr) : (int)strlen(c_ptr);
 
-            if ((int)strlen(src) == p_len && strncmp(src, p_ptr, p_len) == 0)
-            {
-                char *ret = xmalloc(c_len + 1);
-                strncpy(ret, c_ptr, c_len);
-                ret[c_len] = 0;
-                return ret;
-            }
+            char *p_part = xmalloc(p_len + 1);
+            strncpy(p_part, p_ptr, p_len);
+            p_part[p_len] = 0;
+
+            char *c_part = xmalloc(c_len + 1);
+            strncpy(c_part, c_ptr, c_len);
+            c_part[c_len] = 0;
+
+            char *clean_c = sanitize_mangled_name(c_part);
+            char *tmp = replace_mangled_part(final_res, p_part, clean_c);
+            free(final_res);
+            final_res = tmp;
+
+            free(p_part);
+            free(c_part);
+            free(clean_c);
 
             if (p_end)
             {
@@ -1618,222 +1796,17 @@ char *replace_type_str(const char *src, const char *param, const char *concrete,
             }
         }
     }
-
-    size_t len = strlen(src);
-    if (len > 0 && src[len - 1] == ']')
+    else
     {
-        int depth = 0;
-        int bracket_idx = -1;
-        for (int i = len - 1; i >= 0; i--)
-        {
-            if (src[i] == ']')
-            {
-                depth++;
-            }
-            else if (src[i] == '[')
-            {
-                depth--;
-                if (depth == 0)
-                {
-                    bracket_idx = i;
-                    break;
-                }
-            }
-        }
-
-        if (bracket_idx > 0)
-        {
-            char *base = xmalloc(bracket_idx + 1);
-            strncpy(base, src, bracket_idx);
-            base[bracket_idx] = 0;
-
-            char *new_base = replace_type_str(base, param, concrete, old_struct, new_struct);
-
-            if (new_base && strcmp(new_base, base) != 0)
-            {
-                char *suffix = (char *)src + bracket_idx;
-                char *res = xmalloc(strlen(new_base) + strlen(suffix) + 1);
-                sprintf(res, "%s%s", new_base, suffix);
-                free(base);
-                free(new_base);
-                return res;
-            }
-            free(base);
-            if (new_base)
-            {
-                free(new_base);
-            }
-        }
+        char *clean_c = sanitize_mangled_name(concrete);
+        char *tmp = replace_mangled_part(final_res, param, clean_c);
+        free(final_res);
+        final_res = tmp;
+        free(clean_c);
     }
 
-    if (param && strcmp(src, param) == 0)
-    {
-
-        return xstrdup(concrete);
-    }
-
-    if (old_struct && new_struct && strcmp(src, old_struct) == 0)
-    {
-        return xstrdup(new_struct);
-    }
-
-    if (old_struct && new_struct && param)
-    {
-        int size = strlen(old_struct) + strlen(param) + 2;
-        char *mangled = xmalloc(size);
-        snprintf(mangled, size, "%s_%s", old_struct, param);
-        if (strcmp(src, mangled) == 0)
-        {
-            free(mangled);
-            return xstrdup(new_struct);
-        }
-        free(mangled);
-    }
-
-    if (param && concrete && src)
-    {
-        // Construct mangled suffix from param ("F,S" -> "_F_S")
-        char p_suffix[1024];
-        p_suffix[0] = 0;
-
-        char *p_temp = xstrdup(param);
-        char *tok = strtok(p_temp, ",");
-        while (tok)
-        {
-            strcat(p_suffix, "_");
-            strcat(p_suffix, tok);
-            tok = strtok(NULL, ",");
-        }
-        free(p_temp);
-
-        size_t slen = strlen(src);
-        size_t plen = strlen(p_suffix);
-
-        int match = 0;
-        int found_plen = 0;
-        int num_ptr_suffixes = 0;
-        if (slen >= plen && strcmp(src + slen - plen, p_suffix) == 0)
-        {
-            match = 1;
-            found_plen = plen;
-        }
-        else if (slen > plen)
-        {
-            // Try matching with Ptr suffix
-            const char *p_match = strstr(src, p_suffix);
-            while (p_match)
-            {
-                const char *after = p_match + plen;
-                int is_all_ptr = 1;
-                if (*after == '\0')
-                {
-                    is_all_ptr = 0; // Handled by exact match above
-                }
-                while (*after)
-                {
-                    if (strncmp(after, "Ptr", 3) == 0)
-                    {
-                        after += 3;
-                    }
-                    else
-                    {
-                        is_all_ptr = 0;
-                        break;
-                    }
-                }
-                if (is_all_ptr)
-                {
-                    match = 1;
-                    found_plen = slen - (p_match - src);
-                    num_ptr_suffixes = (slen - (p_match - src) - plen) / 3;
-                    break;
-                }
-                p_match = strstr(p_match + 1, p_suffix);
-            }
-        }
-
-        if (match)
-        {
-            plen = found_plen;
-            // Construct replacement suffix from concrete ("int,float" -> "_int_float")
-            char c_suffix[1024];
-            c_suffix[0] = 0;
-
-            char *c_temp = xstrdup(concrete);
-            tok = strtok(c_temp, ",");
-            while (tok)
-            {
-                strcat(c_suffix, "_");
-                char *clean = sanitize_mangled_name(tok);
-                strcat(c_suffix, clean);
-                free(clean);
-                tok = strtok(NULL, ",");
-            }
-            free(c_temp);
-
-            // Perform replacement
-            size_t ret_len = slen - plen + strlen(c_suffix) + (num_ptr_suffixes * 3) + 1;
-            char *ret = xmalloc(ret_len);
-            strncpy(ret, src, slen - plen);
-            ret[slen - plen] = 0;
-
-            // Avoid double underscore if base already ends with one
-            if (slen > plen && src[slen - plen - 1] == '_' && c_suffix[0] == '_')
-            {
-                strcat(ret, c_suffix + 1);
-            }
-            else
-            {
-                strcat(ret, c_suffix);
-            }
-
-            // Restore Ptr suffixes that were stripped by plen
-            for (int k = 0; k < num_ptr_suffixes; k++)
-            {
-                strcat(ret, "Ptr");
-            }
-            return ret;
-        }
-    }
-
-    len = strlen(src);
-    if (len > 1 && src[len - 1] == '*')
-    {
-        size_t base_len = len - 1;
-        char *base = xmalloc(base_len + 1);
-        strncpy(base, src, base_len);
-        base[base_len] = 0;
-
-        char *new_base = replace_type_str(base, param, concrete, old_struct, new_struct);
-        free(base);
-
-        if (strcmp(new_base, base) != 0)
-        {
-            char *ret = xmalloc(strlen(new_base) + 2);
-            sprintf(ret, "%s*", new_base);
-            free(new_base);
-            return ret;
-        }
-        free(new_base);
-    }
-
-    if (strncmp(src, "Slice_", 6) == 0)
-    {
-        char *base = xstrdup(src + 6);
-        char *new_base = replace_type_str(base, param, concrete, old_struct, new_struct);
-        free(base);
-
-        if (strcmp(new_base, base) != 0)
-        {
-            char *ret = xmalloc(strlen(new_base) + 7);
-            sprintf(ret, "Slice_%s", new_base);
-            free(new_base);
-            return ret;
-        }
-        free(new_base);
-    }
-
-    return xstrdup(src);
+    free(res);
+    return final_res;
 }
 
 ASTNode *copy_ast_replacing(ASTNode *n, const char *p, const char *c, const char *os,
@@ -2018,7 +1991,7 @@ Type *replace_type_formal(Type *t, const char *p, const char *c, const char *os,
                 }
             }
         }
-        else if (strcmp(t->name, p) == 0)
+        else if (p && strcmp(t->name, p) == 0)
         {
             return type_from_string_helper(c);
         }
@@ -2039,18 +2012,33 @@ Type *replace_type_formal(Type *t, const char *p, const char *c, const char *os,
         else if (p && c)
         {
             // Suffix Match Logic (with multi-param splitting)
-            char p_suffix[1024];
+            char p_suffix[4096];
             p_suffix[0] = 0;
 
-            char *p_temp = xstrdup(p);
-            char *tok = strtok(p_temp, ",");
-            while (tok)
+            const char *p_ptr = p;
+            while (p_ptr && *p_ptr)
             {
-                strcat(p_suffix, "_");
-                strcat(p_suffix, tok);
-                tok = strtok(NULL, ",");
+                const char *p_next = strchr(p_ptr, ',');
+                int sub_len = p_next ? (int)(p_next - p_ptr) : (int)strlen(p_ptr);
+                char *sub = xmalloc(sub_len + 1);
+                strncpy(sub, p_ptr, sub_len);
+                sub[sub_len] = 0;
+
+                char *clean_sub = sanitize_mangled_name(sub);
+                strcat(p_suffix, "__");
+                strcat(p_suffix, clean_sub);
+                free(clean_sub);
+                free(sub);
+
+                if (p_next)
+                {
+                    p_ptr = p_next + 1;
+                }
+                else
+                {
+                    break;
+                }
             }
-            free(p_temp);
 
             size_t nlen = strlen(t->name);
             size_t slen = strlen(p_suffix);
@@ -2103,33 +2091,45 @@ Type *replace_type_formal(Type *t, const char *p, const char *c, const char *os,
                 slen = found_slen;
                 char c_suffix[1024];
                 c_suffix[0] = 0;
-                char *c_temp = xstrdup(c);
-                tok = strtok(c_temp, ",");
-                while (tok)
+                const char *c_ptr = c;
+                while (c_ptr && *c_ptr)
                 {
-                    strcat(c_suffix, "_");
-                    char *clean = sanitize_mangled_name(tok);
+                    const char *c_next = strchr(c_ptr, ',');
+                    int sub_len = c_next ? (int)(c_next - c_ptr) : (int)strlen(c_ptr);
+
+                    char *sub = xmalloc(sub_len + 1);
+                    strncpy(sub, c_ptr, sub_len);
+                    sub[sub_len] = 0;
+
+                    char *clean = sanitize_mangled_name(sub);
+                    // Standardize: always use __ for mangled part
+                    strcat(c_suffix, "__");
                     strcat(c_suffix, clean);
                     free(clean);
-                    tok = strtok(NULL, ",");
+                    free(sub);
+
+                    if (c_next)
+                    {
+                        c_ptr = c_next + 1;
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
-                free(c_temp);
 
                 char *new_name =
                     xmalloc(nlen - slen + strlen(c_suffix) + (num_ptr_suffixes * 3) + 1);
                 strncpy(new_name, t->name, nlen - slen);
                 new_name[nlen - slen] = 0;
 
-                // If the base name already ends with an underscore and our suffix starts with one,
-                // don't double it up.
-                if (nlen > slen && t->name[nlen - slen - 1] == '_' && c_suffix[0] == '_')
+                // Handle underscore merging: ensure exactly two underscores
+                char *p_end = new_name + strlen(new_name);
+                while (p_end > new_name && *(p_end - 1) == '_')
                 {
-                    strcat(new_name, c_suffix + 1);
+                    *(--p_end) = '\0';
                 }
-                else
-                {
-                    strcat(new_name, c_suffix);
-                }
+                strcat(new_name, c_suffix);
 
                 // Restore Ptr suffixes
                 for (int k = 0; k < num_ptr_suffixes; k++)
@@ -2169,80 +2169,6 @@ Type *replace_type_formal(Type *t, const char *p, const char *c, const char *os,
     return n;
 }
 
-// Helper to replace generic params in mangled names (e.g. Option_V_None ->
-// Option_int_None)
-char *replace_mangled_part(const char *src, const char *param, const char *concrete)
-{
-    if (!src || !param || !concrete)
-    {
-        return src ? xstrdup(src) : NULL;
-    }
-
-    char *result = xmalloc(4096); // Basic buffer for simplicity
-    result[0] = 0;
-
-    const char *curr = src;
-    char *out = result;
-    int plen = strlen(param);
-
-    while (*curr)
-    {
-        // Check if param matches here
-        if (strncmp(curr, param, plen) == 0)
-        {
-            // Check boundaries: Must be delimited by underscores to be a mangled identifier
-            // (e.g., Vec_T should match, but standalone T should not)
-            int valid = 1;
-            int has_underscore_boundary = 0;
-
-            // Check Prev: Start of string OR Underscore
-            if (curr > src)
-            {
-                if (*(curr - 1) == '_')
-                {
-                    has_underscore_boundary = 1;
-                }
-                else if (is_ident_char(*(curr - 1)))
-                {
-                    valid = 0;
-                }
-            }
-
-            // Check Next: End of string OR Underscore
-            if (valid && curr[plen] != 0 && curr[plen] != '_' && is_ident_char(curr[plen]))
-            {
-                // Allow Ptr suffix, but not other alphanumeric characters that would make it a
-                // different identifier
-                if (strncmp(curr + plen, "Ptr", 3) != 0)
-                {
-                    valid = 0;
-                }
-            }
-            if (valid && curr[plen] == '_')
-            {
-                has_underscore_boundary = 1;
-            }
-
-            // Only replace if there's at least one underscore boundary
-            if (valid && !has_underscore_boundary)
-            {
-                valid = 0;
-            }
-
-            if (valid)
-            {
-                strcpy(out, concrete);
-                out += strlen(concrete);
-                curr += plen;
-                continue;
-            }
-        }
-        *out++ = *curr++;
-    }
-    *out = 0;
-    return xstrdup(result);
-}
-
 ASTNode *copy_ast_replacing(ASTNode *n, const char *p, const char *c, const char *os,
                             const char *ns)
 {
@@ -2268,20 +2194,78 @@ ASTNode *copy_ast_replacing(ASTNode *n, const char *p, const char *c, const char
         new_node->func.name = xstrdup(n->func.name);
         new_node->func.ret_type = replace_type_str(n->func.ret_type, p, c, os, ns);
 
-        char *tmp_args = replace_in_string(n->func.args, p, c);
+        char *tmp_args = xstrdup(n->func.args);
+        if (p && c && strchr(p, ','))
+        {
+            char *p_ptr = (char *)p;
+            char *c_ptr = (char *)c;
+            while (*p_ptr && *c_ptr)
+            {
+                char *p_end = strchr(p_ptr, ',');
+                int p_len = p_end ? (int)(p_end - p_ptr) : (int)strlen(p_ptr);
+                char *c_end = strchr(c_ptr, ',');
+                int c_len = c_end ? (int)(c_end - c_ptr) : (int)strlen(c_ptr);
+
+                char *p_part = xmalloc(p_len + 1);
+                strncpy(p_part, p_ptr, p_len);
+                p_part[p_len] = 0;
+
+                char *c_part = xmalloc(c_len + 1);
+                strncpy(c_part, c_ptr, c_len);
+                c_part[c_len] = 0;
+
+                char *t1 = replace_in_string(tmp_args, p_part, c_part);
+                free(tmp_args);
+                tmp_args = t1;
+
+                char *clean_c = sanitize_mangled_name(c_part);
+                char *t2 = replace_mangled_part(tmp_args, p_part, clean_c);
+                free(tmp_args);
+                tmp_args = t2;
+
+                free(p_part);
+                free(c_part);
+                free(clean_c);
+
+                if (p_end)
+                {
+                    p_ptr = p_end + 1;
+                }
+                else
+                {
+                    break;
+                }
+                if (c_end)
+                {
+                    c_ptr = c_end + 1;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+        else
+        {
+            char *t1 = replace_in_string(tmp_args, p, c);
+            free(tmp_args);
+            tmp_args = t1;
+
+            if (p && c)
+            {
+                char *clean_c = sanitize_mangled_name(c);
+                char *t2 = replace_mangled_part(tmp_args, p, clean_c);
+                free(tmp_args);
+                tmp_args = t2;
+                free(clean_c);
+            }
+        }
+
         if (os && ns)
         {
             char *tmp2 = replace_in_string(tmp_args, os, ns);
             free(tmp_args);
             tmp_args = tmp2;
-        }
-        if (p && c)
-        {
-            char *clean_c = sanitize_mangled_name(c);
-            char *tmp3 = replace_mangled_part(tmp_args, p, clean_c);
-            free(clean_c);
-            free(tmp_args);
-            tmp_args = tmp3;
         }
         new_node->func.args = tmp_args;
 
@@ -2336,21 +2320,78 @@ ASTNode *copy_ast_replacing(ASTNode *n, const char *p, const char *c, const char
         break;
     case NODE_RAW_STMT:
     {
-        char *s1 = replace_in_string(n->raw_stmt.content, p, c);
+        char *s1 = xstrdup(n->raw_stmt.content);
+        if (p && c && strchr(p, ','))
+        {
+            char *p_ptr = (char *)p;
+            char *c_ptr = (char *)c;
+            while (*p_ptr && *c_ptr)
+            {
+                char *p_end = strchr(p_ptr, ',');
+                int p_len = p_end ? (int)(p_end - p_ptr) : (int)strlen(p_ptr);
+                char *c_end = strchr(c_ptr, ',');
+                int c_len = c_end ? (int)(c_end - c_ptr) : (int)strlen(c_ptr);
+
+                char *p_part = xmalloc(p_len + 1);
+                strncpy(p_part, p_ptr, p_len);
+                p_part[p_len] = 0;
+
+                char *c_part = xmalloc(c_len + 1);
+                strncpy(c_part, c_ptr, c_len);
+                c_part[c_len] = 0;
+
+                char *t1 = replace_in_string(s1, p_part, c_part);
+                free(s1);
+                s1 = t1;
+
+                char *clean_c = sanitize_mangled_name(c_part);
+                char *t2 = replace_mangled_part(s1, p_part, clean_c);
+                free(s1);
+                s1 = t2;
+
+                free(p_part);
+                free(c_part);
+                free(clean_c);
+
+                if (p_end)
+                {
+                    p_ptr = p_end + 1;
+                }
+                else
+                {
+                    break;
+                }
+                if (c_end)
+                {
+                    c_ptr = c_end + 1;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+        else
+        {
+            char *t1 = replace_in_string(s1, p, c);
+            free(s1);
+            s1 = t1;
+
+            if (p && c)
+            {
+                char *clean_c = sanitize_mangled_name(c);
+                char *t2 = replace_mangled_part(s1, p, clean_c);
+                free(s1);
+                s1 = t2;
+                free(clean_c);
+            }
+        }
+
         if (os && ns)
         {
             char *s2 = replace_in_string(s1, os, ns);
             free(s1);
             s1 = s2;
-        }
-
-        if (p && c)
-        {
-            char *clean_c = sanitize_mangled_name(c);
-            char *s3 = replace_mangled_part(s1, p, clean_c);
-            free(clean_c);
-            free(s1);
-            s1 = s3;
         }
 
         new_node->raw_stmt.content = s1;
@@ -2382,26 +2423,84 @@ ASTNode *copy_ast_replacing(ASTNode *n, const char *p, const char *c, const char
     case NODE_EXPR_VAR:
     {
         char *n1 = xstrdup(n->var_ref.name);
-        if (p && c)
+        if (p && c && strchr(p, ','))
         {
-            char *tmp = replace_in_string(n1, p, c);
-            free(n1);
-            n1 = tmp;
+            char *p_ptr = (char *)p;
+            char *c_ptr = (char *)c;
+            while (*p_ptr && *c_ptr)
+            {
+                char *p_end = strchr(p_ptr, ',');
+                int p_len = p_end ? (int)(p_end - p_ptr) : (int)strlen(p_ptr);
+                char *c_end = strchr(c_ptr, ',');
+                int c_len = c_end ? (int)(c_end - c_ptr) : (int)strlen(c_ptr);
 
-            char *clean_c = sanitize_mangled_name(c);
-            char *n2 = replace_mangled_part(n1, p, clean_c);
-            free(clean_c);
-            free(n1);
-            n1 = n2;
+                char *p_part = xmalloc(p_len + 1);
+                strncpy(p_part, p_ptr, p_len);
+                p_part[p_len] = 0;
+
+                char *c_part = xmalloc(c_len + 1);
+                strncpy(c_part, c_ptr, c_len);
+                c_part[c_len] = 0;
+
+                char *t1 = replace_in_string(n1, p_part, c_part);
+                free(n1);
+                n1 = t1;
+
+                char *clean_c = sanitize_mangled_name(c_part);
+                char *t2 = replace_mangled_part(n1, p_part, clean_c);
+                free(n1);
+                n1 = t2;
+
+                free(p_part);
+                free(c_part);
+                free(clean_c);
+
+                if (p_end)
+                {
+                    p_ptr = p_end + 1;
+                }
+                else
+                {
+                    break;
+                }
+                if (c_end)
+                {
+                    c_ptr = c_end + 1;
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
+        else
+        {
+            if (p && c)
+            {
+                char *t1 = replace_in_string(n1, p, c);
+                free(n1);
+                n1 = t1;
+
+                char *clean_c = sanitize_mangled_name(c);
+                char *n2 = replace_mangled_part(n1, p, clean_c);
+                free(clean_c);
+                free(n1);
+                n1 = n2;
+            }
+        }
+
         if (os && ns)
         {
             int os_len = strlen(os);
-            if (strncmp(n1, os, os_len) == 0 && n1[os_len] == '_' && n1[os_len + 1] == '_')
+            int ns_len = strlen(ns);
+            // Only replace if it starts with os__ and DOES NOT already start with ns__
+            if (strncmp(n1, os, os_len) == 0 && n1[os_len] == '_' && n1[os_len + 1] == '_' &&
+                strncmp(n1, ns, ns_len) != 0)
             {
                 char *suffix = n1 + os_len;
-                char *n3 = xmalloc(strlen(ns) + strlen(suffix) + 1);
-                sprintf(n3, "%s%s", ns, suffix);
+                char buf[1024];
+                snprintf(buf, sizeof(buf), "%s%s", ns, suffix);
+                char *n3 = merge_underscores(buf);
                 free(n1);
                 n1 = n3;
             }
@@ -2498,7 +2597,58 @@ ASTNode *copy_ast_replacing(ASTNode *n, const char *p, const char *c, const char
     case NODE_MATCH_CASE:
         if (n->match_case.pattern)
         {
-            char *s1 = replace_in_string(n->match_case.pattern, p, c);
+            char *s1 = xstrdup(n->match_case.pattern);
+            if (p && c && strchr(p, ','))
+            {
+                char *p_ptr = (char *)p;
+                char *c_ptr = (char *)c;
+                while (*p_ptr && *c_ptr)
+                {
+                    char *p_end = strchr(p_ptr, ',');
+                    int p_len = p_end ? (int)(p_end - p_ptr) : (int)strlen(p_ptr);
+                    char *c_end = strchr(c_ptr, ',');
+                    int c_len = c_end ? (int)(c_end - c_ptr) : (int)strlen(c_ptr);
+
+                    char *p_part = xmalloc(p_len + 1);
+                    strncpy(p_part, p_ptr, p_len);
+                    p_part[p_len] = 0;
+
+                    char *c_part = xmalloc(c_len + 1);
+                    strncpy(c_part, c_ptr, c_len);
+                    c_part[c_len] = 0;
+
+                    char *t1 = replace_mangled_part(s1, p_part, c_part);
+                    free(s1);
+                    s1 = t1;
+
+                    free(p_part);
+                    free(c_part);
+
+                    if (p_end)
+                    {
+                        p_ptr = p_end + 1;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                    if (c_end)
+                    {
+                        c_ptr = c_end + 1;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                char *t1 = replace_mangled_part(s1, p, c);
+                free(s1);
+                s1 = t1;
+            }
+
             if (os && ns)
             {
                 char *s2 = replace_in_string(s1, os, ns);
@@ -2585,6 +2735,7 @@ char *sanitize_mangled_name(const char *s)
         }
         else if (*s == '<' || *s == ',' || *s == ' ')
         {
+            *p++ = '_';
             *p++ = '_';
         }
         else if (*s == '>' || *s == '&')
@@ -2721,12 +2872,16 @@ static void trigger_instantiations(ParserContext *ctx, ASTNode *node)
                 }
             }
 
-            char *underscore = strrchr(type_copy, '_');
-            if (underscore && underscore > type_copy)
+            char *underscore = strchr(type_copy, '_');
+            if (underscore)
             {
+                char *concrete_arg = underscore;
+                while (*concrete_arg == '_')
+                {
+                    concrete_arg++;
+                }
                 *underscore = '\0';
                 char *template_name = type_copy;
-                char *concrete_arg = underscore + 1;
 
                 // Check if this is a known generic template
                 GenericTemplate *gt = ctx->templates;
@@ -2761,10 +2916,10 @@ static void trigger_instantiations(ParserContext *ctx, ASTNode *node)
             while (t)
             {
                 size_t tlen = strlen(t->name);
-                if (strncmp(name, t->name, tlen) == 0 && name[tlen] == '_')
+                if (strncmp(name, t->name, tlen) == 0 && name[tlen] == '_' && name[tlen + 1] == '_')
                 {
                     char *template_name = t->name;
-                    char *concrete_arg = (char *)name + tlen + 1; // cast to avoid warning
+                    char *concrete_arg = (char *)name + tlen + 2;
 
                     char *unmangled = unmangle_ptr_suffix(concrete_arg);
                     instantiate_function_template(ctx, template_name, concrete_arg, unmangled);
@@ -2872,8 +3027,9 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
         is_still_generic = 1;
     }
 
-    char *mangled = xmalloc(strlen(name) + strlen(clean_type) + 2);
-    sprintf(mangled, "%s_%s", name, clean_type);
+    char buf[1024];
+    snprintf(buf, sizeof(buf), "%s__%s", name, clean_type);
+    char *mangled = merge_underscores(buf);
     free(clean_type);
 
     if (is_still_generic)
@@ -2895,17 +3051,24 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
         const char *ret = tpl->func_node->func.ret_type;
 
         // Build the param suffix (e.g., for "X,Y,Z" -> "_X_Y_Z")
-        char param_suffix[256];
+        char param_suffix[2048];
         param_suffix[0] = 0;
-        char *tmp = xstrdup(tpl->generic_param);
-        char *tokp = strtok(tmp, ",");
-        while (tokp)
+        const char *p_ptr = tpl->generic_param;
+        while (p_ptr && *p_ptr)
         {
-            strcat(param_suffix, "_");
-            strcat(param_suffix, tokp);
-            tokp = strtok(NULL, ",");
+            strcat(param_suffix, "__");
+            const char *p_next = strchr(p_ptr, ',');
+            int sub_len = p_next ? (int)(p_next - p_ptr) : (int)strlen(p_ptr);
+            strncat(param_suffix, p_ptr, sub_len);
+            if (p_next)
+            {
+                p_ptr = p_next + 1;
+            }
+            else
+            {
+                break;
+            }
         }
-        free(tmp);
 
         // Check if ret_type ends with param_suffix (e.g., "Triple_X_Y_Z" ends with "_X_Y_Z")
         size_t ret_len = strlen(ret);
@@ -2942,14 +3105,27 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
                 // Split concrete types
                 char **args = xmalloc(sizeof(char *) * template_param_count);
                 int arg_count = 0;
-                char *types_copy = xstrdup(types_src);
-                char *tok = strtok(types_copy, ",");
-                while (tok && arg_count < template_param_count)
+                const char *types_ptr = types_src;
+                while (types_ptr && *types_ptr && arg_count < template_param_count)
                 {
-                    args[arg_count++] = xstrdup(tok);
-                    tok = strtok(NULL, ",");
+                    const char *types_next = strchr(types_ptr, ',');
+                    int types_len =
+                        types_next ? (int)(types_next - types_ptr) : (int)strlen(types_ptr);
+
+                    args[arg_count] = xmalloc(types_len + 1);
+                    strncpy(args[arg_count], types_ptr, types_len);
+                    args[arg_count][types_len] = 0;
+                    arg_count++;
+
+                    if (types_next)
+                    {
+                        types_ptr = types_next + 1;
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
-                free(types_copy);
 
                 // Now instantiate the struct with these args
                 Token dummy_tok = {0};
@@ -2999,6 +3175,16 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
         return NULL;
     }
 
+    free(new_fn->func.name);
+    new_fn->func.name = xstrdup(mangled);
+    new_fn->func.generic_params = NULL;
+
+    add_instantiated_func(ctx, new_fn);
+
+    register_func(ctx, ctx->global_scope, mangled, new_fn->func.arg_count, new_fn->func.defaults,
+                  new_fn->func.arg_types, new_fn->func.ret_type_info, new_fn->func.is_varargs, 0,
+                  new_fn->func.pure, new_fn->token);
+
     trigger_instantiations(ctx, new_fn->func.body);
 
     if (new_fn->func.arg_types)
@@ -3015,15 +3201,6 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
         }
     }
 
-    free(new_fn->func.name);
-    new_fn->func.name = xstrdup(mangled);
-    new_fn->func.generic_params = NULL;
-
-    register_func(ctx, ctx->global_scope, mangled, new_fn->func.arg_count, new_fn->func.defaults,
-                  new_fn->func.arg_types, new_fn->func.ret_type_info, new_fn->func.is_varargs, 0,
-                  new_fn->func.pure, new_fn->token);
-
-    add_instantiated_func(ctx, new_fn);
     return mangled;
 }
 
@@ -3327,11 +3504,13 @@ ASTNode *copy_fields_replacing(ParserContext *ctx, ASTNode *fields, const char *
             while (gt)
             {
                 size_t tlen = strlen(gt->name);
-                // Check if name starts with template name followed by underscore
-                if (strncmp(inner->name, gt->name, tlen) == 0 && inner->name[tlen] == '_')
+                // Check if name starts with template name followed by double underscore
+                if (strncmp(inner->name, gt->name, tlen) == 0 && inner->name[tlen] == '_' &&
+                    inner->name[tlen + 1] == '_')
                 {
                     template_name = gt->name;
-                    concrete_arg = inner->name + tlen + 1; // Skip template name and underscore
+                    concrete_arg =
+                        inner->name + tlen + 2; // Skip template name and double underscore
                     break;
                 }
                 gt = gt->next;
@@ -3378,6 +3557,34 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
 
     ASTNode *new_impl = copy_ast_replacing(it->impl_node, it->generic_param, subst_arg,
                                            it->struct_name, mangled_struct_name);
+
+    // Also replace mangled template name (both List__G and List_G)
+    if (strchr(it->struct_name, '<'))
+    {
+        char *sanitized = sanitize_mangled_name(it->struct_name);
+        if (strcmp(sanitized, it->struct_name) != 0)
+        {
+            ASTNode *tmp = copy_ast_replacing(new_impl, NULL, NULL, sanitized, mangled_struct_name);
+            new_impl = tmp;
+        }
+
+        char *old_sanitized = xstrdup(sanitized);
+        char *double_underscore = strstr(old_sanitized, "__");
+        if (double_underscore)
+        {
+            memmove(double_underscore, double_underscore + 1, strlen(double_underscore + 1) + 1);
+        }
+
+        if (strcmp(old_sanitized, it->struct_name) != 0 && strcmp(old_sanitized, sanitized) != 0)
+        {
+            ASTNode *tmp =
+                copy_ast_replacing(new_impl, NULL, NULL, old_sanitized, mangled_struct_name);
+            new_impl = tmp;
+        }
+
+        free(old_sanitized);
+        free(sanitized);
+    }
     free(subst_arg);
     it->impl_node->next = backup_next; // Restore
 
@@ -3396,17 +3603,38 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
 
     while (meth)
     {
-        char *suffix = meth->func.name + strlen(it->struct_name);
-        if (suffix && *suffix)
+        // Standardize: ensure __ between type and method
+        // If it's already correctly mangled (e.g. Vec__int32_t__with_capacity), skip
+        size_t mlen = strlen(mangled_struct_name);
+        int correctly_mangled = (strncmp(meth->func.name, mangled_struct_name, mlen) == 0 &&
+                                 meth->func.name[mlen] == '_' && meth->func.name[mlen + 1] == '_');
+
+        if (!correctly_mangled)
         {
-            char *new_name = xmalloc(strlen(mangled_struct_name) + strlen(suffix) + 1);
-            sprintf(new_name, "%s%s", mangled_struct_name, suffix);
+            // Find the method part in the original name (e.g. "with_capacity" in
+            // "Vec_with_capacity")
+            char *original_method = meth->func.name;
+            if (strncmp(original_method, it->struct_name, strlen(it->struct_name)) == 0)
+            {
+                original_method += strlen(it->struct_name);
+            }
+            while (*original_method == '_')
+            {
+                original_method++;
+            }
+
+            char *temp = xmalloc(strlen(mangled_struct_name) + strlen(original_method) + 3);
+            sprintf(temp, "%s__%s", mangled_struct_name, original_method);
+            char *new_name = merge_underscores(temp);
+            free(temp);
             free(meth->func.name);
             meth->func.name = new_name;
-            register_func(ctx, ctx->global_scope, new_name, meth->func.arg_count,
-                          meth->func.defaults, meth->func.arg_types, meth->func.ret_type_info,
-                          meth->func.is_varargs, 0, meth->func.pure, meth->token);
         }
+
+        // Register the function (either new_name or original mangled name)
+        register_func(ctx, ctx->global_scope, meth->func.name, meth->func.arg_count,
+                      meth->func.defaults, meth->func.arg_types, meth->func.ret_type_info,
+                      meth->func.is_varargs, 0, meth->func.pure, meth->token);
 
         // Handle generic return types in methods (e.g., Option<T> -> Option_int)
         if (meth->func.ret_type &&
@@ -3422,10 +3650,13 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
                     (delim == '_' || delim == '<'))
                 {
                     // Found matching template prefix
-                    const char *type_arg = meth->func.ret_type + tlen + 1;
+                    const char *type_arg = meth->func.ret_type + tlen;
+                    while (*type_arg == '_' || *type_arg == '<')
+                    {
+                        type_arg++;
+                    }
 
                     // Simple approach: instantiate 'Template' with 'Arg'.
-                    // If delimited by <, we need to extract the inside.
                     char *clean_arg = xstrdup(type_arg);
                     if (delim == '<')
                     {
@@ -3458,7 +3689,6 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
                     }
 
                     instantiate_generic(ctx, gt->name, clean_arg, inner_unmangled_arg, meth->token);
-                    free(unmangled_arg);
                     free(clean_arg);
                 }
                 gt = gt->next;
@@ -3487,8 +3717,15 @@ void instantiate_generic(ParserContext *ctx, const char *tpl, const char *arg,
     }
 
     char *clean_arg = sanitize_mangled_name(arg);
-    char m[256];
-    sprintf(m, "%s_%s", tpl, clean_arg);
+    char *m = xmalloc(strlen(tpl) + strlen(clean_arg) + 4);
+    strcpy(m, tpl);
+    char *m_end = m + strlen(m);
+    while (m_end > m && *(m_end - 1) == '_')
+    {
+        *(--m_end) = '\0';
+    }
+    strcat(m, "__");
+    strcat(m, clean_arg);
     free(clean_arg);
 
     Instantiation *c = ctx->instantiations;
@@ -3496,6 +3733,7 @@ void instantiate_generic(ParserContext *ctx, const char *tpl, const char *arg,
     {
         if (strcmp(c->name, m) == 0)
         {
+            free(m);
             return; // Already instantiated, DO NOTHING.
         }
         c = c->next;
@@ -3561,8 +3799,7 @@ void instantiate_generic(ParserContext *ctx, const char *tpl, const char *arg,
         ASTNode *fld = i->strct.fields;
         while (fld)
         {
-            if (fld->type == NODE_FIELD && fld->field.type &&
-                strncmp(fld->field.type, "Slice_", 6) == 0)
+            if (fld->field.type && strncmp(fld->field.type, "Slice__", 7) == 0)
             {
                 register_slice(ctx, fld->field.type + 6);
             }
@@ -3648,11 +3885,11 @@ void instantiate_generic(ParserContext *ctx, const char *tpl, const char *arg,
     {
         if (strcmp(it->struct_name, tpl) == 0)
         {
-            const char *subst_arg = unmangled_arg ? unmangled_arg : arg;
-            instantiate_methods(ctx, it, m, arg, subst_arg);
+            instantiate_methods(ctx, it, m, arg, unmangled_arg);
         }
         it = it->next;
     }
+    free(m);
 }
 
 static void free_field_list(ASTNode *fields)
@@ -3677,12 +3914,24 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
                                Token token)
 {
     // Build mangled name from all args
-    char m[256];
-    strcpy(m, tpl);
+    size_t m_len = strlen(tpl) + 1;
     for (int i = 0; i < arg_count; i++)
     {
         char *clean = sanitize_mangled_name(args[i]);
-        strcat(m, "_");
+        m_len += 2 + strlen(clean);
+        free(clean);
+    }
+    char *m = xmalloc(m_len + 1);
+    strcpy(m, tpl);
+    char *m_end = m + strlen(m);
+    while (m_end > m && *(m_end - 1) == '_')
+    {
+        *(--m_end) = '\0';
+    }
+    for (int i = 0; i < arg_count; i++)
+    {
+        char *clean = sanitize_mangled_name(args[i]);
+        strcat(m, "__");
         strcat(m, clean);
         free(clean);
     }
@@ -3694,6 +3943,7 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
     {
         if (strcmp(c->name, m) == 0)
         {
+            free(m);
             return; // Already done
         }
         c = c->next;
@@ -3802,7 +4052,13 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
                 // We use replace_type_formal which handles "T,E" as p and "int,float" as c.
 
                 // Construct comma-separated concrete args string
-                char c_args[1024] = {0};
+                size_t c_args_len = 1;
+                for (int j = 0; j < arg_count; j++)
+                {
+                    c_args_len += strlen(args[j]) + 1;
+                }
+                char *c_args = xmalloc(c_args_len);
+                c_args[0] = 0;
                 for (int j = 0; j < arg_count; j++)
                 {
                     if (j > 0)
@@ -3814,6 +4070,7 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
 
                 nv->variant.payload = replace_type_formal(
                     payload, t->struct_node->enm.generic_param, c_args, NULL, NULL);
+                free(c_args);
             }
 
             size_t mangled_var_sz = strlen(m) + strlen(nv->variant.name) + 3;
@@ -3859,6 +4116,7 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
         i->next = ctx->instantiated_structs;
         ctx->instantiated_structs = i;
     }
+    free(m);
 }
 
 int is_file_imported(ParserContext *ctx, const char *p)
@@ -4069,8 +4327,9 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
                 }
 
                 // Mixin Lookup Logic
-                char target_func[256];
-                sprintf(target_func, "%s__%s", ptr_check, method);
+                char target_func_raw[256];
+                sprintf(target_func_raw, "%s__%s", ptr_check, method);
+                char *target_func = merge_underscores(target_func_raw);
 
                 char *final_cast = NULL;
                 char *final_method = xstrdup(method);
@@ -4086,8 +4345,10 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
                     {
                         for (int k = 0; k < mixin_def->strct.used_struct_count; k++)
                         {
-                            char mixin_func[128];
-                            sprintf(mixin_func, "%s__%s", mixin_def->strct.used_structs[k], method);
+                            char mixin_func_raw[128];
+                            sprintf(mixin_func_raw, "%s__%s", mixin_def->strct.used_structs[k],
+                                    method);
+                            char *mixin_func = merge_underscores(mixin_func_raw);
                             if (find_func(ctx, mixin_func))
                             {
                                 // Found in mixin!
@@ -4114,15 +4375,21 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
                 if (final_cast)
                 {
                     // Mixin call: Foo__method((Foo*)&obj
-                    dest +=
-                        sprintf(dest, "%s__%s(%s%s", final_struct, final_method, final_cast, acc);
+                    char call_buf[1024];
+                    snprintf(call_buf, sizeof(call_buf), "%s__%s", final_struct, final_method);
+                    char *mangled_call = merge_underscores(call_buf);
+
+                    dest += sprintf(dest, "%s(%s%s", mangled_call, final_cast, acc);
                     free(final_cast);
                 }
                 else
                 {
                     // Standard call
-                    dest += sprintf(dest, "%s__%s(%s%s", final_struct, final_method,
-                                    is_ptr ? "" : "&", acc);
+                    char call_buf[1024];
+                    snprintf(call_buf, sizeof(call_buf), "%s__%s", final_struct, final_method);
+                    char *mangled_call = merge_underscores(call_buf);
+
+                    dest += sprintf(dest, "%s(%s%s", mangled_call, is_ptr ? "" : "&", acc);
                 }
                 free(final_struct);
                 free(final_method);
@@ -4176,8 +4443,9 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
                     }
                 }
                 // Mixin Lookup Logic (No Parens)
-                char target_func[256];
-                sprintf(target_func, "%s__%s", ptr_check, method);
+                char target_func_raw[256];
+                sprintf(target_func_raw, "%s__%s", ptr_check, method);
+                char *target_func = merge_underscores(target_func_raw);
 
                 char *final_cast = NULL;
                 char *final_method = xstrdup(method);
@@ -4193,8 +4461,10 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
                     {
                         for (int k = 0; k < mixin_def->strct.used_struct_count; k++)
                         {
-                            char mixin_func[128];
-                            sprintf(mixin_func, "%s__%s", mixin_def->strct.used_structs[k], method);
+                            char mixin_func_raw[128];
+                            sprintf(mixin_func_raw, "%s__%s", mixin_def->strct.used_structs[k],
+                                    method);
+                            char *mixin_func = merge_underscores(mixin_func_raw);
                             if (find_func(ctx, mixin_func))
                             {
                                 // Found in mixin!
@@ -4220,14 +4490,20 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
 
                 if (final_cast)
                 {
-                    dest +=
-                        sprintf(dest, "%s__%s(%s%s)", final_struct, final_method, final_cast, acc);
+                    char call_buf[1024];
+                    snprintf(call_buf, sizeof(call_buf), "%s__%s", final_struct, final_method);
+                    char *mangled_call = merge_underscores(call_buf);
+
+                    dest += sprintf(dest, "%s(%s%s)", mangled_call, final_cast, acc);
                     free(final_cast);
                 }
                 else
                 {
-                    dest += sprintf(dest, "%s__%s(%s%s)", final_struct, final_method,
-                                    is_ptr ? "" : "&", acc);
+                    char call_buf[1024];
+                    snprintf(call_buf, sizeof(call_buf), "%s__%s", final_struct, final_method);
+                    char *mangled_call = merge_underscores(call_buf);
+
+                    dest += sprintf(dest, "%s(%s%s)", mangled_call, is_ptr ? "" : "&", acc);
                 }
                 free(final_struct);
                 free(final_method);
@@ -4286,7 +4562,7 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
                     }
                     if (is_variant)
                     {
-                        dest += sprintf(dest, "%s_%s", acc, field);
+                        dest += sprintf(dest, "%s__%s", acc, field);
                     }
                     else
                     {
@@ -4302,7 +4578,7 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
                 else
                 {
                     // Module function
-                    dest += sprintf(dest, "%s_%s", acc, field);
+                    dest += sprintf(dest, "%s__%s", acc, field);
                 }
             }
             continue;
@@ -4359,7 +4635,12 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
                         }
                         else
                         {
-                            snprintf(mangled, sizeof(mangled), "%s_%s", mod->base_name, method);
+                            char mangled_raw[512];
+                            snprintf(mangled_raw, sizeof(mangled_raw), "%s__%s", mod->base_name,
+                                     method);
+                            char *mangled_merged = merge_underscores(mangled_raw);
+                            strncpy(mangled, mangled_merged, sizeof(mangled) - 1);
+                            mangled[sizeof(mangled) - 1] = 0;
                         }
                     }
                     else
@@ -4367,11 +4648,19 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
                         ASTNode *sdef = find_struct_def(ctx, use_name);
                         if (sdef)
                         {
-                            snprintf(mangled, sizeof(mangled), "%s__%s", use_name, method);
+                            char mangled_raw[512];
+                            snprintf(mangled_raw, sizeof(mangled_raw), "%s__%s", use_name, method);
+                            char *mangled_merged = merge_underscores(mangled_raw);
+                            strncpy(mangled, mangled_merged, sizeof(mangled) - 1);
+                            mangled[sizeof(mangled) - 1] = 0;
                         }
                         else
                         {
-                            snprintf(mangled, sizeof(mangled), "%s_%s", use_name, method);
+                            char mangled_raw[512];
+                            snprintf(mangled_raw, sizeof(mangled_raw), "%s__%s", use_name, method);
+                            char *mangled_merged = merge_underscores(mangled_raw);
+                            strncpy(mangled, mangled_merged, sizeof(mangled) - 1);
+                            mangled[sizeof(mangled) - 1] = 0;
                         }
                     }
 

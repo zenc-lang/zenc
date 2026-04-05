@@ -145,15 +145,17 @@ ASTNode *transform_to_trait_object(ParserContext *ctx, const char *target_trait,
         if (check_impl(ctx, clean_trait, clean_struct_type))
         {
             char *code = xmalloc(512);
+            char v_buf[512];
+            snprintf(v_buf, sizeof(v_buf), "%s__%s__VTable", clean_struct_type, clean_trait);
+            char *v_mangled = merge_underscores(v_buf);
+
             if (source_expr->type == NODE_EXPR_UNARY && strcmp(source_expr->unary.op, "&") == 0)
             {
-                sprintf(code, "(%s){.self=&%s, .vtable=&%s_%s_VTable}", clean_trait, var_ref_name,
-                        clean_struct_type, clean_trait);
+                sprintf(code, "(%s){.self=&%s, .vtable=&%s}", clean_trait, var_ref_name, v_mangled);
             }
             else
             {
-                sprintf(code, "(%s){.self=%s, .vtable=&%s_%s_VTable}", clean_trait, var_ref_name,
-                        clean_struct_type, clean_trait);
+                sprintf(code, "(%s){.self=%s, .vtable=&%s}", clean_trait, var_ref_name, v_mangled);
             }
 
             ASTNode *wrapper = ast_create(NODE_RAW_STMT);
@@ -2580,17 +2582,17 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                 if (si)
                 {
                     char *tmp =
-                        xmalloc(strlen(si->source_module) + strlen(si->symbol) + suffix.len + 4);
+                        xmalloc(strlen(si->source_module) + strlen(si->symbol) + suffix.len + 5);
 
-                    char base[256];
-                    sprintf(base, "%s_%s", si->source_module, si->symbol);
+                    char base_raw[256];
+                    sprintf(base_raw, "%s__%s", si->source_module, si->symbol);
+                    char *base = merge_underscores(base_raw);
                     ASTNode *def = find_struct_def(ctx, base);
                     int is_type = (def != NULL);
 
                     if (is_type)
                     {
                         // Check Enum Variant
-                        int is_variant = 0;
                         if (def->type == NODE_ENUM)
                         {
                             ASTNode *v = def->enm.variants;
@@ -2601,27 +2603,23 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                             {
                                 if (strcmp(v->variant.name, sbuf) == 0)
                                 {
-                                    is_variant = 1;
                                     break;
                                 }
                                 v = v->next;
                             }
                         }
-                        if (is_variant)
-                        {
-                            sprintf(tmp, "%s_%s__%.*s", si->source_module, si->symbol, suffix.len,
-                                    suffix.start);
-                        }
-                        else
-                        {
-                            sprintf(tmp, "%s_%s__%.*s", si->source_module, si->symbol, suffix.len,
-                                    suffix.start);
-                        }
+
+                        char tmp_raw[512];
+                        sprintf(tmp_raw, "%s__%s__%.*s", si->source_module, si->symbol,
+                                (int)suffix.len, suffix.start);
+                        tmp = merge_underscores(tmp_raw);
                     }
                     else
                     {
-                        sprintf(tmp, "%s_%s_%.*s", si->source_module, si->symbol, suffix.len,
-                                suffix.start);
+                        char tmp_raw[512];
+                        sprintf(tmp_raw, "%s__%s__%.*s", si->source_module, si->symbol,
+                                (int)suffix.len, suffix.start);
+                        tmp = merge_underscores(tmp_raw);
                     }
 
                     free(acc);
@@ -2642,21 +2640,30 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
 
                             register_extern_symbol(ctx, acc);
                         }
-
                         else
                         {
-                            char *tmp = xmalloc(strlen(mod->base_name) + suffix.len + 2);
-                            snprintf(tmp, strlen(mod->base_name) + suffix.len + 2, "%s_",
-                                     mod->base_name);
-                            strncat(tmp, suffix.start, suffix.len);
-                            free(acc);
-                            acc = tmp;
+                            char sbuf[256];
+                            strncpy(sbuf, suffix.start, suffix.len);
+                            sbuf[suffix.len] = 0;
+
+                            if (is_extern_symbol(ctx, sbuf))
+                            {
+                                free(acc);
+                                acc = xstrdup(sbuf);
+                            }
+                            else
+                            {
+                                char tmp2_raw[512];
+                                sprintf(tmp2_raw, "%s__%.*s", mod->base_name, (int)suffix.len,
+                                        suffix.start);
+                                char *tmp2 = merge_underscores(tmp2_raw);
+                                free(acc);
+                                acc = tmp2;
+                            }
                         }
                     }
                     else
                     {
-                        char *tmp = xmalloc(strlen(acc) + suffix.len + 3);
-
                         ASTNode *def = find_struct_def(ctx, acc);
 
                         int is_opaque_alias = 0;
@@ -2679,140 +2686,137 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                             }
                         }
 
+                        char *method_name = xmalloc(suffix.len + 1);
+                        strncpy(method_name, suffix.start, suffix.len);
+                        method_name[suffix.len] = 0;
+                        char *tmp = xmalloc(strlen(acc) + suffix.len + 32);
+
                         if (def || is_opaque_alias)
                         {
+                            // Check for enum variant first
                             int is_variant = 0;
                             if (def && def->type == NODE_ENUM)
                             {
                                 ASTNode *v = def->enm.variants;
-                                size_t slen = suffix.len;
-                                char *sbuf = xmalloc(slen + 1);
-                                strncpy(sbuf, suffix.start, slen);
-                                sbuf[slen] = 0;
                                 while (v)
                                 {
-                                    if (strcmp(v->variant.name, sbuf) == 0)
+                                    if (strcmp(v->variant.name, method_name) == 0)
                                     {
                                         is_variant = 1;
                                         break;
                                     }
                                     v = v->next;
                                 }
-                                free(sbuf);
                             }
+
                             if (is_variant)
                             {
-                                sprintf(tmp, "%s__%.*s", acc, suffix.len, suffix.start);
+                                char v_mangled_raw[512];
+                                snprintf(v_mangled_raw, sizeof(v_mangled_raw), "%s__%s", acc,
+                                         method_name);
+                                char *v_mangled = merge_underscores(v_mangled_raw);
+                                free(acc);
+                                acc = v_mangled;
+                                strcpy(tmp, acc);
                             }
                             else
                             {
-                                sprintf(tmp, "%s__%.*s", acc, suffix.len, suffix.start);
+                                char direct_raw[512];
+                                snprintf(direct_raw, sizeof(direct_raw), "%s__%s", acc,
+                                         method_name);
+                                char *direct = merge_underscores(direct_raw);
+
+                                if (find_func(ctx, direct))
+                                {
+                                    free(acc);
+                                    acc = direct;
+                                    strcpy(tmp, acc);
+                                }
+                                else
+                                {
+                                    // Fallback: check for trait implementations
+                                    StructRef *ref = ctx->parsed_impls_list;
+                                    int found_trait = 0;
+                                    while (ref)
+                                    {
+                                        if (ref->node && ref->node->type == NODE_IMPL_TRAIT &&
+                                            strcmp(ref->node->impl_trait.target_type, acc) == 0)
+                                        {
+                                            const char *tname = ref->node->impl_trait.trait_name;
+                                            const char *sep = (strcmp(tname, "Drop") == 0 ||
+                                                               strcmp(tname, "Clone") == 0 ||
+                                                               strcmp(tname, "Eq") == 0 ||
+                                                               strcmp(tname, "Copy") == 0 ||
+                                                               strcmp(tname, "Iterable") == 0)
+                                                                  ? "_"
+                                                                  : "__";
+
+                                            char t_m_raw[512];
+                                            snprintf(t_m_raw, sizeof(t_m_raw), "%s__%s%s%s", acc,
+                                                     tname, sep, method_name);
+                                            char *t_m = merge_underscores(t_m_raw);
+
+                                            if (find_func(ctx, t_m))
+                                            {
+                                                free(acc);
+                                                acc = xstrdup(t_m);
+                                                strcpy(tmp, acc);
+                                                found_trait = 1;
+                                                break;
+                                            }
+                                        }
+                                        ref = ref->next;
+                                    }
+                                    if (!found_trait)
+                                    {
+                                        free(acc);
+                                        acc = direct;
+                                        strcpy(tmp, acc);
+                                    }
+                                    else
+                                    {
+                                        free(direct);
+                                    }
+                                }
                             }
                         }
                         else
                         {
+                            // Handle generics or other cases
                             int handled_as_generic = 0;
                             for (int i = 0; i < ctx->known_generics_count; i++)
                             {
                                 char *gname = ctx->known_generics[i];
                                 int glen = strlen(gname);
-                                if (strncmp(acc, gname, glen) == 0 && acc[glen] == '_')
+                                if (strncmp(acc, gname, glen) == 0 && acc[glen] == '_' &&
+                                    acc[glen + 1] == '_')
                                 {
                                     ASTNode *tpl_def = find_struct_def(ctx, gname);
                                     if (tpl_def)
                                     {
-                                        int is_variant = 0;
+                                        int is_v = 0;
                                         if (tpl_def->type == NODE_ENUM)
                                         {
                                             ASTNode *v = tpl_def->enm.variants;
-                                            size_t slen = suffix.len;
-                                            char *sbuf = xmalloc(slen + 1);
-                                            strncpy(sbuf, suffix.start, slen);
-                                            sbuf[slen] = 0;
                                             while (v)
                                             {
-                                                if (strcmp(v->variant.name, sbuf) == 0)
+                                                if (strcmp(v->variant.name, method_name) == 0)
                                                 {
-                                                    is_variant = 1;
+                                                    is_v = 1;
                                                     break;
                                                 }
                                                 v = v->next;
                                             }
-                                            free(sbuf);
                                         }
-                                        int resolved = 0;
-                                        if (is_variant)
+                                        if (is_v)
                                         {
-                                            sprintf(tmp, "%s__%.*s", acc, suffix.len, suffix.start);
-                                            resolved = 1;
+                                            char tmp_raw[512];
+                                            sprintf(tmp_raw, "%s__%s", acc, method_name);
+                                            tmp = merge_underscores(tmp_raw);
+                                            handled_as_generic = 1;
                                         }
-                                        else
-                                        {
-                                            size_t ih_len = strlen(acc) + suffix.len + 3;
-                                            char *inherent_name = xmalloc(ih_len);
-                                            snprintf(inherent_name, ih_len, "%s__%.*s", acc,
-                                                     suffix.len, suffix.start);
-
-                                            if (find_func(ctx, inherent_name))
-                                            {
-                                                free(tmp);
-                                                tmp = inherent_name;
-                                                resolved = 1;
-                                            }
-                                            else
-                                            {
-                                                free(inherent_name);
-                                                GenericImplTemplate *it = ctx->impl_templates;
-                                                while (it)
-                                                {
-                                                    if (strcmp(it->struct_name, gname) == 0)
-                                                    {
-                                                        char *tname = NULL;
-                                                        if (it->impl_node &&
-                                                            it->impl_node->type == NODE_IMPL_TRAIT)
-                                                        {
-                                                            tname = it->impl_node->impl_trait
-                                                                        .trait_name;
-                                                        }
-                                                        if (tname)
-                                                        {
-                                                            size_t cand_len = strlen(acc) +
-                                                                              strlen(tname) +
-                                                                              suffix.len + 5;
-                                                            char *cand = xmalloc(cand_len);
-                                                            snprintf(cand, cand_len, "%s__%s_%.*s",
-                                                                     acc, tname, suffix.len,
-                                                                     suffix.start);
-
-                                                            if (find_func(ctx, cand))
-                                                            {
-                                                                free(tmp);
-                                                                tmp = cand;
-                                                                resolved = 1;
-                                                                break;
-                                                            }
-                                                            free(cand);
-                                                        }
-                                                    }
-                                                    it = it->next;
-                                                }
-                                            }
-                                            if (!resolved)
-                                            {
-                                                sprintf(tmp, "%s__%.*s", acc, suffix.len,
-                                                        suffix.start);
-                                            }
-                                        }
-                                        handled_as_generic = 1;
-                                        break; // Found and handled
                                     }
                                 }
-                            }
-                            // Explicit check for Vec to ensure it works
-                            if (!handled_as_generic && strncmp(acc, "Vec_", 4) == 0)
-                            {
-                                sprintf(tmp, "%s__%.*s", acc, suffix.len, suffix.start);
-                                handled_as_generic = 1;
                             }
 
                             // Also check registered templates list
@@ -2823,7 +2827,8 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                                 {
                                     char *gname = gt->name;
                                     int glen = strlen(gname);
-                                    if ((strncmp(acc, gname, glen) == 0 && acc[glen] == '_') ||
+                                    if ((strncmp(acc, gname, glen) == 0 && acc[glen] == '_' &&
+                                         acc[glen + 1] == '_') ||
                                         strcmp(acc, gname) == 0)
                                     {
                                         ASTNode *tpl_def = gt->struct_node;
@@ -2848,13 +2853,17 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                                             }
                                             if (is_variant)
                                             {
-                                                sprintf(tmp, "%s__%.*s", acc, suffix.len,
+                                                char tmp_raw[512];
+                                                sprintf(tmp_raw, "%s__%.*s", acc, (int)suffix.len,
                                                         suffix.start);
+                                                tmp = merge_underscores(tmp_raw);
                                             }
                                             else
                                             {
-                                                sprintf(tmp, "%s__%.*s", acc, suffix.len,
+                                                char tmp_raw[512];
+                                                sprintf(tmp_raw, "%s__%.*s", acc, (int)suffix.len,
                                                         suffix.start);
+                                                tmp = merge_underscores(tmp_raw);
                                             }
                                             handled_as_generic = 1;
                                             break;
@@ -2866,10 +2875,16 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
 
                             if (!handled_as_generic)
                             {
-                                sprintf(tmp, "%s_%.*s", acc, suffix.len, suffix.start);
+                                char combined_raw[512];
+                                sprintf(combined_raw, "%s__%.*s", acc, (int)suffix.len,
+                                        suffix.start);
+                                char *combined = merge_underscores(combined_raw);
+                                free(acc);
+                                acc = combined;
+                                strcpy(tmp, acc);
                             }
                         }
-
+                        free(method_name);
                         free(acc);
                         acc = tmp;
                     }
@@ -2948,7 +2963,7 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                         for (int i = 0; i < arg_count; ++i)
                         {
                             char *clean = sanitize_mangled_name(concrete_types[i]);
-                            mangled_len += 1 + strlen(clean);
+                            mangled_len += 2 + strlen(clean);
                             free(clean);
                         }
                         char *mangled = xmalloc(mangled_len);
@@ -2956,7 +2971,7 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                         for (int i = 0; i < arg_count; ++i)
                         {
                             char *clean = sanitize_mangled_name(concrete_types[i]);
-                            strcat(mangled, "_");
+                            strcat(mangled, "__");
                             strcat(mangled, clean);
                             free(clean);
                         }
@@ -3068,7 +3083,8 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                         if (sr->node && sr->node->type == NODE_STRUCT)
                         {
                             size_t len = strlen(sr->node->strct.name);
-                            if (strncmp(acc, sr->node->strct.name, len) == 0 && acc[len] == '_')
+                            if (strncmp(acc, sr->node->strct.name, len) == 0 && acc[len] == '_' &&
+                                acc[len + 1] == '_')
                             {
                                 is_struct_init = 1;
                                 break;
@@ -3191,15 +3207,16 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                     SelectiveImport *si = find_selective_import(ctx, acc);
                     if (si)
                     {
-                        struct_name = xmalloc(strlen(si->source_module) + strlen(si->symbol) + 2);
-                        sprintf(struct_name, "%s_%s", si->source_module, si->symbol);
+                        char struct_name_raw[512];
+                        sprintf(struct_name_raw, "%s__%s", si->source_module, si->symbol);
+                        struct_name = merge_underscores(struct_name_raw);
                     }
                 }
                 if (struct_name == acc && ctx->current_module_prefix && !is_known_generic(ctx, acc))
                 {
-                    char *prefixed = xmalloc(strlen(ctx->current_module_prefix) + strlen(acc) + 2);
-                    sprintf(prefixed, "%s_%s", ctx->current_module_prefix, acc);
-                    struct_name = prefixed;
+                    char prefixed_raw[512];
+                    sprintf(prefixed_raw, "%s__%s", ctx->current_module_prefix, acc);
+                    struct_name = merge_underscores(prefixed_raw);
                 }
 
                 // Opaque Struct Check
@@ -3358,8 +3375,8 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                                 {
                                     inferred = type_to_string(val_type);
                                 }
-                                else if (val_type && strncmp(ft, "Slice_", 6) == 0 &&
-                                         strcmp(ft + 6, gen_param) == 0)
+                                else if (val_type && strncmp(ft, "Slice__", 7) == 0 &&
+                                         strcmp(ft + 7, gen_param) == 0)
                                 {
                                     if (val_type->kind == TYPE_ARRAY && val_type->inner)
                                     {
@@ -3415,9 +3432,9 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                         instantiate_generic(ctx, gtpl->name, inferred, inferred, t_tok);
 
                         char *clean = sanitize_mangled_name(inferred);
-                        size_t mlen = strlen(gtpl->name) + 1 + strlen(clean) + 1;
-                        char *mangled = xmalloc(mlen);
-                        sprintf(mangled, "%s_%s", gtpl->name, clean);
+                        char mangled_raw[512];
+                        snprintf(mangled_raw, sizeof(mangled_raw), "%s__%s", gtpl->name, clean);
+                        char *mangled = merge_underscores(mangled_raw);
                         free(clean);
 
                         node->struct_init.struct_name = mangled;
@@ -3686,9 +3703,10 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                                         f_self->var_decl.name = xstrdup("self");
                                         f_self->var_decl.init_expr = def;
 
-                                        char vtable_name[256];
-                                        sprintf(vtable_name, "%s_%s_VTable", inner->name,
+                                        char v_raw[512];
+                                        sprintf(v_raw, "%s__%s__VTable", inner->name,
                                                 expected->name);
+                                        char *vtable_name = merge_underscores(v_raw);
 
                                         ASTNode *vtable_var = ast_create(NODE_EXPR_VAR);
                                         vtable_var->var_ref.name = xstrdup(vtable_name);
@@ -3725,9 +3743,10 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                                 f_self->var_decl.name = xstrdup("self");
                                 f_self->var_decl.init_expr = def;
 
-                                char vtable_name[256];
-                                sprintf(vtable_name, "%s_%s_VTable", arg_type->inner->name,
+                                char v_raw[512];
+                                sprintf(v_raw, "%s__%s__VTable", arg_type->inner->name,
                                         expected->name);
+                                char *vtable_name = merge_underscores(v_raw);
 
                                 ASTNode *vtable_var = ast_create(NODE_EXPR_VAR);
                                 vtable_var->var_ref.name = xstrdup(vtable_name);
@@ -4617,13 +4636,14 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                 char *struct_name = (st->kind == TYPE_STRUCT) ? st->name : st->inner->name;
                 int is_ptr = (st->kind == TYPE_POINTER);
 
-                size_t mangled_len = strlen(struct_name) + 8; // Max "____get" + null
-                char *mangled = xmalloc(mangled_len);
-                snprintf(mangled, mangled_len, "%s____get", struct_name);
+                char mangled_raw[512];
+                snprintf(mangled_raw, sizeof(mangled_raw), "%s____get", struct_name);
+                char *mangled = merge_underscores(mangled_raw);
                 FuncSig *sig = find_func(ctx, mangled);
                 if (!sig)
                 {
-                    snprintf(mangled, mangled_len, "%s__get", struct_name);
+                    snprintf(mangled_raw, sizeof(mangled_raw), "%s__get", struct_name);
+                    mangled = merge_underscores(mangled_raw);
                     sig = find_func(ctx, mangled);
                 }
                 if (sig)
@@ -4952,8 +4972,9 @@ char *resolve_struct_name_from_type(ParserContext *ctx, Type *t, int *is_ptr_out
             }
 
             char *clean = sanitize_mangled_name(c_type);
-            char *mangled = xmalloc(strlen(tpl) + strlen(clean) + 2);
-            sprintf(mangled, "%s_%s", tpl, clean);
+            char mangled_raw[512];
+            sprintf(mangled_raw, "%s__%s", tpl, clean);
+            char *mangled = merge_underscores(mangled_raw);
             struct_name = mangled;
             *allocated_out = mangled;
             free(clean);
@@ -4994,10 +5015,10 @@ char *resolve_struct_name_from_type(ParserContext *ctx, Type *t, int *is_ptr_out
             struct_type = t->inner;
             *is_ptr_out = 1;
         }
-
         if (struct_type)
         {
-            if (struct_type->args && struct_type->arg_count > 0 && struct_type->name)
+            if (struct_type->args && struct_type->arg_count > 0 && struct_type->name &&
+                strstr(struct_type->name, "__") == NULL)
             {
                 // It's a generic type instance (e.g. Foo<T>).
                 // We must construct Foo_T, ensuring we measure SANITIZED length.
@@ -5015,7 +5036,7 @@ char *resolve_struct_name_from_type(ParserContext *ctx, Type *t, int *is_ptr_out
                             char *clean = sanitize_mangled_name(s);
                             if (clean)
                             {
-                                len += strlen(clean) + 1; // +1 for '_'
+                                len += strlen(clean) + 2; // +2 for '__'
                                 free(clean);
                             }
                             free(s);
@@ -5038,7 +5059,7 @@ char *resolve_struct_name_from_type(ParserContext *ctx, Type *t, int *is_ptr_out
                             char *clean = sanitize_mangled_name(arg_str);
                             if (clean)
                             {
-                                strcat(mangled, "_");
+                                strcat(mangled, "__");
                                 strcat(mangled, clean);
                                 free(clean);
                             }
@@ -5049,7 +5070,8 @@ char *resolve_struct_name_from_type(ParserContext *ctx, Type *t, int *is_ptr_out
                 struct_name = mangled;
                 *allocated_out = mangled;
             }
-            else if (struct_type->name && strchr(struct_type->name, '<'))
+            else if (struct_type->name && strchr(struct_type->name, '<') &&
+                     strstr(struct_type->name, "__") == NULL)
             {
                 // Fallback: It's a generic type string. We need to mangle it.
                 char *tpl = xstrdup(struct_type->name);
@@ -5065,8 +5087,9 @@ char *resolve_struct_name_from_type(ParserContext *ctx, Type *t, int *is_ptr_out
                     }
 
                     char *clean = sanitize_mangled_name(args_ptr);
-                    char *mangled = xmalloc(strlen(tpl) + strlen(clean) + 2);
-                    sprintf(mangled, "%s_%s", tpl, clean);
+                    char mangled_raw[512];
+                    sprintf(mangled_raw, "%s__%s", tpl, clean);
+                    char *mangled = merge_underscores(mangled_raw);
                     struct_name = mangled;
                     *allocated_out = mangled;
                     free(clean);
@@ -5586,9 +5609,9 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
 
             if (struct_name)
             {
-                size_t mangled_sz = strlen(struct_name) + strlen(method) + 3;
-                char *mangled = xmalloc(mangled_sz);
-                snprintf(mangled, mangled_sz, "%s__%s", struct_name, method);
+                char buf[1024];
+                snprintf(buf, sizeof(buf), "%s__%s", struct_name, method);
+                char *mangled = merge_underscores(buf);
 
                 if (find_func(ctx, mangled))
                 {
@@ -6027,9 +6050,10 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
 
                 if (struct_name)
                 {
-                    size_t mangled_sz = strlen(struct_name) + strlen(lhs->member.field) + 3;
-                    char *mangled = xmalloc(mangled_sz);
-                    snprintf(mangled, mangled_sz, "%s__%s", struct_name, lhs->member.field);
+                    char buf[1024];
+                    snprintf(buf, sizeof(buf), "%s__%s", struct_name, lhs->member.field);
+                    char *mangled = merge_underscores(buf);
+
                     FuncSig *sig = find_func(ctx, mangled);
 
                     if (!sig)
@@ -6043,12 +6067,12 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
                                 if (ref->node->impl_trait.target_type &&
                                     strcmp(ref->node->impl_trait.target_type, struct_name) == 0)
                                 {
-                                    size_t tm_sz = strlen(struct_name) +
-                                                   strlen(ref->node->impl_trait.trait_name) +
-                                                   strlen(lhs->member.field) + 4;
-                                    char *trait_mangled = xmalloc(tm_sz);
-                                    snprintf(trait_mangled, tm_sz, "%s__%s_%s", struct_name,
-                                             ref->node->impl_trait.trait_name, lhs->member.field);
+                                    char buf_trait[1024];
+                                    snprintf(buf_trait, sizeof(buf_trait), "%s__%s__%s",
+                                             struct_name, ref->node->impl_trait.trait_name,
+                                             lhs->member.field);
+                                    char *trait_mangled = merge_underscores(buf_trait);
+
                                     if (find_func(ctx, trait_mangled))
                                     {
                                         sig = find_func(ctx, trait_mangled);
@@ -6474,13 +6498,13 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
 
                 if (struct_name)
                 {
-                    size_t sname_len = strlen(struct_name);
-                    char *mangled_index = xmalloc(sname_len + sizeof("__index"));
-                    snprintf(mangled_index, sname_len + sizeof("__index"), "%s__index",
-                             struct_name);
+                    char index_raw[512];
+                    snprintf(index_raw, sizeof(index_raw), "%s__index", struct_name);
+                    char *mangled_index = merge_underscores(index_raw);
 
-                    char *mangled_get = xmalloc(sname_len + sizeof("__get"));
-                    snprintf(mangled_get, sname_len + sizeof("__get"), "%s__get", struct_name);
+                    char get_raw[512];
+                    snprintf(get_raw, sizeof(get_raw), "%s__get", struct_name);
+                    char *mangled_get = merge_underscores(get_raw);
 
                     FuncSig *sig = find_func(ctx, mangled_index);
                     char *resolved_name = NULL;
@@ -6516,10 +6540,13 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
                             {
                                 ASTNode *m = it->impl_node->impl.methods;
                                 size_t base_len = strlen(base);
-                                char *mangled_idx = xmalloc(base_len + 8);
-                                sprintf(mangled_idx, "%s__index", base);
-                                char *mangled_g = xmalloc(base_len + 6);
-                                sprintf(mangled_g, "%s__get", base);
+                                char idx_raw[512];
+                                sprintf(idx_raw, "%s__index", base);
+                                char *mangled_idx = merge_underscores(idx_raw);
+
+                                char g_raw[512];
+                                sprintf(g_raw, "%s__get", base);
+                                char *mangled_g = merge_underscores(g_raw);
 
                                 while (m)
                                 {
@@ -6797,9 +6824,9 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
 
                 if (struct_name)
                 {
-                    size_t mangled_sz = strlen(struct_name) + strlen(node->member.field) + 3;
-                    char *mangled = xmalloc(mangled_sz);
-                    snprintf(mangled, mangled_sz, "%s__%s", struct_name, node->member.field);
+                    char buf[1024];
+                    snprintf(buf, sizeof(buf), "%s__%s", struct_name, node->member.field);
+                    char *mangled = merge_underscores(buf);
 
                     FuncSig *sig = find_func(ctx, mangled);
 
@@ -6814,12 +6841,12 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
                                 const char *t_struct = ref->node->impl_trait.target_type;
                                 if (t_struct && strcmp(t_struct, struct_name) == 0)
                                 {
-                                    size_t tm_sz = strlen(struct_name) +
-                                                   strlen(ref->node->impl_trait.trait_name) +
-                                                   strlen(node->member.field) + 4;
-                                    char *trait_mangled = xmalloc(tm_sz);
-                                    snprintf(trait_mangled, tm_sz, "%s__%s_%s", struct_name,
-                                             ref->node->impl_trait.trait_name, node->member.field);
+                                    char buf_trait[1024];
+                                    snprintf(buf_trait, sizeof(buf_trait), "%s__%s__%s",
+                                             struct_name, ref->node->impl_trait.trait_name,
+                                             node->member.field);
+                                    char *trait_mangled = merge_underscores(buf_trait);
+
                                     if (find_func(ctx, trait_mangled))
                                     {
                                         free(mangled);
@@ -6932,9 +6959,9 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
 
                     if (struct_name)
                     {
-                        size_t fn_sz = strlen(struct_name) + strlen(node->member.field) + 3;
-                        full_name = xmalloc(fn_sz);
-                        snprintf(full_name, fn_sz, "%s__%s", struct_name, node->member.field);
+                        char buf[1024];
+                        snprintf(buf, sizeof(buf), "%s__%s", struct_name, node->member.field);
+                        full_name = merge_underscores(buf);
 
                         // Join types
                         size_t ac_sz = 1024, au_sz = 1024;
@@ -7289,9 +7316,9 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
 
                 if (struct_name)
                 {
-                    size_t mangled_sz = strlen(struct_name) + strlen(inner_method) + 3;
-                    char *mangled = xmalloc(mangled_sz);
-                    snprintf(mangled, mangled_sz, "%s__%s", struct_name, inner_method);
+                    char buf_m[1024];
+                    snprintf(buf_m, sizeof(buf_m), "%s__%s", struct_name, inner_method);
+                    char *mangled = merge_underscores(buf_m);
                     FuncSig *sig = find_func(ctx, mangled);
                     if (sig)
                     {
@@ -7456,9 +7483,9 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
 
             if (struct_name)
             {
-                size_t mangled_sz = strlen(struct_name) + strlen(method) + 3;
-                char *mangled = xmalloc(mangled_sz);
-                snprintf(mangled, mangled_sz, "%s__%s", struct_name, method);
+                char buf[1024];
+                snprintf(buf, sizeof(buf), "%s__%s", struct_name, method);
+                char *mangled = merge_underscores(buf);
 
                 FuncSig *sig = find_func(ctx, mangled);
 
@@ -7473,13 +7500,11 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
                             const char *t_struct = ref->node->impl_trait.target_type;
                             if (t_struct && strcmp(t_struct, struct_name) == 0)
                             {
-                                char *trait_mangled;
-                                size_t tm_sz = strlen(struct_name) +
-                                               strlen(ref->node->impl_trait.trait_name) +
-                                               strlen(method) + 4;
-                                trait_mangled = xmalloc(tm_sz);
-                                snprintf(trait_mangled, tm_sz, "%s__%s_%s", struct_name,
+                                char buf_t[1024];
+                                snprintf(buf_t, sizeof(buf_t), "%s__%s__%s", struct_name,
                                          ref->node->impl_trait.trait_name, method);
+                                char *trait_mangled = merge_underscores(buf_t);
+
                                 if (find_func(ctx, trait_mangled))
                                 {
                                     free(mangled);
@@ -8209,7 +8234,7 @@ ASTNode *parse_tuple_expression(ParserContext *ctx, Lexer *l, const char *type_n
         register_tuple(ctx, sig);
         char tuple_name[1024 + 16];
         char *clean_sig = sanitize_mangled_name(sig);
-        snprintf(tuple_name, sizeof(tuple_name), "Tuple_%s", clean_sig);
+        snprintf(tuple_name, sizeof(tuple_name), "Tuple__%s", clean_sig);
         free(clean_sig);
         n->resolved_type = xstrdup(tuple_name);
     }

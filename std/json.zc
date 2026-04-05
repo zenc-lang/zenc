@@ -31,10 +31,10 @@ struct JsonValue {
 alias JsonValuePtr = JsonValue*;
 
 raw {
-    Vec_JsonValuePtr Vec_JsonValuePtr__new();
-    void Vec_JsonValuePtr__push(Vec_JsonValuePtr* self, JsonValue* item);
-    Map_JsonValuePtr Map_JsonValuePtr__new();
-    void Map_JsonValuePtr__put(Map_JsonValuePtr* self, char* key, JsonValue* val);
+    Vec__JsonValuePtr Vec__JsonValuePtr__new();
+    void Vec__JsonValuePtr__push(Vec__JsonValuePtr* self, JsonValue* item);
+    Map__JsonValuePtr Map__JsonValuePtr__new();
+    void Map__JsonValuePtr__put(Map__JsonValuePtr* self, char* key, JsonValue* val);
     
     static void _json_skip_ws(const char** p) {
         while (**p == ' ' || **p == '\t' || **p == '\n' || **p == '\r') (*p)++;
@@ -72,8 +72,8 @@ raw {
         struct JsonValue* arr = malloc(sizeof(struct JsonValue));
         arr->kind = JsonType__JSON_ARRAY();
         arr->string_val = 0; arr->number_val = 0; arr->bool_val = 0; arr->object_val = 0;
-        arr->array_val = malloc(sizeof(Vec_JsonValuePtr));
-        *(arr->array_val) = Vec_JsonValuePtr__new();
+        arr->array_val = malloc(sizeof(Vec__JsonValuePtr));
+        *(arr->array_val) = Vec__JsonValuePtr__new();
         
         _json_skip_ws(p);
         if (**p == ']') { (*p)++; return arr; }
@@ -82,7 +82,7 @@ raw {
             _json_skip_ws(p);
             struct JsonValue* val = _json_parse_value(p);
             if (!val) return NULL;
-            Vec_JsonValuePtr__push(arr->array_val, val);
+            Vec__JsonValuePtr__push(arr->array_val, val);
             _json_skip_ws(p);
             if (**p == ']') { (*p)++; return arr; }
             if (**p != ',') return NULL;
@@ -96,8 +96,8 @@ raw {
         struct JsonValue* obj = malloc(sizeof(struct JsonValue));
         obj->kind = JsonType__JSON_OBJECT();
         obj->string_val = 0; obj->number_val = 0; obj->bool_val = 0; obj->array_val = 0;
-        obj->object_val = malloc(sizeof(Map_JsonValuePtr));
-        *(obj->object_val) = Map_JsonValuePtr__new();
+        obj->object_val = malloc(sizeof(Map__JsonValuePtr));
+        *(obj->object_val) = Map__JsonValuePtr__new();
         
         _json_skip_ws(p);
         if (**p == '}') { (*p)++; return obj; }
@@ -112,7 +112,7 @@ raw {
             _json_skip_ws(p);
             struct JsonValue* val = _json_parse_value(p);
             if (!val) { free(key); return NULL; }
-            Map_JsonValuePtr__put(obj->object_val, key, val);
+            Map__JsonValuePtr__put(obj->object_val, key, val);
             free(key);
             _json_skip_ws(p);
             if (**p == '}') { (*p)++; return obj; }
@@ -193,14 +193,14 @@ impl JsonValue {
     }
     
     fn array() -> JsonValue {
-        let v: Vec<JsonValue*>* = malloc(sizeof(Vec_JsonValuePtr));
-        *v = Vec_JsonValuePtr::new();
+        let v: Vec<JsonValue*>* = malloc(sizeof(Vec__JsonValuePtr));
+        *v = Vec__JsonValuePtr::new();
         return JsonValue { kind: JsonType::JSON_ARRAY(), string_val: NULL, number_val: 0.0, bool_val: false, array_val: v, object_val: NULL };
     }
     
     fn object() -> JsonValue {
-        let m: Map<JsonValue*>* = malloc(sizeof(Map_JsonValuePtr));
-        *m = Map_JsonValuePtr::new();
+        let m: Map<JsonValue*>* = malloc(sizeof(Map__JsonValuePtr));
+        *m = Map__JsonValuePtr::new();
         return JsonValue { kind: JsonType::JSON_OBJECT(), string_val: NULL, number_val: 0.0, bool_val: false, array_val: NULL, object_val: m };
     }
 

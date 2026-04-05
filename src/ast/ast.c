@@ -447,8 +447,8 @@ static char *type_to_string_impl(Type *t)
         if (t->array_size == 0)
         {
             char *inner = type_to_string(t->inner);
-            char *res = xmalloc(strlen(inner) + 7);
-            sprintf(res, "Slice_%s", inner);
+            char *res = xmalloc(strlen(inner) + 8);
+            sprintf(res, "Slice__%s", inner);
             return res;
         }
 
@@ -558,17 +558,27 @@ static char *type_to_string_impl(Type *t)
     case TYPE_STRUCT:
     case TYPE_GENERIC:
     {
-        if (t->arg_count > 0)
+        if (t->arg_count > 0 && t->name && strstr(t->name, "__") == NULL)
         {
             char *base = t->name;
-            char *arg = type_to_string(t->args[0]);
-            char *clean_arg = sanitize_mangled_name(arg);
+            size_t base_len = strlen(base);
+            char *res = xmalloc(base_len + 1);
+            strcpy(res, base);
 
-            char *res = xmalloc(strlen(base) + strlen(clean_arg) + 2);
-            sprintf(res, "%s_%s", base, clean_arg);
+            for (int i = 0; i < t->arg_count; i++)
+            {
+                char *arg = type_to_string(t->args[i]);
+                char *clean_arg = sanitize_mangled_name(arg);
 
-            free(arg);
-            free(clean_arg);
+                size_t new_len = strlen(res) + strlen(clean_arg) + 3;
+                char *new_res = xmalloc(new_len);
+                sprintf(new_res, "%s__%s", res, clean_arg);
+
+                free(res);
+                res = new_res;
+                free(arg);
+                free(clean_arg);
+            }
             return res;
         }
         return xstrdup(t->name);
@@ -759,8 +769,8 @@ static char *type_to_c_string_impl(Type *t)
         if (t->array_size == 0)
         {
             char *inner_zens = type_to_string(t->inner);
-            char *res = xmalloc(strlen(inner_zens) + 7);
-            sprintf(res, "Slice_%s", inner_zens);
+            char *res = xmalloc(strlen(inner_zens) + 8);
+            sprintf(res, "Slice__%s", inner_zens);
             free(inner_zens);
             return res;
         }

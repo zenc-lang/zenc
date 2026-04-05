@@ -91,14 +91,14 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                 {
                     // Zen module: Use module base name as prefix
                     merged = xmalloc(strlen(mod->base_name) + strlen(resolved_suffix) + 2);
-                    sprintf(merged, "%s_%s", mod->base_name, resolved_suffix);
+                    sprintf(merged, "%s__%s", mod->base_name, resolved_suffix);
                 }
             }
             else
             {
                 // Regular namespace or enum variant
                 merged = xmalloc(strlen(name) + strlen(resolved_suffix) + 2);
-                sprintf(merged, "%s_%s", name, resolved_suffix);
+                sprintf(merged, "%s__%s", name, resolved_suffix);
             }
 
             free(name);
@@ -217,18 +217,20 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                 // Resolve to the actual struct name which was prefixed during module
                 // parsing
                 free(name);
-                name = xmalloc(strlen(si->source_module) + strlen(si->symbol) + 2);
-                sprintf(name, "%s_%s", si->source_module, si->symbol);
+                name = xmalloc(strlen(si->source_module) + strlen(si->symbol) + 3);
+                sprintf(name, "%s__%s", si->source_module, si->symbol);
             }
         }
 
         // If we're IN a module and no selective import matched, apply module prefix
-        if (ctx->current_module_prefix && !is_known_generic(ctx, name))
+        if (ctx->current_module_prefix && !is_known_generic(ctx, name) &&
+            !is_primitive_type_name(name) && strcasecmp(name, "Self") != 0 &&
+            !is_extern_symbol(ctx, name))
         {
             // Auto-prefix struct name if in module context (unless it's a known
             // primitive/generic)
-            char *prefixed_name = xmalloc(strlen(ctx->current_module_prefix) + strlen(name) + 2);
-            sprintf(prefixed_name, "%s_%s", ctx->current_module_prefix, name);
+            char *prefixed_name = xmalloc(strlen(ctx->current_module_prefix) + strlen(name) + 3);
+            sprintf(prefixed_name, "%s__%s", ctx->current_module_prefix, name);
             free(name);
             name = prefixed_name;
         }
@@ -307,7 +309,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                 for (int i = 0; i < arg_count; i++)
                 {
                     char *clean = sanitize_mangled_name(args[i]);
-                    mangled_len += 1 + strlen(clean);
+                    mangled_len += 2 + strlen(clean);
                     free(clean);
                 }
                 char *mangled = xmalloc(mangled_len);
@@ -315,7 +317,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                 for (int i = 0; i < arg_count; i++)
                 {
                     char *clean = sanitize_mangled_name(args[i]);
-                    strcat(mangled, "_");
+                    strcat(mangled, "__");
                     strcat(mangled, clean);
                     free(clean);
                     free(args[i]);
@@ -355,9 +357,9 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                 free(unmangled_arg);
 
                 char *clean_arg = sanitize_mangled_name(first_arg_str);
-                size_t mangled_sz = strlen(name) + strlen(clean_arg) + 2;
+                size_t mangled_sz = strlen(name) + strlen(clean_arg) + 3;
                 char *mangled = xmalloc(mangled_sz);
-                snprintf(mangled, mangled_sz, "%s_%s", name, clean_arg);
+                snprintf(mangled, mangled_sz, "%s__%s", name, clean_arg);
                 free(clean_arg);
 
                 free(ty->name);
@@ -453,8 +455,8 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
         register_tuple(ctx, sig);
 
         char *clean_sig = sanitize_mangled_name(sig);
-        char *tuple_name = xmalloc(strlen(clean_sig) + 7);
-        sprintf(tuple_name, "Tuple_%s", clean_sig);
+        char *tuple_name = xmalloc(strlen(clean_sig) + 8);
+        sprintf(tuple_name, "Tuple__%s", clean_sig);
         free(clean_sig);
 
         Type *ty = type_new(TYPE_STRUCT);
@@ -745,9 +747,9 @@ char *parse_array_literal(ParserContext *ctx, Lexer *l, const char *st)
     }
 
     char rt[64];
-    if (strncmp(st, "Slice_", 6) == 0)
+    if (strncmp(st, "Slice__", 7) == 0)
     {
-        strcpy(rt, st + 6);
+        strcpy(rt, st + 7);
     }
     else
     {
@@ -862,14 +864,14 @@ ASTNode *parse_embed(ParserContext *ctx, Lexer *l)
     // Default Type if none
     if (!target_type)
     {
-        // Default: Slice_char
+        // Default: Slice__char
         register_slice(ctx, "char");
 
         Type *slice_type = type_new(TYPE_STRUCT);
-        slice_type->name = xstrdup("Slice_char");
+        slice_type->name = xstrdup("Slice__char");
         target_type = slice_type;
 
-        sprintf(o, "(Slice_char){.data=(char[]){");
+        sprintf(o, "(Slice__char){.data=(char[]){");
     }
     else
     {
@@ -887,10 +889,10 @@ ASTNode *parse_embed(ParserContext *ctx, Lexer *l)
             }
             else
             {
-                // Slice -> Slice_T struct
+                // Slice -> Slice__T struct
                 register_slice(ctx, inner_ts);
                 char slice_name[256];
-                sprintf(slice_name, "Slice_%s", inner_ts);
+                sprintf(slice_name, "Slice__%s", inner_ts);
                 Type *slice_t = type_new(TYPE_STRUCT);
                 slice_t->name = xstrdup(slice_name);
                 target_type = slice_t;
@@ -937,7 +939,7 @@ ASTNode *parse_embed(ParserContext *ctx, Lexer *l)
     }
     else
     {
-        int is_slice = (strncmp(o, "(Slice_", 7) == 0);
+        int is_slice = (strncmp(o, "(Slice__", 8) == 0);
 
         if (is_slice)
         {

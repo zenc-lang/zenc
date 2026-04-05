@@ -140,8 +140,8 @@ ASTNode *parse_function(ParserContext *ctx, Lexer *l, int is_async)
     // mangled)
     if (ctx->current_module_prefix && !gen_param && !ctx->current_impl_struct)
     {
-        char *prefixed_name = xmalloc(strlen(ctx->current_module_prefix) + strlen(name) + 2);
-        sprintf(prefixed_name, "%s_%s", ctx->current_module_prefix, name);
+        char *prefixed_name = xmalloc(strlen(ctx->current_module_prefix) + strlen(name) + 3);
+        sprintf(prefixed_name, "%s__%s", ctx->current_module_prefix, name);
         free(name);
         name = prefixed_name;
     }
@@ -560,14 +560,14 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l)
             if (!type)
             {
                 register_slice(ctx, "char");
-                type = xstrdup("Slice_char");
+                type = xstrdup("Slice__char");
             }
             if (lexer_peek(l).type == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
         }
-        else if (next.type == TOK_LBRACKET && type && strncmp(type, "Slice_", 6) == 0)
+        else if (next.type == TOK_LBRACKET && type && strncmp(type, "Slice__", 7) == 0)
         {
             char *code = parse_array_literal(ctx, l, type);
             init = ast_create(NODE_RAW_STMT);
@@ -578,7 +578,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l)
                 lexer_next(l);
             }
         }
-        else if (next.type == TOK_LPAREN && type && strncmp(type, "Tuple_", 6) == 0)
+        else if (next.type == TOK_LPAREN && type && strncmp(type, "Tuple__", 7) == 0)
         {
             char *code = parse_tuple_literal(ctx, l, type);
             init = ast_create(NODE_RAW_STMT);
@@ -868,7 +868,7 @@ ASTNode *parse_def(ParserContext *ctx, Lexer *l)
         lexer_next(l);
 
         Token tk = lexer_peek(l);
-        if (tk.type == TOK_LPAREN && type_str && strncmp(type_str, "Tuple_", 6) == 0)
+        if (tk.type == TOK_LPAREN && type_str && strncmp(type_str, "Tuple__", 7) == 0)
         {
             char *code = parse_tuple_literal(ctx, l, type_str);
             i = ast_create(NODE_RAW_STMT);

@@ -1,0 +1,19 @@
+struct sockaddr {
+    sa_data: char[14];
+}
+
+impl sockaddr {
+    fn new() -> sockaddr {
+        let s = sockaddr { sa_data: [0,0,0,0,0,0,0,0,0,0,0,0,0,0] };
+        return s;
+    }
+
+    fn get_data(self) -> char* {
+        return self.sa_data;
+    }
+}
+
+fn main() {
+    let s = sockaddr::new();
+    let d = s.get_data();
+}

@@ -55,6 +55,20 @@ char *strip_template_suffix(const char *name)
     return xstrdup(name);
 }
 
+// Helper to emit a mangled name (Type__Method) with standardized underscores.
+void emit_mangled_name(FILE *out, const char *base, const char *method)
+{
+    if (!base || !method)
+    {
+        return;
+    }
+    char buf[1024];
+    snprintf(buf, sizeof(buf), "%s__%s", base, method);
+    char *merged = merge_underscores(buf);
+    fprintf(out, "%s", merged);
+    free(merged);
+}
+
 // Helper to emit C declaration (handle arrays, function pointers correctly)
 void emit_c_decl(ParserContext *ctx, FILE *out, const char *type_str, const char *name)
 {
@@ -91,7 +105,7 @@ void emit_c_decl(ParserContext *ctx, FILE *out, const char *type_str, const char
             // Limit check
             if (base_len + arg_len + 2 < 256)
             {
-                snprintf(mangled_candidate, 256, "%.*s_%.*s", base_len, type_str, arg_len,
+                snprintf(mangled_candidate, 256, "%.*s__%.*s", base_len, type_str, arg_len,
                          generic + 1);
 
                 if (find_struct_def(ctx, mangled_candidate))
@@ -313,14 +327,18 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
                     base += 7;
                 }
 
-                char func_name[512];
-                sprintf(func_name, "%s__%s", base, node->call.callee->member.field);
+                char func_base[512];
+                sprintf(func_base, "%s__%s", base, node->call.callee->member.field);
+                char *func_name = merge_underscores(func_base);
 
                 FuncSig *sig = find_func(ctx, func_name);
                 if (sig && sig->ret_type)
                 {
-                    return type_to_c_string(sig->ret_type);
+                    char *ret = type_to_c_string(sig->ret_type);
+                    free(func_name);
+                    return ret;
                 }
+                free(func_name);
             }
         }
 
@@ -503,9 +521,9 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
                 return buf;
             }
 
-            if (strncmp(array_type, "Slice_", 6) == 0)
+            if (strncmp(array_type, "Slice__", 7) == 0)
             {
-                return xstrdup(array_type + 6);
+                return xstrdup(array_type + 7);
             }
 
             char *search_name = array_type;

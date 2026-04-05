@@ -60,6 +60,7 @@ int emit_move_invalidation(ParserContext *ctx, ASTNode *node, FILE *out);
 void codegen_expression_with_move(ParserContext *ctx, ASTNode *node, FILE *out);
 int is_struct_return_type(const char *ret_type);
 int z_is_struct_type(Type *t);
+void emit_mangled_name(FILE *out, const char *base, const char *method);
 
 // Declaration emission  (codegen_decl.c).
 /**

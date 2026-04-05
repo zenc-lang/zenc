@@ -399,7 +399,7 @@ void emit_enum_protos(ParserContext *ctx, ASTNode *node, FILE *out)
                 {
                     Type *pt = v->variant.payload;
                     ASTNode *tuple_def = NULL;
-                    if (pt->kind == TYPE_STRUCT && strncmp(pt->name, "Tuple_", 6) == 0)
+                    if (pt->kind == TYPE_STRUCT && strncmp(pt->name, "Tuple__", 7) == 0)
                     {
                         tuple_def = find_struct_def(ctx, pt->name);
                     }
@@ -519,7 +519,7 @@ void emit_lambda_defs(ParserContext *ctx, FILE *out)
                     ASTNode *fdef = find_struct_def(ctx, clean);
                     if (fdef && fdef->type_info && fdef->type_info->traits.has_drop)
                     {
-                        fprintf(out, "    if (ctx->__z_drop_flag_%s) %s__Drop_glue(&ctx->%s);\n",
+                        fprintf(out, "    if (ctx->__z_drop_flag_%s) %s__Drop__glue(&ctx->%s);\n",
                                 node->lambda.captured_vars[i], clean,
                                 node->lambda.captured_vars[i]);
                     }
@@ -818,7 +818,7 @@ void emit_struct_defs(ParserContext *ctx, ASTNode *node, FILE *out)
                     Type *pt = v->variant.payload;
                     char *tstr = type_to_c_string(pt);
                     ASTNode *tuple_def = NULL;
-                    if (pt->kind == TYPE_STRUCT && strncmp(pt->name, "Tuple_", 6) == 0)
+                    if (pt->kind == TYPE_STRUCT && strncmp(pt->name, "Tuple__", 7) == 0)
                     {
                         tuple_def = find_struct_def(ctx, pt->name);
                     }
@@ -918,14 +918,14 @@ static char *substitute_proto_self(const char *type_str, const char *replacement
     {
         return NULL;
     }
-    if (strcmp(type_str, "Self") == 0)
+    if (strcasecmp(type_str, "Self") == 0)
     {
         return xstrdup(replacement);
     }
     // Handle pointers (Self* -> replacement*)
-    if (strncmp(type_str, "Self", 4) == 0)
+    if (strncasecmp(type_str, "Self", 4) == 0)
     {
-        char *rest = (char *)type_str + 4;
+        const char *rest = type_str + 4;
         char *buf = xmalloc(strlen(replacement) + strlen(rest) + 1);
         sprintf(buf, "%s%s", replacement, rest);
         return buf;
@@ -954,7 +954,8 @@ void emit_trait_defs(ASTNode *node, FILE *out)
             while (m)
             {
                 char *ret_safe = substitute_proto_self(m->func.ret_type, "void*");
-                fprintf(out, "    %s (*%s)(", ret_safe, parse_original_method_name(m->func.name));
+                const char *orig = parse_original_method_name(m->func.name);
+                fprintf(out, "    %s (*%s)(", ret_safe, orig);
                 free(ret_safe);
 
                 int has_self = (m->func.args && strstr(m->func.args, "self"));
@@ -963,14 +964,22 @@ void emit_trait_defs(ASTNode *node, FILE *out)
                     fprintf(out, "void* self");
                 }
 
-                if (m->func.args)
+                if (m->func.args && strlen(m->func.args) > 0)
                 {
-                    if (!has_self)
-                    {
-                        fprintf(out, ", ");
-                    }
                     char *args_safe = replace_type_str(m->func.args, "Self", "void*", NULL, NULL);
-                    fprintf(out, "%s", args_safe);
+                    // Filter out "void* self" if it's already there to avoid duplication
+                    if (strstr(args_safe, "void* self") == args_safe)
+                    {
+                        fprintf(out, "%s", args_safe);
+                    }
+                    else if (strlen(args_safe) > 0)
+                    {
+                        if (!has_self)
+                        {
+                            fprintf(out, ", ");
+                        }
+                        fprintf(out, "%s", args_safe);
+                    }
                     free(args_safe);
                 }
                 fprintf(out, ");\n");
@@ -1002,73 +1011,62 @@ void emit_trait_wrappers(ASTNode *node, FILE *out)
                 node = node->next;
                 continue;
             }
-            if (node->cfg_condition)
-            {
-                fprintf(out, "#if %s\n", node->cfg_condition);
-            }
-
             ASTNode *m = node->trait.methods;
             while (m)
             {
-                const char *orig = parse_original_method_name(m->func.name);
                 char *ret_sub = substitute_proto_self(m->func.ret_type, node->trait.name);
-
+                const char *orig = parse_original_method_name(m->func.name);
                 fprintf(out, "%s %s__%s(%s* self", ret_sub, node->trait.name, orig,
                         node->trait.name);
 
-                int has_self = (m->func.args && strstr(m->func.args, "self"));
-                if (m->func.args)
+                if (m->func.args && strlen(m->func.args) > 0)
                 {
-                    if (has_self)
+                    char *sa = replace_type_str(m->func.args, "Self", node->trait.name, NULL, NULL);
+                    if (strstr(sa, "void* self") == sa)
                     {
-                        char *comma = strchr(m->func.args, ',');
+                        char *comma = strchr(sa, ',');
                         if (comma)
                         {
-                            // Substitute Self -> TraitName in wrapper args
-                            char *args_sub =
-                                replace_type_str(comma + 1, "Self", node->trait.name, NULL, NULL);
-                            fprintf(out, ", %s", args_sub);
-                            free(args_sub);
+                            fprintf(out, ", %s", comma + 1);
                         }
                     }
-                    else
+                    else if (strlen(sa) > 0)
                     {
-                        char *args_sub =
-                            replace_type_str(m->func.args, "Self", node->trait.name, NULL, NULL);
-                        fprintf(out, ", %s", args_sub);
-                        free(args_sub);
+                        fprintf(out, ", %s", sa);
                     }
+                    free(sa);
                 }
                 fprintf(out, ") {\n");
 
-                int ret_is_self = (strcmp(m->func.ret_type, "Self") == 0);
-
+                int ret_is_self = (strcasecmp(m->func.ret_type, "Self") == 0);
                 if (ret_is_self)
                 {
-                    // Special handling: return (Trait){.self = call(), .vtable = self->vtable}
-                    fprintf(out, "    void* ret = self->vtable->%s(self->self", orig);
+                    fprintf(out, "    void* res = self->vtable->%s(self->self", orig);
                 }
                 else
                 {
                     fprintf(out, "    return self->vtable->%s(self->self", orig);
                 }
 
-                if (m->func.args)
+                if (m->func.args && strlen(m->func.args) > 0)
                 {
                     char *call_args = extract_call_args(m->func.args);
-                    if (has_self)
+                    if (call_args && strlen(call_args) > 0)
                     {
-                        char *comma = strchr(call_args, ',');
-                        if (comma)
+                        if (strcmp(call_args, "self") != 0)
                         {
-                            fprintf(out, ", %s", comma + 1);
-                        }
-                    }
-                    else
-                    {
-                        if (strlen(call_args) > 0)
-                        {
-                            fprintf(out, ", %s", call_args);
+                            if (strstr(call_args, "self") == call_args)
+                            {
+                                char *comma = strchr(call_args, ',');
+                                if (comma)
+                                {
+                                    fprintf(out, ", %s", comma + 1);
+                                }
+                            }
+                            else
+                            {
+                                fprintf(out, ", %s", call_args);
+                            }
                         }
                     }
                     free(call_args);
@@ -1077,13 +1075,11 @@ void emit_trait_wrappers(ASTNode *node, FILE *out)
 
                 if (ret_is_self)
                 {
-                    fprintf(out, "    return (%s){.self = ret, .vtable = self->vtable};\n",
+                    fprintf(out, "    return (%s){.self = res, .vtable = self->vtable};\n",
                             node->trait.name);
                 }
-
                 fprintf(out, "}\n\n");
                 free(ret_sub);
-
                 m = m->next;
             }
             if (node->cfg_condition)
@@ -1225,7 +1221,7 @@ void emit_protos(ParserContext *ctx, ASTNode *node, FILE *out)
                 continue;
             }
 
-            // Resolve opaque alias (e.g. StringView -> Slice_char)
+            // Resolve opaque alias (e.g. StringView -> Slice__char)
             TypeAlias *ta = find_type_alias_node(g_parser_ctx, sname);
             const char *resolved = (ta && !ta->is_opaque) ? ta->original_type : NULL;
             const char *effective_name = resolved ? resolved : sname;
@@ -1518,28 +1514,28 @@ void emit_impl_vtables(ParserContext *ctx, FILE *out)
                 continue;
             }
 
-            fprintf(out, "%s_VTable %s_%s_VTable = {", trait, strct, trait);
+            fprintf(out, "%s_VTable %s__%s__VTable = {", trait, strct, trait);
 
             ASTNode *m = node->impl_trait.methods;
             while (m)
             {
-                // Calculate expected prefix: Struct__Trait_
-                size_t pre_sz = strlen(strct) + strlen(trait) + 4;
+                // Calculate expected prefix: Struct__Trait__
+                size_t pre_sz = strlen(strct) + strlen(trait) + 6;
                 char *prefix = xmalloc(pre_sz);
-                snprintf(prefix, pre_sz, "%s__%s_", strct, trait);
-                const char *orig = m->func.name;
-                if (strncmp(orig, prefix, strlen(prefix)) == 0)
+                snprintf(prefix, pre_sz, "%s__%s__", strct, trait);
+
+                const char *orig_name = m->func.name;
+                if (strncmp(orig_name, prefix, strlen(prefix)) == 0)
                 {
-                    orig += strlen(prefix);
+                    orig_name += strlen(prefix);
                 }
                 else
                 {
-                    // Fallback if mangling schema differs (shouldn't happen)
-                    orig = parse_original_method_name(m->func.name);
+                    orig_name = parse_original_method_name(m->func.name);
                 }
 
-                fprintf(out, ".%s = (__typeof__(((%s_VTable*)0)->%s))%s__%s_%s", orig, trait, orig,
-                        strct, trait, orig);
+                fprintf(out, ".%s = (__typeof__(((%s_VTable*)0)->%s))%s", orig_name, trait,
+                        orig_name, m->func.name);
                 free(prefix);
                 if (m->next)
                 {
@@ -1676,7 +1672,7 @@ void print_type_defs(ParserContext *ctx, FILE *out, ASTNode *nodes)
     while (c)
     {
         fprintf(out,
-                "typedef struct Slice_%s Slice_%s;\nstruct Slice_%s { %s *data; "
+                "typedef struct Slice__%s Slice__%s;\nstruct Slice__%s { %s *data; "
                 "int len; int cap; };\n",
                 c->name, c->name, c->name, c->name);
         c = c->next;
@@ -1686,8 +1682,8 @@ void print_type_defs(ParserContext *ctx, FILE *out, ASTNode *nodes)
     while (t)
     {
         char *clean_sig = sanitize_mangled_name(t->sig);
-        fprintf(out, "typedef struct Tuple_%s Tuple_%s;\nstruct Tuple_%s { ", clean_sig, clean_sig,
-                clean_sig);
+        fprintf(out, "typedef struct Tuple__%s Tuple__%s;\nstruct Tuple__%s { ", clean_sig,
+                clean_sig, clean_sig);
         free(clean_sig);
         char *s = xstrdup(t->sig);
         char *current = s;

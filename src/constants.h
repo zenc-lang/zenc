@@ -93,9 +93,11 @@
     (IS_STRUCT_PREFIX(t) ? ((t) + 7) : (t)) ///< Returns ptr to name after "struct " prefix.
 
 // Generic type checks
-#define IS_OPTION_TYPE(t) ((t) && strncmp((t), "Option_", 7) == 0) ///< Checks if type is Option<T>.
-#define IS_RESULT_TYPE(t) ((t) && strncmp((t), "Result_", 7) == 0) ///< Checks if type is Result<T>.
-#define IS_VEC_TYPE(t) ((t) && strncmp((t), "Vec_", 4) == 0)       ///< Checks if type is Vec<T>.
-#define IS_SLICE_TYPE(t) ((t) && strncmp((t), "Slice_", 6) == 0)   ///< Checks if type is Slice<T>.
+#define IS_OPTION_TYPE(t)                                                                          \
+    ((t) && strncmp((t), "Option__", 8) == 0) ///< Checks if type is Option<T>.
+#define IS_RESULT_TYPE(t)                                                                          \
+    ((t) && strncmp((t), "Result__", 8) == 0)                     ///< Checks if type is Result<T>.
+#define IS_VEC_TYPE(t) ((t) && strncmp((t), "Vec__", 5) == 0)     ///< Checks if type is Vec<T>.
+#define IS_SLICE_TYPE(t) ((t) && strncmp((t), "Slice__", 7) == 0) ///< Checks if type is Slice<T>.
 
 #endif // ZEN_CONSTANTS_H

@@ -1074,7 +1074,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             }
             else if (0 == strncmp(t.start, "struct", 6) && 6 == t.len)
             {
-                s = parse_struct(ctx, l, 0, 0);
+                s = parse_struct(ctx, l, 0, 0, 0);
                 if (s && s->type == NODE_STRUCT)
                 {
                     s->strct.is_packed = attr_packed;
@@ -1143,14 +1143,22 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                          strncmp(peek.start, "struct", 6) == 0)
                 {
                     // extern struct Name; -> opaque struct declaration
-                    s = parse_struct(ctx, l, 0, 1);
+                    s = parse_struct(ctx, l, 0, 1, 1);
+                    if (s && s->type == NODE_STRUCT)
+                    {
+                        register_extern_symbol(ctx, s->strct.name);
+                    }
                 }
                 else if ((peek.type == TOK_IDENT && peek.len == 5 &&
                           strncmp(peek.start, "union", 5) == 0) ||
                          peek.type == TOK_UNION)
                 {
                     // extern union Name; -> opaque union declaration
-                    s = parse_struct(ctx, l, 1, 1);
+                    s = parse_struct(ctx, l, 1, 1, 1);
+                    if (s && s->type == NODE_STRUCT)
+                    {
+                        register_extern_symbol(ctx, s->strct.name);
+                    }
                 }
                 else
                 {
@@ -1239,7 +1247,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             Token next = lexer_peek(l);
             if (0 == strncmp(next.start, "struct", 6) && 6 == next.len)
             {
-                s = parse_struct(ctx, l, 0, 1);
+                s = parse_struct(ctx, l, 0, 1, 0);
                 if (s && s->type == NODE_STRUCT)
                 {
                     s->strct.is_packed = attr_packed;
@@ -1274,7 +1282,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
         }
         else if (t.type == TOK_UNION)
         {
-            s = parse_struct(ctx, l, 1, 0);
+            s = parse_struct(ctx, l, 1, 0, 0);
         }
         else if (t.type == TOK_TRAIT)
         {

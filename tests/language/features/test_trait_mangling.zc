@@ -1,0 +1,19 @@
+trait Newable {
+    fn new() -> self;
+}
+
+struct sockaddr {
+    data: i8[14],
+}
+
+impl Newable for sockaddr {
+    fn new() -> sockaddr {
+        let s: sockaddr;
+        return s;
+    }
+}
+
+fn main() -> int {
+    let s = sockaddr::new();
+    return 0;
+}

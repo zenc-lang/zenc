@@ -277,8 +277,8 @@ void codegen_match_internal(ParserContext *ctx, ASTNode *node, FILE *out, int us
     }
 
     char *expr_type = infer_type(ctx, node->match_stmt.expr);
-    int is_option = (expr_type && strncmp(expr_type, "Option_", 7) == 0);
-    int is_result = (expr_type && strncmp(expr_type, "Result_", 7) == 0);
+    int is_option = IS_OPTION_TYPE(expr_type);
+    int is_result = IS_RESULT_TYPE(expr_type);
 
     char *enum_name = NULL;
     ASTNode *chk = node->match_stmt.cases;
@@ -871,13 +871,13 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
                         // If it's self, it's already a pointer in C
                         if (strcmp(arg_name, "self") == 0)
                         {
-                            sprintf(stmt_str, "if (__z_drop_flag_%s) %s__Drop_glue(%s);", arg_name,
+                            sprintf(stmt_str, "if (__z_drop_flag_%s) %s__Drop__glue(%s);", arg_name,
                                     drop_type_name, arg_name);
                         }
                         else
                         {
-                            sprintf(stmt_str, "if (__z_drop_flag_%s) %s__Drop_glue(&%s);", arg_name,
-                                    drop_type_name, arg_name);
+                            sprintf(stmt_str, "if (__z_drop_flag_%s) %s__Drop__glue(&%s);",
+                                    arg_name, drop_type_name, arg_name);
                         }
                     }
                     defer_node->raw_stmt.content = stmt_str;
@@ -1184,7 +1184,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
                     defer_node->token = node->token;
                     char *stmt_str =
                         xmalloc(256 + strlen(node->var_decl.name) * 2 + strlen(clean_type));
-                    sprintf(stmt_str, "if (__z_drop_flag_%s) %s__Drop_glue(&%s);",
+                    sprintf(stmt_str, "if (__z_drop_flag_%s) %s__Drop__glue(&%s);",
                             node->var_decl.name, clean_type, node->var_decl.name);
                     defer_node->raw_stmt.content = stmt_str;
                     defer_node->line = node->line;
@@ -1288,7 +1288,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
                             }
                             stmt_str =
                                 xmalloc(256 + strlen(node->var_decl.name) * 2 + strlen(clean_name));
-                            sprintf(stmt_str, "if (__z_drop_flag_%s) %s__Drop_glue(&%s);",
+                            sprintf(stmt_str, "if (__z_drop_flag_%s) %s__Drop__glue(&%s);",
                                     node->var_decl.name, clean_name, node->var_decl.name);
                             free(clean_name);
                         }
@@ -1887,7 +1887,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
         int handled = 0;
 
         if (node->ret.value && node->ret.value->type == NODE_EXPR_ARRAY_LITERAL &&
-            g_current_func_ret_type && strncmp(g_current_func_ret_type, "Slice_", 6) == 0)
+            g_current_func_ret_type && strncmp(g_current_func_ret_type, "Slice__", 7) == 0)
         {
             // Heap allocation for slice literals to prevent use-after-return
             ASTNode *arr = node->ret.value;
@@ -1897,9 +1897,9 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
             // Prioritize the function return type (Slice_T) to determine the pointer type
             // This prevents "incompatible pointer type" errors in C when returning literals of
             // different types
-            if (g_current_func_ret_type && strncmp(g_current_func_ret_type, "Slice_", 6) == 0)
+            if (g_current_func_ret_type && strncmp(g_current_func_ret_type, "Slice__", 7) == 0)
             {
-                elem_type = xstrdup(g_current_func_ret_type + 6);
+                elem_type = xstrdup(g_current_func_ret_type + 7);
             }
             else if (arr->array_literal.elements && arr->array_literal.elements->type_info)
             {

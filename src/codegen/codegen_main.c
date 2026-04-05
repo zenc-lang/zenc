@@ -334,12 +334,12 @@ static void emit_auto_drop_glues(ParserContext *ctx, ASTNode *structs, FILE *out
 
             char *sname = s->strct.name;
             fprintf(out, "// Auto-Generated RAII Glue for %s\n", sname);
-            fprintf(out, "void %s__Drop_glue(%s *self) {\n", sname, sname);
+            fprintf(out, "void %s__Drop__glue(%s *self) {\n", sname, sname);
 
             int has_manual_drop = check_impl(ctx, "Drop", sname);
             if (has_manual_drop)
             {
-                fprintf(out, "    %s__Drop_drop(self);\n", sname);
+                fprintf(out, "    %s__Drop__drop(self);\n", sname);
             }
 
             ASTNode *field = s->strct.fields;
@@ -351,14 +351,13 @@ static void emit_auto_drop_glues(ParserContext *ctx, ASTNode *structs, FILE *out
                     ASTNode *fdef = find_struct_def(ctx, ft->name);
                     if (fdef && fdef->type_info && fdef->type_info->traits.has_drop)
                     {
-                        fprintf(out, "    %s__Drop_glue(&self->%s);\n", ft->name,
+                        fprintf(out, "    %s__Drop__glue(&self->%s);\n", ft->name,
                                 field->field.name);
                     }
                 }
                 field = field->next;
             }
-
-            fprintf(out, "}\n");
+            fprintf(out, "}\n\n");
             if (s->cfg_condition)
             {
                 fprintf(out, "#endif\n");
@@ -374,6 +373,7 @@ void codegen_node(ParserContext *ctx, ASTNode *node, FILE *out)
 {
     if (node->type == NODE_ROOT)
     {
+        ctx->current_scope = ctx->global_scope;
         ASTNode *kids = node->root.children;
         while (kids && kids->type == NODE_ROOT)
         {

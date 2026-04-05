@@ -315,13 +315,13 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
                         // Match by variant name (pattern suffix after last _)
                         int size = strlen(vreg->enum_name) + strlen(v->variant.name) + 2;
                         char *v_full = xmalloc(size);
-                        snprintf(v_full, size, "%s_%s", vreg->enum_name, v->variant.name);
+                        snprintf(v_full, size, "%s__%s", vreg->enum_name, v->variant.name);
                         if (strcmp(v_full, pattern) == 0 && v->variant.payload)
                         {
                             // Found the variant, extract payload type
                             payload_type = v->variant.payload;
                             if (payload_type && payload_type->kind == TYPE_STRUCT &&
-                                strncmp(payload_type->name, "Tuple_", 6) == 0)
+                                strncmp(payload_type->name, "Tuple__", 7) == 0)
                             {
                                 is_tuple_payload = 1;
                                 ASTNode *tuple_def = find_struct_def(ctx, payload_type->name);
@@ -983,7 +983,7 @@ ASTNode *parse_return(ParserContext *ctx, Lexer *l)
 
     int handled = 0;
 
-    if (curr_func_ret && strncmp(curr_func_ret, "Tuple_", 6) == 0 &&
+    if (curr_func_ret && strncmp(curr_func_ret, "Tuple__", 7) == 0 &&
         lexer_peek(l).type == TOK_LPAREN)
     {
 
@@ -1335,7 +1335,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                     ASTNode *static_method = ast_create(NODE_EXPR_VAR);
 
                     char func_name[512];
-                    snprintf(func_name, 511, "%s::from_array", slice_type);
+                    snprintf(func_name, 511, "Slice__%s__from_array", elem_type_str);
                     static_method->var_ref.name = xstrdup(func_name);
 
                     from_array_call->call.callee = static_method;
@@ -2067,7 +2067,7 @@ char *process_printf_sugar(ParserContext *ctx, Token srctoken, const char *conte
                 {
                     char *inner_name = type_to_string(base->inner);
                     char slice_name[256];
-                    sprintf(slice_name, "Slice_%s", inner_name);
+                    sprintf(slice_name, "Slice__%s", inner_name);
                     free(inner_name);
 
                     ASTNode *def = find_struct_def(ctx, slice_name);

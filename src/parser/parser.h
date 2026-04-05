@@ -1018,7 +1018,7 @@ ASTNode *parse_function(ParserContext *ctx, Lexer *l, int is_async);
 /**
  * @brief Parses a struct definition.
  */
-ASTNode *parse_struct(ParserContext *ctx, Lexer *l, int is_union, int is_opaque);
+ASTNode *parse_struct(ParserContext *ctx, Lexer *l, int is_union, int is_opaque, int is_extern);
 
 /**
  * @brief Parses an enum definition.
@@ -1085,5 +1085,10 @@ void check_identifier(ParserContext *ctx, Token t);
  * @brief Main loop to parse top-level nodes in a file.
  */
 ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l);
+
+/**
+ * @brief Collapses triple or more underscores into a double underscore.
+ */
+char *merge_underscores(const char *name);
 
 #endif // PARSER_H

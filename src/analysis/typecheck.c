@@ -11,6 +11,7 @@ char *resolve_struct_name_from_type(ParserContext *ctx, Type *t, int *is_ptr_out
                                     char **allocated_out);
 FuncSig *find_func(ParserContext *ctx, const char *name);
 ASTNode *find_trait_def(ParserContext *ctx, const char *name);
+char *merge_underscores(const char *in);
 
 // ** Internal Helpers **
 
@@ -2015,13 +2016,14 @@ static void check_node(TypeChecker *tc, ASTNode *node)
 
                 if (struct_name)
                 {
-                    size_t mangled_sz = strlen(struct_name) + strlen(node->member.field) + 3;
-                    char *mangled = xmalloc(mangled_sz);
-                    snprintf(mangled, mangled_sz, "%s__%s", struct_name, node->member.field);
+                    char buf[1024];
+                    snprintf(buf, sizeof(buf), "%s__%s", struct_name, node->member.field);
+                    char *mangled = merge_underscores(buf);
 
                     FuncSig *sig = find_func(tc->pctx, mangled);
                     if (sig)
                     {
+                        node->type_info = sig->ret_type;
                     }
                     free(mangled);
                 }
