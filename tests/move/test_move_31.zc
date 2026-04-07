@@ -1,0 +1,25 @@
+// EXPECT: PASS
+
+struct Mover {
+    val: int
+}
+
+impl Drop for Mover {
+    fn drop(self) {
+        println "dropping mover";
+    }
+}
+
+fn consume(m: Mover) {
+    println "m.val = {m.val}";
+}
+
+fn main(argc: int, argv: char**) {
+    let m = Mover { val: 10 };
+    if argc == 1 {
+        consume(m);
+    }
+    else {
+        consume(m);
+    }
+}

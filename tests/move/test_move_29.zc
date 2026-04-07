@@ -1,0 +1,21 @@
+// EXPECT: FAIL
+
+// Should fail inside test block too.
+struct M { val: int }
+
+fn consume(m: M) {
+  println "consume"
+}
+
+test "nested move in test" {
+  let m = M { val: 80 }
+  consume(m)
+
+  if true {
+    let x = m.val
+    assert(x == 80, "must fail")
+  }
+}
+
+fn main() {}
+

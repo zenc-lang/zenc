@@ -1,0 +1,13 @@
+// EXPECT: PASS
+
+struct M { val: int }
+
+fn borrow(m: M*) {
+  println "borrowed"
+}
+
+fn main() {
+  let m = M { val: 10 }
+  borrow(&m)
+  borrow(&m)
+}

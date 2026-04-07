@@ -1,0 +1,17 @@
+// EXPECT: FAIL
+
+// Implicit value-capture of non-Copy should move 'm'.
+struct M { val: int }
+
+fn consume(m: M) { println "{m.val}" }
+
+fn main() {
+  let m = M { val: 12 }
+  let get_plus = x -> m.val + x
+
+  // This should fail: 'm' was moved by capture.
+  consume(m)
+
+  let y = get_plus(5)
+  assert(y == 17, "unreachable on correct move semantics")
+}

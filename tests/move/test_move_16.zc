@@ -1,0 +1,17 @@
+// EXPECT: PASS
+
+struct M { val: int }
+
+fn consume_and_true(m: M) -> bool {
+  println "consume"
+  return true
+}
+
+fn main() {
+  let m = M { val: 10 }
+  if false && consume_and_true(m) {
+    println "never"
+  }
+  consume_and_true(m)
+}
+

@@ -1,0 +1,21 @@
+// EXPECT: FAIL
+
+// Borrowing a moved object through address-of should fail.
+struct M { val: int }
+
+fn consume(m: M) {
+  println "consume"
+}
+
+fn borrow(m: M*) {
+  println "borrow"
+}
+
+fn main() {
+  let m = M { val: 40 }
+  consume(m)
+  if true {
+    borrow(&m)
+  }
+}
+

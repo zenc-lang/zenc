@@ -1,0 +1,16 @@
+// EXPECT: PASS
+
+struct M { val: int }
+
+fn takes_and_true(m: M) -> bool {
+  return true
+}
+
+fn main() {
+  let m = M { val: 10 }
+  if false && takes_and_true(m) {
+    println "never"
+  }
+  takes_and_true(m)
+}
+

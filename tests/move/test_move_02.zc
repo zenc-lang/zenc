@@ -1,0 +1,10 @@
+// EXPECT: FAIL
+
+struct M { val: int }
+
+fn main() {
+  let m = M { val: 1 }
+  let a = m
+  let b = m // Use-after-move
+  println "{a.val} {b.val}"
+}

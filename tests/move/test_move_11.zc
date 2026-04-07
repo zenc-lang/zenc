@@ -1,0 +1,18 @@
+// EXPECT: FAIL
+
+struct M { val: int }
+
+fn consume(m: M) {
+  println "consume"
+}
+
+fn borrow(m: M*) {
+  println "borrow"
+}
+
+fn main() {
+  let m = M { val: 10 }
+  consume(m)
+  borrow(&m)
+}
+

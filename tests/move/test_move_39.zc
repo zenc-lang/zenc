@@ -1,0 +1,13 @@
+// EXPECT: PASS
+
+// Copy types passed into lambda by value can be reused.
+struct MC { val: int }
+impl Copy for MC {}
+
+fn main() {
+  let take = fn(x: MC) { println "{x.val}" }
+  let m = MC { val: 42 }
+
+  take(m)
+  take(m)
+}

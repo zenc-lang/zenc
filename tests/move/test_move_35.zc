@@ -1,0 +1,15 @@
+// EXPECT: FAIL
+
+// Capturing an already moved outer value must fail.
+struct M { val: int }
+
+fn consume(m: M) { println "{m.val}" }
+
+fn main() {
+  let m = M { val: 10 }
+  consume(m)
+
+  let f = x -> x + m.val
+  println "{f(1)}"
+}
+

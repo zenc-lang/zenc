@@ -1,0 +1,16 @@
+// EXPECT: FAIL
+
+// Access through nested member chain after move.
+struct Inner { val: int }
+struct Outer { inner: Inner }
+
+fn consume(o: Outer) {
+  println "consume"
+}
+
+fn main() {
+  let o = Outer { inner: Inner { val: 33 } }
+  consume(o)
+  println "{o.inner.val}"
+}
+

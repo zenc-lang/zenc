@@ -1,0 +1,18 @@
+// EXPECT: PASS
+
+// Borrowing via pointer parameter in lambda must not move the value.
+struct M { val: int }
+
+fn consume(m: M) { println "{m.val}" }
+
+fn main() {
+  let borrow = fn(ptr: M*) {
+    let ok = ptr != 0
+    assert(ok, "ptr must be valid")
+  }
+
+  let m = M { val: 7 }
+  borrow(&m)
+  borrow(&m)
+  consume(m)
+}

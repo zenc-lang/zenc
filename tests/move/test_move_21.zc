@@ -1,0 +1,22 @@
+// EXPECT: PASS
+
+// Complex control-flow: exactly one consume per path, should be valid.
+struct M { val: int }
+
+fn consume(m: M) {
+  println "consume {m.val}"
+}
+
+fn main(argc: int, argv: char**) {
+  let m = M { val: 10 }
+
+  if argc == 1 {
+    if argc == 2 {
+      consume(m)
+    } else {
+      consume(m)
+    }
+  } else {
+    consume(m)
+  }
+}
