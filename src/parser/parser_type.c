@@ -649,11 +649,6 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
         {
             size = (int)compiled_size;
         }
-        else
-        {
-            zpanic_at(size_expr->token, "Array size must be a known compile-time constant integer");
-        }
-
         if (lexer_next(l).type != TOK_RBRACKET)
         {
             zpanic_at(lexer_peek(l), "Expected ']' in array type");
