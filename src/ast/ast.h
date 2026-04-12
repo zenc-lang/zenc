@@ -542,6 +542,10 @@ struct ASTNode
         {
             char *plugin_name;
             char *body;
+            int start_line;
+            int start_col;
+            int end_line;
+            int end_col;
         } plugin_stmt;
 
         struct

@@ -5264,6 +5264,24 @@ void register_plugin(ParserContext *ctx, const char *name, const char *alias)
             snprintf(path, sizeof(path), "%s%s%s", z_get_run_prefix(), name, z_get_plugin_ext());
             plugin = zptr_load_plugin(path);
         }
+
+        // Fallback for system-wide plugins
+        if (!plugin)
+        {
+            char path[MAX_PATH_LEN];
+            // Try full name first
+            snprintf(path, sizeof(path), ZEN_SHARE_DIR "/plugins/%s%s", name, z_get_plugin_ext());
+            plugin = zptr_load_plugin(path);
+
+            // If it was a path like "plugins/name", try matching just the base "name" in system dir
+            if (!plugin && strchr(name, '/'))
+            {
+                const char *last_slash = strrchr(name, '/');
+                snprintf(path, sizeof(path), ZEN_SHARE_DIR "/plugins/%s%s", last_slash + 1,
+                         z_get_plugin_ext());
+                plugin = zptr_load_plugin(path);
+            }
+        }
     }
 
     if (!plugin)
@@ -5274,6 +5292,12 @@ void register_plugin(ParserContext *ctx, const char *name, const char *alias)
                 name);
         if (g_config.mode_lsp)
         {
+            // Register alias anyway to avoid redundant "Unknown plugin" noise
+            ImportedPlugin *p = xmalloc(sizeof(ImportedPlugin));
+            p->name = xstrdup(name);
+            p->alias = alias ? xstrdup(alias) : NULL;
+            p->next = ctx->imported_plugins;
+            ctx->imported_plugins = p;
             return;
         }
         exit(1);

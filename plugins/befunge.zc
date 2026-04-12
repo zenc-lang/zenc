@@ -92,7 +92,58 @@ end_befunge:;
 """, out);
 }
 
-let befunge_plugin = ZPlugin { name: "befunge", handler: befunge_transpile };
+fn befunge_hover(body: char*, line: int, col: int) -> char* {
+    let p = body;
+    let r = 0; let c = 0;
+    while (p[0] != 0 && (p[0] == 10 || p[0] == 13)) p = &p[1];
+
+    while (p[0] != 0) {
+        if (r == line && c == col) {
+            match (int)p[0] {
+                62 => return ">: PC travels Right",
+                60 => return "<: PC travels Left",
+                94 => return "^: PC travels Up",
+                118 => return "v: PC travels Down",
+                63 => return "?: PC travels in a random direction",
+                43 => return "+: Addition (a+b)",
+                45 => return "-: Subtraction (a-b)",
+                42 => return "*: Multiplication (a*b)",
+                47 => return "/: Division (a/b)",
+                37 => return "%: Modulo (a%b)",
+                33 => return "!: Logical NOT",
+                96 => return "`: Greater Than (a > b ? 1 : 0)",
+                95 => return "_: Horizontal IF (pop a; if a==0 dx=1 else dx=-1)",
+                124 => return "|: Vertical IF (pop a; if a==0 dy=1 else dy=-1)",
+                34 => return "\": String mode (push ASCII till next \")",
+                58 => return ":: Duplicate top of stack",
+                92 => return "\\: Swap top two elements",
+                36 => return "$: Discard top of stack",
+                46 => return ".: Output as integer",
+                44 => return ",: Output as character",
+                35 => return "#: Bridge (skip next cell)",
+                103 => return "g: Get (pop y,x; push grid[y][x])",
+                112 => return "p: Put (pop y,x,v; grid[y][x]=v)",
+                38 => return "&: Input integer",
+                126 => return "~: Input character",
+                64 => return "@: End Program",
+                _ => return NULL
+            }
+        }
+        if (p[0] == 10) {
+            r++; c = 0;
+        } else {
+            c++;
+        }
+        p = &p[1];
+    }
+    return NULL;
+}
+
+let befunge_plugin = ZPlugin { 
+    name: "befunge", 
+    handler: befunge_transpile,
+    hover_handler: befunge_hover
+};
 
 @export 
 fn z_plugin_init() -> ZPlugin* { return &befunge_plugin; }

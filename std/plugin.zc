@@ -3,7 +3,7 @@ import "./core.zc"
 
 include <stdio.h>
 
-def ZEN_PLUGIN_API_VERSION = 1;
+def ZEN_PLUGIN_API_VERSION = 2;
 def ZEN_PLUGIN_MAX_NAME = 256;
 
 struct ZConfig {
@@ -30,7 +30,8 @@ struct ZApi {
 
 struct ZPlugin {
     name: char[256], // ZEN_PLUGIN_MAX_NAME
-    handler: fn*(char*, ZApi*)
+    handler: fn*(char*, ZApi*),
+    hover_handler: fn*(char*, int, int) -> char*
 }
 
 // Helper: Provide a more native Zen C experience for diagnostics

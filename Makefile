@@ -181,6 +181,10 @@ install: $(TARGET)
 	# Install plugin headers
 	$(INSTALL) -d $(INCLUDEDIR)
 	$(INSTALL) -m 644 plugins/zprep_plugin.h $(INCLUDEDIR)/zprep_plugin.h
+	
+	# Install compiled plugins
+	$(INSTALL) -d $(SHAREDIR)/plugins
+	$(CP) plugins/*.so $(SHAREDIR)/plugins/
 	@echo "=> Installed to $(BINDIR)/$(TARGET)"
 	@echo "=> Man pages installed to $(MANDIR)"
 	@echo "=> Standard library installed to $(SHAREDIR)/std"

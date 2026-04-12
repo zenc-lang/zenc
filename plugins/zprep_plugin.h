@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define ZEN_PLUGIN_API_VERSION 1
+#define ZEN_PLUGIN_API_VERSION 2
 #define ZEN_PLUGIN_MAX_NAME 256
 
 /**
@@ -52,12 +52,23 @@ typedef struct ZApi
 typedef void (*ZPluginTranspileFn)(const char *input_body, const ZApi *api);
 
 /**
+ * @brief The Plugin LSP Hover Function Signature.
+ *
+ * @param input_body The raw text content inside the plugin call.
+ * @param line The line number inside the plugin block (0-indexed).
+ * @param col The column number inside the plugin block (0-indexed).
+ * @return const char* Markdown documentation or NULL.
+ */
+typedef const char *(*ZPluginHoverFn)(const char *input_body, int line, int col);
+
+/**
  * @brief Plugin definition structure.
  */
 typedef struct
 {
     char name[ZEN_PLUGIN_MAX_NAME]; ///< Name of the plugin.
     ZPluginTranspileFn fn;          ///< Pointer to the transpilation function.
+    ZPluginHoverFn hover_fn;        ///< Pointer to the LSP hover function (optional).
 } ZPlugin;
 
 /**

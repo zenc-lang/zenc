@@ -64,6 +64,25 @@ void lsp_index_add_def(LSPIndex *idx, Token t, const char *hover, ASTNode *node)
 
     lsp_index_add(idx, r);
 }
+void lsp_index_add_plugin(LSPIndex *idx, ASTNode *node)
+{
+    if (!node || node->type != NODE_PLUGIN)
+    {
+        return;
+    }
+    LSPRange *r = calloc(1, sizeof(LSPRange));
+    r->type = RANGE_DEFINITION; // DEFINITION range works for hover
+    r->start_line = node->plugin_stmt.start_line - 1;
+    r->start_col = node->plugin_stmt.start_col - 1;
+    r->end_line = node->plugin_stmt.end_line - 1;
+    r->end_col = node->plugin_stmt.end_col - 1;
+    r->node = node;
+
+    // Default hover text for the plugin itself (fallback)
+    r->hover_text = strdup(node->plugin_stmt.plugin_name);
+
+    lsp_index_add(idx, r);
+}
 
 void lsp_index_add_ref(LSPIndex *idx, Token t, Token def_t, ASTNode *node)
 {
@@ -212,6 +231,10 @@ static void lsp_walk_node(LSPIndex *idx, ASTNode *node, int depth)
             snprintf(hover, sizeof(hover), "trait %s", name);
             lsp_index_add_def(idx, node->token, hover, node);
         }
+        else if (node->type == NODE_PLUGIN)
+        {
+            lsp_index_add_plugin(idx, node);
+        }
 
         // Reference logic.
         if (node->definition_token.line > 0)
@@ -289,6 +312,9 @@ static void lsp_walk_node(LSPIndex *idx, ASTNode *node, int depth)
         case NODE_GUARD:
             lsp_walk_node(idx, node->guard_stmt.condition, depth + 1);
             lsp_walk_node(idx, node->guard_stmt.body, depth + 1);
+            break;
+        case NODE_TEST:
+            lsp_walk_node(idx, node->test_stmt.body, depth + 1);
             break;
         case NODE_IMPL:
             lsp_walk_node(idx, node->impl.methods, depth + 1);

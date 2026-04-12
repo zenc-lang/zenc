@@ -1,6 +1,7 @@
 #include "cJSON.h"
 #include "../constants.h"
 #include "lsp_project.h" // Includes lsp_index.h, parser.h
+#include "../plugins/plugin_manager.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -453,12 +454,48 @@ void lsp_hover(const char *uri, int line, int col, int id)
         {
             text = r->hover_text;
         }
-        else if (r->type == RANGE_REFERENCE)
+        else if (r->type == RANGE_REFERENCE && r->def_line >= 0)
         {
             LSPRange *def = lsp_find_at(idx, r->def_line, r->def_col);
             if (def && def->type == RANGE_DEFINITION)
             {
                 text = def->hover_text;
+            }
+        }
+
+        // Plugin-Specific Hover Support
+        if (r->node && r->node->type == NODE_PLUGIN)
+        {
+            ZPlugin *plugin = zptr_find_plugin(r->node->plugin_stmt.plugin_name);
+            if (plugin && plugin->hover_fn)
+            {
+                // Calculate local offset inside the plugin block.
+                // LSP line/col are 0-indexed.
+                // node->plugin_stmt.start_line/col are 1-indexed.
+                int local_line = (line + 1) - r->node->plugin_stmt.start_line;
+                int local_col = 0;
+
+                if (local_line == 0)
+                {
+                    // Same line as the opening brace: subtract the column offset of the block
+                    // start.
+                    local_col = col - (r->node->plugin_stmt.start_col - 1);
+                }
+                else
+                {
+                    // For subsequent lines, the column is relative to the start of the line.
+                    local_col = col;
+                }
+
+                if (local_col >= 0)
+                {
+                    char *plugin_text =
+                        (char *)plugin->hover_fn(r->node->plugin_stmt.body, local_line, local_col);
+                    if (plugin_text)
+                    {
+                        text = plugin_text;
+                    }
+                }
             }
         }
     }
@@ -1017,7 +1054,7 @@ void lsp_completion(const char *uri, int line, int col, int id)
 
                             // Show methods (Struct::Method)
                             FuncSig *fn_sig = g_project->ctx->func_registry;
-                            char method_prefix[256];
+                            char method_prefix[MAX_VAR_NAME_LEN + 4];
                             snprintf(method_prefix, sizeof(method_prefix), "%s::", clean_name);
                             while (fn_sig)
                             {

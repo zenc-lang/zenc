@@ -31,9 +31,38 @@ fn bf_transpile(body: char*, api: ZApi*) {
     fputs(f"}} \n", out);
 }
 
+fn bf_hover(body: char*, line: int, col: int) -> char* {
+    let p = body;
+    let r = 0; let c = 0;
+    // We don't skip newlines here to keep coordinate sync with ZLS
+    while (p[0] != 0) {
+        if (r == line && c == col) {
+            match (int)p[0] {
+                '>' => return "**:ptr++**: Increment the data pointer.",
+                '<' => return "**:ptr--**: Decrement the data pointer.",
+                '+' => return "**(*ptr)++**: Increment the byte at the data pointer.",
+                '-' => return "**(*ptr)--**: Decrement the byte at the data pointer.",
+                '.' => return "**:putchar**: Output the byte at the data pointer.",
+                ',' => return "**:getchar**: Accept one byte of input, storing its value in the byte at the data pointer.",
+                '[' => return "**:while(*ptr)**: If the byte at the data pointer is zero, jump forward to the command after the corresponding `]` command.",
+                ']' => return "**:end-while**: If the byte at the data pointer is nonzero, jump back to the command after the corresponding `[` command.",
+                _ => return NULL
+            }
+        }
+        if (p[0] == 10) {
+            r++; c = 0;
+        } else {
+            c++;
+        }
+        p = &p[1];
+    }
+    return NULL;
+}
+
 let bf_plugin = ZPlugin {
     name: "brainfuck",
-    handler: bf_transpile
+    handler: bf_transpile,
+    hover_handler: bf_hover
 };
 
 @export

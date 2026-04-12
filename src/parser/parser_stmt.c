@@ -2563,14 +2563,11 @@ ASTNode *parse_macro_call(ParserContext *ctx, Lexer *l, char *macro_name)
         zpanic_at(lexer_peek(l), "Expected { after macro invocation");
     }
     lexer_next(l); // consume {
+    int start_line = l->line;
+    int start_col = l->col;
+    const char *body_start = l->src + l->pos;
 
-    // Collect body until }
-    char *body = xmalloc(8192);
-    body[0] = '\0';
-    int body_len = 0;
     int depth = 1;
-    int last_line = start_tok.line;
-
     while (depth > 0)
     {
         Token t = lexer_peek(l);
@@ -2588,34 +2585,17 @@ ASTNode *parse_macro_call(ParserContext *ctx, Lexer *l, char *macro_name)
             depth--;
         }
 
-        if (depth > 0)
-        {
-            if (body_len + t.len + 2 < 8192)
-            {
-                // Preserve newlines
-                if (t.line > last_line)
-                {
-                    body[body_len] = '\n';
-                    body[body_len + 1] = 0;
-                    body_len++;
-                }
-                else
-                {
-                    body[body_len] = ' ';
-                    body[body_len + 1] = 0;
-                    body_len++;
-                }
-
-                strncat(body, t.start, t.len);
-                body_len += t.len;
-            }
-        }
-
-        last_line = t.line;
         lexer_next(l);
     }
+    int end_line = l->line;
+    int end_col = l->col;
 
-    // Resolve plugin name
+    const char *body_end = l->src + l->pos - 1; // back to the '}'
+    size_t body_len = (size_t)(body_end - body_start);
+    char *body = xmalloc(body_len + 1);
+    memcpy(body, body_start, body_len);
+    body[body_len] = '\0';
+
     const char *plugin_name = resolve_plugin(ctx, macro_name);
     if (!plugin_name)
     {
@@ -2623,6 +2603,20 @@ ASTNode *parse_macro_call(ParserContext *ctx, Lexer *l, char *macro_name)
         snprintf(err, sizeof(err), "Unknown plugin: %s (did you forget 'import plugin \"%s\"'?)",
                  macro_name, macro_name);
         zpanic_at(start_tok, "%s", err);
+
+        // Fallback for ZLS: Return a dummy plugin node to stay alive
+        if (g_config.mode_lsp)
+        {
+            free(body);
+            ASTNode *n = ast_create(NODE_PLUGIN);
+            n->plugin_stmt.plugin_name = xstrdup(macro_name);
+            n->plugin_stmt.body = xstrdup("");
+            n->plugin_stmt.start_line = start_line;
+            n->plugin_stmt.start_col = start_col;
+            n->plugin_stmt.end_line = end_line;
+            n->plugin_stmt.end_col = end_col;
+            return n;
+        }
     }
 
     // Find Plugin Definition
@@ -2634,6 +2628,20 @@ ASTNode *parse_macro_call(ParserContext *ctx, Lexer *l, char *macro_name)
         char err[MAX_SHORT_MSG_LEN];
         snprintf(err, sizeof(err), "Plugin implementation not found: %s", plugin_name);
         zpanic_at(start_tok, "%s", err);
+
+        // Fallback for ZLS: Return a dummy plugin node to stay alive
+        if (g_config.mode_lsp)
+        {
+            free(body);
+            ASTNode *n = ast_create(NODE_PLUGIN);
+            n->plugin_stmt.plugin_name = xstrdup(plugin_name);
+            n->plugin_stmt.body = xstrdup("");
+            n->plugin_stmt.start_line = start_line;
+            n->plugin_stmt.start_col = start_col;
+            n->plugin_stmt.end_line = end_line;
+            n->plugin_stmt.end_col = end_col;
+            return n;
+        }
     }
 
     // Execute Plugin Immediately (Expansion)
@@ -2656,6 +2664,21 @@ ASTNode *parse_macro_call(ParserContext *ctx, Lexer *l, char *macro_name)
     fread(expanded_code, 1, len, capture);
     expanded_code[len] = 0;
     fclose(capture);
+    // For LSP: We want to keep the plugin node so we can show hovers
+    if (g_config.mode_lsp)
+    {
+        ASTNode *n = ast_create(NODE_PLUGIN);
+        n->plugin_stmt.plugin_name = xstrdup(plugin_name);
+        n->plugin_stmt.body = body;
+        n->plugin_stmt.start_line = start_line;
+        n->plugin_stmt.start_col = start_col;
+        n->plugin_stmt.end_line = end_line;
+        n->plugin_stmt.end_col = end_col;
+        n->line = start_tok.line;
+        n->token = start_tok;
+        return n;
+    }
+
     free(body);
 
     // Create Raw Statement/Expression Node
