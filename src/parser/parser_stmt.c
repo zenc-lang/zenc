@@ -4213,6 +4213,15 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
     free(fn);
     fn = resolved;
 
+    // In fault-tolerant LSP mode zpanic_at reports the diagnostic and returns.
+    // Bail out here instead of dereferencing a NULL path below.
+    if (!fn)
+    {
+        ASTNode *dummy = ast_create(NODE_BLOCK);
+        dummy->block.statements = NULL;
+        return dummy;
+    }
+
     if (is_file_imported(ctx, fn))
     {
         free(fn);
