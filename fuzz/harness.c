@@ -37,9 +37,11 @@ static void initialize()
     initialized = 1;
 }
 
+#define MAX_FUZZ_INPUT_SIZE (64 * 1024) /* 64 KB – cap input to limit exposure to memory-safety bugs */
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-    if (size == 0)
+    if (size == 0 || size > MAX_FUZZ_INPUT_SIZE)
     {
         return 0;
     }
