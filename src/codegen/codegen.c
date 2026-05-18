@@ -365,18 +365,7 @@ static void codegen_lambda_expr(ParserContext *ctx, ASTNode *node)
             }
             else
             {
-                char *tstr = NULL;
-                if (node->lambda.captured_types_info && node->lambda.captured_types_info[i])
-                {
-                    tstr = type_to_c_string(node->lambda.captured_types_info[i]);
-                }
-                else
-                {
-                    tstr = xstrdup(node->lambda.captured_types[i]);
-                }
-
-                EMIT(ctx, "*(%s*)(&_z_ctx_%d->%s) = ", tstr, lid, node->lambda.captured_vars[i]);
-                zfree(tstr);
+                EMIT(ctx, "_z_ctx_%d->%s = ", lid, node->lambda.captured_vars[i]);
 
                 ASTNode *var_node = ast_create(NODE_EXPR_VAR);
                 var_node->var_ref.name = xstrdup(node->lambda.captured_vars[i]);

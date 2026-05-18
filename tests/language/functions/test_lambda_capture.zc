@@ -1,0 +1,30 @@
+// language/functions: functions: test_lambda_capture
+alias fp = fn*(int) -> int;
+alias clos = fn(int) -> int;
+
+fn square(x: int) -> int { return x*x; }
+fn dec(x: int) -> int { return x+1; }
+fn inc(x: int) -> int { return x-1; }
+
+fn compose(f: fp, g: fp, h: fp) -> clos {
+    return fn(x: int) -> int {
+        return h(g(f(x)));
+    }
+}
+
+
+test "lambda captures local fn ptr" {
+    let f: fp = square;
+    let call_f: clos = fn(x: int) -> int {
+        return f(x);
+    }
+
+    let res = call_f(5)
+    assert(res == 25, "call_f(5) should be 25");
+}
+
+test "returned clos captures fn ptr args" {
+    let composed = compose(square, dec, inc);
+    let res = composed(10)
+    assert(res == 100, "composed(10) should be 100")
+}

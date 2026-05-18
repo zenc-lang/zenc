@@ -64,7 +64,7 @@ int is_enum_type_name(ParserContext *ctx, const char *name)
 }
 
 // Helper to emit C declaration (handle arrays, function pointers correctly)
-void emit_c_decl(ParserContext *ctx, const char *type_str, const char *name)
+void emit_c_decl(ParserContext *ctx, const char *type_str, const char *name, int ptrs)
 {
     char *bracket = strchr(type_str, '[');
     char *generic = strchr(type_str, '<');
@@ -76,13 +76,27 @@ void emit_c_decl(ParserContext *ctx, const char *type_str, const char *name)
         if (end_paren)
         {
             int prefix_len = end_paren - type_str;
-            EMIT(ctx, "%.*s%s%s", prefix_len, type_str, name, end_paren);
+            EMIT(ctx, "%.*s", prefix_len, type_str);
+
+            for (int i = 0; i < ptrs; i++)
+            {
+                EMIT(ctx, "*");
+            }
+
+            EMIT(ctx, "%s%s", name, end_paren);
         }
         else
         {
             // Fallback if malformed (shouldn't happen)
             int prefix_len = fn_ptr - type_str + 2;
-            EMIT(ctx, "%.*s%s%s", prefix_len, type_str, name, fn_ptr + 2);
+            EMIT(ctx, "%.*s", prefix_len, type_str);
+
+            for (int i = 0; i < ptrs; i++)
+            {
+                EMIT(ctx, "*");
+            }
+
+            EMIT(ctx, "%s%s", name, fn_ptr + 2);
         }
     }
     else if (generic && (!bracket || generic < bracket))
@@ -104,7 +118,7 @@ void emit_c_decl(ParserContext *ctx, const char *type_str, const char *name)
 
                 if (find_struct_def(ctx, mangled_candidate))
                 {
-                    EMIT(ctx, "%s %s", mangled_candidate, name);
+                    EMIT(ctx, "%s ", mangled_candidate);
                     success = 1;
                 }
             }
@@ -113,33 +127,86 @@ void emit_c_decl(ParserContext *ctx, const char *type_str, const char *name)
         if (!success)
         {
             int base_len = generic - type_str;
-            EMIT(ctx, "%.*s %s", base_len, type_str, name);
+            EMIT(ctx, "%.*s ", base_len, type_str);
         }
-        else if (gt[1] == '*')
+
+        if (gt && gt[1] == '*')
         {
             EMIT(ctx, "*");
         }
 
         if (bracket)
         {
+            if (ptrs > 0)
+            {
+                EMIT(ctx, "(");
+
+                for (int i = 0; i < ptrs; i++)
+                {
+                    EMIT(ctx, "*");
+                }
+
+                EMIT(ctx, "%s)", name);
+            }
+            else
+            {
+                EMIT(ctx, "%s", name);
+            }
             EMIT(ctx, "%s", bracket);
+        }
+        else
+        {
+            for (int i = 0; i < ptrs; i++)
+            {
+                EMIT(ctx, "*");
+            }
+
+            EMIT(ctx, "%s", name);
         }
     }
     else if (bracket)
     {
         int base_len = bracket - type_str;
-        EMIT(ctx, "%.*s %s%s", base_len, type_str, name, bracket);
+        EMIT(ctx, "%.*s ", base_len, type_str);
+        if (ptrs > 0)
+        {
+            EMIT(ctx, "(");
+            for (int i = 0; i < ptrs; i++)
+            {
+                EMIT(ctx, "*");
+            }
+            EMIT(ctx, "%s)", name);
+        }
+        else
+        {
+            EMIT(ctx, "%s", name);
+        }
+        EMIT(ctx, "%s", bracket);
     }
     else
     {
-        EMIT(ctx, "%s %s", type_str, name);
+        EMIT(ctx, "%s ", type_str);
+
+        for (int i = 0; i < ptrs; i++)
+        {
+            EMIT(ctx, "*");
+        }
+
+        EMIT(ctx, "%s", name);
     }
 }
 
 // Helper to emit variable declarations with array types.
 void emit_var_decl_type(ParserContext *ctx, const char *type_str, const char *var_name)
 {
-    emit_c_decl(ctx, type_str, var_name);
+    emit_c_decl(ctx, type_str, var_name, 0);
+}
+
+// Helper to emit lambda declarations.
+void emit_lambda_decl_type(ParserContext *ctx, const char *type_str, const char *lambda_name,
+                           int ptrs)
+{
+    emit_c_decl(ctx, type_str, lambda_name, ptrs);
 }
 
 // Get field type from struct.
@@ -299,7 +366,7 @@ void emit_func_signature(ParserContext *ctx, ASTNode *func, const char *name_ove
             }
 
             // check if array type
-            emit_c_decl(ctx, type_str, name);
+            emit_c_decl(ctx, type_str, name, 0);
             zfree(type_str);
         }
         if (func->func.is_varargs)

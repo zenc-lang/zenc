@@ -559,7 +559,8 @@ void emit_lambda_defs(ParserContext *ctx)
                     {
                         tstr = xstrdup(node->lambda.captured_types[i]);
                     }
-                    EMIT(ctx, "%s* %s;\n", tstr, node->lambda.captured_vars[i]);
+                    emit_lambda_decl_type(ctx, tstr, node->lambda.captured_vars[i], 1);
+                    EMIT(ctx, ";\n");
                     zfree(tstr);
                 }
                 else
@@ -573,7 +574,8 @@ void emit_lambda_defs(ParserContext *ctx)
                     {
                         tstr = xstrdup(node->lambda.captured_types[i]);
                     }
-                    EMIT(ctx, "%s %s;\n", tstr, node->lambda.captured_vars[i]);
+                    emit_lambda_decl_type(ctx, tstr, node->lambda.captured_vars[i], 0);
+                    EMIT(ctx, ";\n");
                     zfree(tstr);
 
                     char *tname = node->lambda.captured_types[i];
