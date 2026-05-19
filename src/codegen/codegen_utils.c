@@ -202,9 +202,9 @@ void emit_var_decl_type(ParserContext *ctx, const char *type_str, const char *va
     emit_c_decl(ctx, type_str, var_name, 0);
 }
 
-// Helper to emit lambda declarations.
-void emit_lambda_decl_type(ParserContext *ctx, const char *type_str, const char *lambda_name,
-                           int ptrs)
+// Helper to emit named declarations.
+void emit_named_decl_type(ParserContext *ctx, const char *type_str, const char *lambda_name,
+                          int ptrs)
 {
     emit_c_decl(ctx, type_str, lambda_name, ptrs);
 }

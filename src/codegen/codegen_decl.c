@@ -373,23 +373,11 @@ static void emit_type_aliases_internal(ParserContext *ctx, ASTNode *node, Visite
                 EMIT(ctx, "#if %s\n", node->cfg_condition);
             }
             char *c_type_str = type_to_c_string(node->type_info);
-            // Quick fix for raw function pointers and arrays in typedefs:
-            // Since type_to_c_string returns `int (*)(int)`, simple replacement isn't valid
-            // C. But Zen C doesn't officially support raw function pointer aliases. We'll just
-            // print it.
             if (c_type_str)
             {
-                if (strstr(c_type_str, "(*)"))
-                {
-                    char *ptr = strstr(c_type_str, "(*)");
-                    int prefix_len = ptr - c_type_str;
-                    EMIT(ctx, "typedef %.*s (*%s)%s;\n", prefix_len, c_type_str,
-                         node->type_alias.alias, ptr + 3);
-                }
-                else
-                {
-                    EMIT(ctx, "typedef %s %s;\n", c_type_str, node->type_alias.alias);
-                }
+                EMIT(ctx, "typedef ");
+                emit_named_decl_type(ctx, c_type_str, node->type_alias.alias, 0);
+                EMIT(ctx, ";\n");
                 zfree(c_type_str);
             }
             else
@@ -429,17 +417,9 @@ void emit_global_aliases(ParserContext *ctx)
             char *c_type_str = type_to_c_string(ta->type_info);
             if (c_type_str)
             {
-                if (strstr(c_type_str, "(*)"))
-                {
-                    char *ptr = strstr(c_type_str, "(*)");
-                    int prefix_len = ptr - c_type_str;
-                    EMIT(ctx, "typedef %.*s (*%s)%s;\n", prefix_len, c_type_str, ta->alias,
-                         ptr + 3);
-                }
-                else
-                {
-                    EMIT(ctx, "typedef %s %s;\n", c_type_str, ta->alias);
-                }
+                EMIT(ctx, "typedef ");
+                emit_named_decl_type(ctx, c_type_str, ta->alias, 0);
+                EMIT(ctx, ";\n");
                 zfree(c_type_str);
             }
             else
@@ -559,7 +539,7 @@ void emit_lambda_defs(ParserContext *ctx)
                     {
                         tstr = xstrdup(node->lambda.captured_types[i]);
                     }
-                    emit_lambda_decl_type(ctx, tstr, node->lambda.captured_vars[i], 1);
+                    emit_named_decl_type(ctx, tstr, node->lambda.captured_vars[i], 1);
                     EMIT(ctx, ";\n");
                     zfree(tstr);
                 }
@@ -574,7 +554,7 @@ void emit_lambda_defs(ParserContext *ctx)
                     {
                         tstr = xstrdup(node->lambda.captured_types[i]);
                     }
-                    emit_lambda_decl_type(ctx, tstr, node->lambda.captured_vars[i], 0);
+                    emit_named_decl_type(ctx, tstr, node->lambda.captured_vars[i], 0);
                     EMIT(ctx, ";\n");
                     zfree(tstr);
 
