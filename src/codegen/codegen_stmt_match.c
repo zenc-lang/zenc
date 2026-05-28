@@ -16,8 +16,8 @@
 static void emit_single_pattern_cond(ParserContext *ctx, const char *pat, int id, int is_ptr)
 {
     // Check for range pattern: "start..end" or "start..=end"
-    char *range_incl = strstr(pat, "..=");
-    char *range_excl = strstr(pat, "..");
+    const char *range_incl = strstr(pat, "..=");
+    const char *range_excl = strstr(pat, "..");
 
     if (range_incl)
     {
@@ -465,7 +465,7 @@ void codegen_match_internal(ParserContext *ctx, ASTNode *node, int use_result)
                 }
                 else
                 {
-                    char *v = strstr(c->match_case.pattern, "::");
+                    char *v = (char *)strstr(c->match_case.pattern, "::");
                     if (v)
                     {
                         v += 2;

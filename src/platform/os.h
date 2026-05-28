@@ -62,9 +62,9 @@ static inline int z_is_abs_path(const char *p)
 
 static inline char *z_path_last_sep(const char *path)
 {
-    char *last_slash = strrchr(path, '/');
+    char *last_slash = (char *)strrchr(path, '/');
 #if ZC_OS_WINDOWS
-    char *last_bs = strrchr(path, '\\');
+    char *last_bs = (char *)strrchr(path, '\\');
     if (last_bs > last_slash)
     {
         return last_bs;

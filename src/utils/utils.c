@@ -177,7 +177,7 @@ static void maybe_lock_std_root(CompilerConfig *cfg, const char *resolved)
     {
         return;
     }
-    char *std_pos = strstr(resolved, "/std/");
+    const char *std_pos = strstr(resolved, "/std/");
     if (!std_pos)
     {
         return;

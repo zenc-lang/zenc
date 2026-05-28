@@ -162,7 +162,7 @@ static void lisp_get_struct_field_info(ParserContext *ctx, const char *type_str,
     {
         sname += 7;
     }
-    char *star = strchr(sname, '*');
+    char *star = (char *)strchr(sname, '*');
     if (star)
     {
         *star = '\0';

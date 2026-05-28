@@ -88,7 +88,7 @@ static void emit_c_decl(ParserContext *ctx, const char *type_str, const char *na
     else if (generic && (!bracket || generic < bracket))
     {
         char mangled_candidate[MAX_MANGLED_NAME_LEN];
-        char *gt = strchr(generic, '>');
+        char *gt = (char *)strchr(generic, '>');
         int success = 0;
 
         if (gt)
@@ -242,7 +242,7 @@ void emit_func_signature(ParserContext *ctx, ASTNode *func, const char *name_ove
             ret_str = xstrdup("void");
         }
 
-        char *fn_ptr = strstr(ret_str, "(*)");
+        char *fn_ptr = (char *)strstr(ret_str, "(*)");
 
         if (fn_ptr)
         {

@@ -14,7 +14,7 @@ char *strip_template_suffix(const char *name)
     {
         return NULL;
     }
-    char *lt = strchr(name, '<');
+    const char *lt = strchr(name, '<');
     if (lt)
     {
         ptrdiff_t len = lt - name;
