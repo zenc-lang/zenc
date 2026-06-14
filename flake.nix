@@ -23,7 +23,15 @@
 
           src = self;
 
+          buildInputs = with pkgs; [
+            tinycc
+          ];
+
+          hardeningDisable = [ "format" ];
+
           env.PREFIX = placeholder "out";
+
+          makeFlags = [ "WERROR=0" ];
 
           meta = with pkgs; {
             description = "Zen-C programming language compiler";
