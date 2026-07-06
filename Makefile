@@ -92,7 +92,7 @@ else
     LIBS = -lm -lpthread -ldl
 endif
 
-ZC_HAS_JIT ?= 1
+ZC_HAS_JIT ?= 0
 ZC_RUN ?= ./zc
 ifeq ($(ZC_HAS_JIT), 1)
     CFLAGS += -DZC_HAS_JIT
