@@ -6,8 +6,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 // Prototype
+
+// Decode percent-encoded URI in-place (e.g. "file%20name" -> "file name")
+static void uri_decode(char *s)
+{
+    if (!s)
+    {
+        return;
+    }
+    char *r = s;
+    while (*s)
+    {
+        if (*s == '%' && s[1] && s[2])
+        {
+            char hi = (char)toupper((unsigned char)s[1]);
+            char lo = (char)toupper((unsigned char)s[2]);
+            if ((hi >= '0' && hi <= '9') || (hi >= 'A' && hi <= 'F'))
+            {
+                int v = (hi >= 'A' ? hi - 'A' + 10 : hi - '0') * 16;
+                v += (lo >= 'A' ? lo - 'A' + 10 : lo - '0');
+                *r++ = (char)v;
+                s += 3;
+                continue;
+            }
+        }
+        *r++ = *s++;
+    }
+    *r = 0;
+}
 
 // Helper to extract textDocument params
 static void get_params(cJSON *root, char **uri, int *line, int *col)
@@ -26,6 +55,7 @@ static void get_params(cJSON *root, char **uri, int *line, int *col)
         if (u && u->valuestring)
         {
             *uri = xstrdup(u->valuestring);
+            uri_decode(*uri);
         }
     }
 
@@ -79,6 +109,7 @@ void handle_request(const char *json_str)
             if (rp && rp->valuestring)
             {
                 root = xstrdup(rp->valuestring);
+                uri_decode(root);
             }
             else
             {
@@ -88,6 +119,21 @@ void handle_request(const char *json_str)
                     root = xstrdup(ru->valuestring);
                 }
             }
+
+            // Try workspaceFolders if rootPath/rootUri weren't set
+            if (!root)
+            {
+                cJSON *wfs = cJSON_GetObjectItem(params, "workspaceFolders");
+                if (wfs && cJSON_GetArraySize(wfs) > 0)
+                {
+                    cJSON *wf = cJSON_GetArrayItem(wfs, 0);
+                    cJSON *wf_uri = cJSON_GetObjectItem(wf, "uri");
+                    if (wf_uri && wf_uri->valuestring)
+                    {
+                        root = xstrdup(wf_uri->valuestring);
+                    }
+                }
+            }
         }
 
         if (root && strncmp(root, "file://", 7) == 0)
@@ -95,6 +141,7 @@ void handle_request(const char *json_str)
             char *clean = xstrdup(root + 7);
             zfree(root);
             root = clean;
+            uri_decode(root);
         }
 
         lsp_project_init(root ? root : ".");
@@ -110,6 +157,7 @@ void handle_request(const char *json_str)
             "\"definitionProvider\":true,\"hoverProvider\":true,"
             "\"referencesProvider\":true,\"documentSymbolProvider\":true,"
             "\"renameProvider\":true,\"codeActionProvider\":true,"
+            "\"documentFormattingProvider\":true,"
             "\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\"]},"
             "\"completionProvider\":{"
             "\"triggerCharacters\":[\".\"]},"
@@ -168,6 +216,7 @@ void handle_request(const char *json_str)
 
                 if (uri && uri->valuestring && text && text->valuestring)
                 {
+                    uri_decode(uri->valuestring);
                     lsp_check_file(uri->valuestring, text->valuestring, id);
                 }
             }
@@ -251,6 +300,7 @@ void handle_request(const char *json_str)
 
             if (uri && diagnostics)
             {
+                uri_decode(uri->valuestring);
                 lsp_code_action(uri->valuestring, diagnostics, id);
             }
         }
@@ -264,6 +314,7 @@ void handle_request(const char *json_str)
             cJSON *uri_item = cJSON_GetObjectItem(doc, "uri");
             if (uri_item && uri_item->valuestring)
             {
+                uri_decode(uri_item->valuestring);
                 char *resp = lsp_semantic_tokens_full(uri_item->valuestring);
                 if (resp)
                 {
@@ -316,6 +367,7 @@ void handle_request(const char *json_str)
             cJSON *uri_item = cJSON_GetObjectItem(doc, "uri");
             if (uri_item && uri_item->valuestring)
             {
+                uri_decode(uri_item->valuestring);
                 ProjectFile *pf = lsp_project_get_file(uri_item->valuestring);
                 if (pf && pf->source)
                 {
@@ -348,7 +400,7 @@ void handle_request(const char *json_str)
                         }
 
                         cJSON *end = cJSON_CreateObject();
-                        cJSON_AddNumberToObject(end, "line", lines + 1);
+                        cJSON_AddNumberToObject(end, "line", lines > 0 ? lines : 1);
                         cJSON_AddNumberToObject(end, "character", 0);
 
                         cJSON_AddItemToObject(range, "start", start);

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 #include "../constants.h"
+#include "../ast/primitives.h"
 #include "lsp_project.h"
 #include "cJSON.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 // Legend indices
 #define TOKEN_TYPE_VARIABLE 0
@@ -85,6 +87,104 @@ static int compare_tokens(const void *a, const void *b)
         return ta->line - tb->line;
     }
     return ta->col - tb->col;
+}
+
+// Keyword check: reuse parser's is_reserved_keyword() + primitives table.
+static int is_keyword(const char *w, size_t len)
+{
+    // Parser's reserved keyword check (covers pseudo_keywords like fn, let,
+    // struct, return, if, else, while, break, continue, loop, for, do, etc.)
+    Token t = {.type = TOK_IDENT, .start = w, .len = len};
+    if (is_reserved_keyword(t))
+    {
+        return 1;
+    }
+
+    // Token-typed keywords that the parser maps to special tokens
+    // (these are not checked by is_reserved_keyword with TOK_IDENT):
+    //   test, assert, sizeof, def, defer, autofree, use, trait, impl
+    //   and, or, not, comptime, union, asm, volatile, async, await, alias, opaque
+    // Plus a few extra Zen keywords that don't fall into the above categories:
+    //   import, module, extern, inline, noreturn, public, private, typeof,
+    //   switch, match, external, true, false, null, in, union
+    // Plus C interop: extern, inline, noreturn
+    static const char *more[] = {"and",     "asm",       "alias",   "assert",   "async",
+                                 "await",   "autofree",  "comptime","def",      "defer",
+                                 "expect",  "extern",    "false",   "import",   "inline",
+                                 "match",   "module",    "noreturn","not",      "null",
+                                 "opaque",  "or",        "private", "public",   "sizeof",
+                                 "switch",  "test",      "true",    "typeof",   "union",
+                                 "use",     "volatile",  "impl",    "trait",    "in",
+                                 "external","continue",
+                                 NULL};
+    for (size_t i = 0; more[i]; i++)
+    {
+        size_t klen = strlen(more[i]);
+        if (len == klen && strncmp(w, more[i], len) == 0)
+        {
+            return 1;
+        }
+    }
+
+    // Primitive type names — authoritative list from primitives.c
+    int type_count = 0;
+    const ZenPrimitive *types = get_zen_primitives(&type_count);
+    for (int i = 0; i < type_count; i++)
+    {
+        size_t klen = strlen(types[i].zen_name);
+        if (len == klen && strncmp(w, types[i].zen_name, len) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Lex source for keyword tokens and push them into the builder.
+// This captures keywords that are not represented as separate AST nodes.
+static void emit_keywords(TokenBuilder *b, const char *source)
+{
+    if (!source)
+    {
+        return;
+    }
+    const char *p = source;
+    while (*p)
+    {
+        // Skip non-word characters
+        if (!isalnum((unsigned char)*p) && *p != '_')
+        {
+            p++;
+            continue;
+        }
+        const char *start = p;
+        while (isalnum((unsigned char)*p) || *p == '_')
+        {
+            p++;
+        }
+        size_t len = (size_t)(p - start);
+
+        if (is_keyword(start, len))
+        {
+            // Compute line/col by scanning from start of source
+            int line = 0, col = 0;
+            const char *scan = source;
+            while (scan < start)
+            {
+                if (*scan == '\n')
+                {
+                    line++;
+                    col = 0;
+                }
+                else
+                {
+                    col++;
+                }
+                scan++;
+            }
+            builder_push(b, line, col, (int)len, TOKEN_TYPE_KEYWORD, 0);
+        }
+    }
 }
 
 // AST Traversal
@@ -320,6 +420,9 @@ char *lsp_semantic_tokens_full(const char *uri)
 
     TokenBuilder b;
     builder_init(&b);
+
+    // Emit keyword tokens from source (keywords not captured by AST traversal)
+    emit_keywords(&b, pf->source);
 
     ASTNode *root = pf->ast;
     while (root)

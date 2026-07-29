@@ -37,6 +37,7 @@ void lsp_project_init(const char *root_path)
     // Create a persistent global context
     g_project->ctx = xcalloc(1, sizeof(ParserContext));
     g_project->ctx->compiler = &g_compiler;
+    g_project->ctx->config = &g_compiler.config;
     g_project->ctx->is_fault_tolerant = 1;
     module_state_init(&g_project->ctx->imports);
     g_project->ctx->cg.hoist_out = tmpfile(); // Support hoisting in LSP

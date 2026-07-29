@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "cJSON.h"
 #include "../constants.h"
+#include "../ast/primitives.h"
 #include "lsp_project.h" // Includes lsp_index.h, parser.h
 #include "../plugins/plugin_manager.h"
 #include <ctype.h>
@@ -184,6 +185,8 @@ void lsp_check_file(const char *uri, const char *json_src, int id)
     }
 }
 
+static char *get_symbol_name(LSPRange *r);
+
 void lsp_goto_definition(const char *uri, int line, int col, int id)
 {
     ProjectFile *pf = lsp_project_get_file(uri);
@@ -210,50 +213,34 @@ void lsp_goto_definition(const char *uri, int line, int col, int id)
             target_end_col = r->end_col;
             found = 1;
         }
-        else if (r->type == RANGE_REFERENCE && r->def_line >= 0)
+        else if (r->type == RANGE_REFERENCE)
         {
-            LSPRange *def = lsp_find_at(idx, r->def_line, r->def_col);
-            int is_local = 0;
-            if (def && def->type == RANGE_DEFINITION)
+            char *name = get_symbol_name(r);
+            if (name)
             {
-                is_local = 1;
+                DefinitionResult def = lsp_project_find_definition(name);
+                if (def.uri && def.range)
+                {
+                    target_uri = def.uri;
+                    target_start_line = def.range->start_line;
+                    target_start_col = def.range->start_col;
+                    target_end_line = def.range->end_line;
+                    target_end_col = def.range->end_col;
+                    found = 1;
+                }
             }
 
-            if (is_local)
+            if (!found && r->def_line >= 0)
             {
-                target_start_line = r->def_line;
-                target_start_col = r->def_col;
-                target_end_line = r->def_line;
-                target_end_col = r->def_col; // approx
-                found = 1;
-            }
-        }
-    }
-
-    if (!found && r && r->node)
-    {
-        char *name = NULL;
-        if (r->node->type == NODE_EXPR_VAR)
-        {
-            name = r->node->var_ref.name;
-        }
-        else if (r->node->type == NODE_EXPR_CALL && r->node->call.callee &&
-                 r->node->call.callee->type == NODE_EXPR_VAR)
-        {
-            name = r->node->call.callee->var_ref.name;
-        }
-
-        if (name)
-        {
-            DefinitionResult def = lsp_project_find_definition(name);
-            if (def.uri && def.range)
-            {
-                target_uri = def.uri;
-                target_start_line = def.range->start_line;
-                target_start_col = def.range->start_col;
-                target_end_line = def.range->end_line;
-                target_end_col = def.range->end_col;
-                found = 1;
+                LSPRange *def = lsp_find_at(idx, r->def_line, r->def_col);
+                if (def && def->type == RANGE_DEFINITION)
+                {
+                    target_start_line = r->def_line;
+                    target_start_col = r->def_col;
+                    target_end_line = r->def_line;
+                    target_end_col = r->def_col;
+                    found = 1;
+                }
             }
         }
     }
@@ -441,6 +428,52 @@ static char *get_word_at(const char *src, int line, int col)
     return word;
 }
 
+static char *get_symbol_name(LSPRange *r)
+{
+    if (!r || !r->node)
+    {
+        return NULL;
+    }
+    if (r->node->type == NODE_FUNCTION)
+    {
+        return r->node->func.name;
+    }
+    if (r->node->type == NODE_VAR_DECL || r->node->type == NODE_CONST)
+    {
+        return r->node->var_decl.name;
+    }
+    if (r->node->type == NODE_STRUCT)
+    {
+        return r->node->strct.name;
+    }
+    if (r->node->type == NODE_ENUM)
+    {
+        return r->node->enm.name;
+    }
+    if (r->node->type == NODE_ENUM_VARIANT)
+    {
+        return r->node->variant.name;
+    }
+    if (r->node->type == NODE_TRAIT)
+    {
+        return r->node->trait.name;
+    }
+    if (r->node->type == NODE_TYPE_ALIAS)
+    {
+        return r->node->type_alias.alias;
+    }
+    if (r->node->type == NODE_EXPR_VAR)
+    {
+        return r->node->var_ref.name;
+    }
+    if (r->node->type == NODE_EXPR_CALL && r->node->call.callee &&
+        r->node->call.callee->type == NODE_EXPR_VAR)
+    {
+        return r->node->call.callee->var_ref.name;
+    }
+    return NULL;
+}
+
 void lsp_hover(const char *uri, int line, int col, int id)
 {
     (void)uri;
@@ -453,7 +486,7 @@ void lsp_hover(const char *uri, int line, int col, int id)
     }
 
     LSPRange *r = lsp_find_at(idx, line, col);
-    char *text = NULL;
+    const char *text = NULL;
     int is_primitive = 0;
 
     if (r)
@@ -462,17 +495,33 @@ void lsp_hover(const char *uri, int line, int col, int id)
         {
             text = r->hover_text;
         }
-        else if (r->type == RANGE_REFERENCE && r->def_line >= 0)
+        else if (r->type == RANGE_REFERENCE)
         {
-            LSPRange *def = lsp_find_at(idx, r->def_line, r->def_col);
-            if (def && def->type == RANGE_DEFINITION)
+            if (r->def_line >= 0)
             {
-                text = def->hover_text;
+                LSPRange *def = lsp_find_at(idx, r->def_line, r->def_col);
+                if (def && def->type == RANGE_DEFINITION)
+                {
+                    text = def->hover_text;
+                }
+            }
+
+            if (!text)
+            {
+                char *name = get_symbol_name(r);
+                if (name)
+                {
+                    DefinitionResult def = lsp_project_find_definition(name);
+                    if (def.range)
+                    {
+                        text = def.range->hover_text;
+                    }
+                }
             }
         }
 
         // Plugin-Specific Hover Support
-        if (r->node && r->node->type == NODE_PLUGIN)
+        if (!text && r->node && r->node->type == NODE_PLUGIN)
         {
             ZPlugin *plugin = zptr_find_plugin(r->node->plugin_stmt.plugin_name);
             if (plugin && plugin->hover_fn)
@@ -516,7 +565,7 @@ void lsp_hover(const char *uri, int line, int col, int id)
             const char *doc = get_primitive_doc(word);
             if (doc)
             {
-                text = (char *)doc;
+                text = doc;
                 is_primitive = 1;
             }
             zfree(word);
@@ -828,12 +877,16 @@ void lsp_completion(const char *uri, int line, int col, int id)
         target_func = NULL; // Reset if we are top-level
     }
 
-    int dot_completed = 0;
+    // Extract the prefix being typed (word before cursor on current line)
+    char prefix[MAX_VAR_NAME_LEN] = "";
+    int prefix_len = 0;
+    char *ptr = pf->source ? pf->source : NULL;
+    int line_len = 0;
 
     if (pf->source)
     {
         int cur_line = 0;
-        char *ptr = pf->source;
+        ptr = pf->source;
         while (*ptr && cur_line < line)
         {
             if (*ptr == '\n')
@@ -843,251 +896,267 @@ void lsp_completion(const char *uri, int line, int col, int id)
             ptr++;
         }
 
-        int line_len = 0;
+        line_len = 0;
         while (ptr[line_len] && ptr[line_len] != '\n' && ptr[line_len] != '\r')
         {
             line_len++;
         }
 
-        if (col > 0 && col <= line_len &&
-            (ptr[col - 1] == '.' || (col > 1 && ptr[col - 2] == ':' && ptr[col - 1] == ':')))
+        // Walk backward from cursor to find the start of the current word
+        if (col > 0 && col <= line_len)
         {
-            int i = col - 2;
-            while (i >= 0 && (ptr[i] == ' ' || ptr[i] == '\t'))
+            int i = col - 1;
+            while (i >= 0 && (isalnum((unsigned char)ptr[i]) || ptr[i] == '_'))
             {
                 i--;
             }
-            if (i >= 0)
+            prefix_len = col - 1 - i;
+            if (prefix_len > 0 && prefix_len < (int)sizeof(prefix))
             {
-                int end_ident = i;
-                while (i >= 0 && (isalnum((unsigned char)ptr[i]) || ptr[i] == '_' ||
-                                  ptr[i] == '.' || ptr[i] == '-' || ptr[i] == '>' || ptr[i] == '<'))
+                strncpy(prefix, ptr + i + 1, (size_t)prefix_len);
+                prefix[prefix_len] = 0;
+            }
+        }
+    }
+
+    int dot_completed = 0;
+
+    if (pf->source && col > 0 && col <= line_len &&
+        (ptr[col - 1] == '.' || (col > 1 && ptr[col - 2] == ':' && ptr[col - 1] == ':')))
+    {
+        int i = col - 2;
+        while (i >= 0 && (ptr[i] == ' ' || ptr[i] == '\t'))
+        {
+            i--;
+        }
+        if (i >= 0)
+        {
+            int end_ident = i;
+            while (i >= 0 && (isalnum((unsigned char)ptr[i]) || ptr[i] == '_' || ptr[i] == '.' ||
+                              ptr[i] == '-' || ptr[i] == '>' || ptr[i] == '<'))
+            {
+                i--;
+            }
+            int start_ident = i + 1;
+
+            if (start_ident <= end_ident)
+            {
+                int len = end_ident - start_ident + 1;
+                char expr_chain[MAX_VAR_NAME_LEN * 4];
+                if (len >= (int)sizeof(expr_chain))
                 {
-                    i--;
+                    len = sizeof(expr_chain) - 1;
                 }
-                int start_ident = i + 1;
+                strncpy(expr_chain, ptr + start_ident, (size_t)(len));
+                expr_chain[len] = 0;
 
-                if (start_ident <= end_ident)
+                // e.g. "a.b.c" -> parts: "a", "b", "c"
+                char *parts[32];
+                int part_count = 0;
+
+                // Handle Enum::Variant completion
+                int is_scoped = 0;
+                if (len >= 2 && expr_chain[len - 2] == ':' && expr_chain[len - 1] == ':')
                 {
-                    int len = end_ident - start_ident + 1;
-                    char expr_chain[MAX_VAR_NAME_LEN * 4];
-                    if (len >= (int)sizeof(expr_chain))
+                    is_scoped = 1;
+                    expr_chain[len - 2] = 0; // Terminate early
+                }
+
+                // Replace '->' with '.' to simplify splitting
+                for (int c = 0; expr_chain[c]; c++)
+                {
+                    if (expr_chain[c] == '-' && expr_chain[c + 1] == '>')
                     {
-                        len = sizeof(expr_chain) - 1;
+                        expr_chain[c] = '.';
+                        expr_chain[c + 1] = '.'; // Will be skipped empty parts
                     }
-                    strncpy(expr_chain, ptr + start_ident, (size_t)(len));
-                    expr_chain[len] = 0;
+                }
 
-                    // e.g. "a.b.c" -> parts: "a", "b", "c"
-                    char *parts[32];
-                    int part_count = 0;
+                char *copy = xstrdup(expr_chain);
+                char *t = strtok(copy, ".");
+                while (t && part_count < 32)
+                {
+                    parts[part_count++] = t;
+                    t = strtok(NULL, ".");
+                }
 
-                    // Handle Enum::Variant completion
-                    int is_scoped = 0;
-                    if (len >= 2 && expr_chain[len - 2] == ':' && expr_chain[len - 1] == ':')
+                if (is_scoped && part_count == 1 && g_project->ctx)
+                {
+                    EnumVariantReg *ev = g_project->ctx->enum_variants;
+                    while (ev)
                     {
-                        is_scoped = 1;
-                        expr_chain[len - 2] = 0; // Terminate early
-                    }
-
-                    // Replace '->' with '.' to simplify splitting
-                    for (int c = 0; expr_chain[c]; c++)
-                    {
-                        if (expr_chain[c] == '-' && expr_chain[c + 1] == '>')
+                        if (strcmp(ev->enum_name, parts[0]) == 0)
                         {
-                            expr_chain[c] = '.';
-                            expr_chain[c + 1] = '.'; // Will be skipped empty parts
+                            cJSON *item = cJSON_CreateObject();
+                            cJSON_AddStringToObject(item, "label", ev->variant_name);
+                            cJSON_AddNumberToObject(item, "kind", 20); // EnumMember
+                            cJSON_AddStringToObject(item, "detail", "enum variant");
+                            cJSON_AddItemToArray(items, item);
                         }
+                        ev = ev->next;
                     }
+                    dot_completed = 1;
+                }
 
-                    char *copy = xstrdup(expr_chain);
-                    char *t = strtok(copy, ".");
-                    while (t && part_count < 32)
+                if (!is_scoped && part_count > 0)
+                {
+                    char *base_name = parts[0];
+                    Type *resolved_type = resolve_local_type(target_func, base_name);
+                    char *type_name = NULL;
+
+                    if (resolved_type)
                     {
-                        parts[part_count++] = t;
-                        t = strtok(NULL, ".");
+                        type_name = type_to_string(resolved_type);
                     }
-
-                    if (is_scoped && part_count == 1 && g_project->ctx)
+                    else
                     {
-                        EnumVariantReg *ev = g_project->ctx->enum_variants;
-                        while (ev)
+                        ASTNode *decl = find_local_in_func(target_func, base_name);
+                        if (decl && decl->type == NODE_VAR_DECL && decl->var_decl.type_str)
                         {
-                            if (strcmp(ev->enum_name, parts[0]) == 0)
-                            {
-                                cJSON *item = cJSON_CreateObject();
-                                cJSON_AddStringToObject(item, "label", ev->variant_name);
-                                cJSON_AddNumberToObject(item, "kind", 20); // EnumMember
-                                cJSON_AddStringToObject(item, "detail", "enum variant");
-                                cJSON_AddItemToArray(items, item);
-                            }
-                            ev = ev->next;
-                        }
-                        dot_completed = 1;
-                    }
-
-                    if (!is_scoped && part_count > 0)
-                    {
-                        char *base_name = parts[0];
-                        Type *resolved_type = resolve_local_type(target_func, base_name);
-                        char *type_name = NULL;
-
-                        if (resolved_type)
-                        {
-                            type_name = type_to_string(resolved_type);
+                            type_name = xstrdup(decl->var_decl.type_str);
                         }
                         else
                         {
-                            ASTNode *decl = find_local_in_func(target_func, base_name);
-                            if (decl && decl->type == NODE_VAR_DECL && decl->var_decl.type_str)
+                            ZenSymbol *sym = find_symbol_in_all(g_project->ctx, base_name);
+                            if (sym)
                             {
-                                type_name = xstrdup(decl->var_decl.type_str);
-                            }
-                            else
-                            {
-                                ZenSymbol *sym = find_symbol_in_all(g_project->ctx, base_name);
-                                if (sym)
+                                if (sym->type_info)
                                 {
-                                    if (sym->type_info)
-                                    {
-                                        type_name = type_to_string(sym->type_info);
-                                    }
-                                    else if (sym->type_name)
-                                    {
-                                        type_name = xstrdup(sym->type_name);
-                                    }
+                                    type_name = type_to_string(sym->type_info);
+                                }
+                                else if (sym->type_name)
+                                {
+                                    type_name = xstrdup(sym->type_name);
                                 }
                             }
                         }
+                    }
 
-                        // Now traverse properties
-                        for (int p = 1; p < part_count && type_name; p++)
+                    // Now traverse properties
+                    for (int p = 1; p < part_count && type_name; p++)
+                    {
+                        char clean_name[MAX_VAR_NAME_LEN];
+                        char *src = type_name;
+                        if (strncmp(src, "struct ", 7) == 0)
                         {
-                            char clean_name[MAX_VAR_NAME_LEN];
-                            char *src = type_name;
-                            if (strncmp(src, "struct ", 7) == 0)
-                            {
-                                src += 7;
-                            }
-                            char *dst = clean_name;
-                            while (*src && *src != '*' && *src != '<' && *src != '[')
-                            {
-                                *dst++ = *src++;
-                            }
-                            *dst = 0;
+                            src += 7;
+                        }
+                        char *dst = clean_name;
+                        while (*src && *src != '*' && *src != '<' && *src != '[')
+                        {
+                            *dst++ = *src++;
+                        }
+                        *dst = 0;
 
-                            ASTNode *struct_node = find_struct_def(g_project->ctx, clean_name);
-                            int found_field = 0;
-                            if (struct_node && struct_node->type == NODE_STRUCT)
+                        ASTNode *struct_node = find_struct_def(g_project->ctx, clean_name);
+                        int found_field = 0;
+                        if (struct_node && struct_node->type == NODE_STRUCT)
+                        {
+                            ASTNode *field = struct_node->strct.fields;
+                            while (field)
+                            {
+                                if (strcmp(field->field.name, parts[p]) == 0)
+                                {
+                                    zfree(type_name);
+                                    type_name =
+                                        field->field.type ? xstrdup(field->field.type) : NULL;
+                                    found_field = 1;
+                                    break;
+                                }
+                                field = field->next;
+                            }
+                        }
+                        if (!found_field)
+                        {
+                            zfree(type_name);
+                            type_name = NULL;
+                        }
+                    }
+
+                    if (type_name)
+                    {
+                        char clean_name[MAX_VAR_NAME_LEN];
+                        char *src = type_name;
+                        if (strncmp(src, "struct ", 7) == 0)
+                        {
+                            src += 7;
+                        }
+
+                        char *dst = clean_name;
+                        while (*src && *src != '*' && *src != '<' && *src != '[')
+                        {
+                            *dst++ = *src++;
+                        }
+                        *dst = 0;
+
+                        ASTNode *struct_node = find_struct_def(g_project->ctx, clean_name);
+                        if (struct_node)
+                        {
+                            if (struct_node->type == NODE_STRUCT)
                             {
                                 ASTNode *field = struct_node->strct.fields;
                                 while (field)
                                 {
-                                    if (strcmp(field->field.name, parts[p]) == 0)
-                                    {
-                                        zfree(type_name);
-                                        type_name =
-                                            field->field.type ? xstrdup(field->field.type) : NULL;
-                                        found_field = 1;
-                                        break;
-                                    }
+                                    cJSON *item = cJSON_CreateObject();
+                                    cJSON_AddStringToObject(item, "label", field->field.name);
+                                    cJSON_AddNumberToObject(item, "kind", 5); // Field
+                                    cJSON_AddStringToObject(item, "detail", field->field.type);
+                                    cJSON_AddItemToArray(items, item);
                                     field = field->next;
                                 }
                             }
-                            if (!found_field)
+                            else if (struct_node->type == NODE_ENUM)
                             {
-                                zfree(type_name);
-                                type_name = NULL;
-                            }
-                        }
-
-                        if (type_name)
-                        {
-                            char clean_name[MAX_VAR_NAME_LEN];
-                            char *src = type_name;
-                            if (strncmp(src, "struct ", 7) == 0)
-                            {
-                                src += 7;
-                            }
-
-                            char *dst = clean_name;
-                            while (*src && *src != '*' && *src != '<' && *src != '[')
-                            {
-                                *dst++ = *src++;
-                            }
-                            *dst = 0;
-
-                            ASTNode *struct_node = find_struct_def(g_project->ctx, clean_name);
-                            if (struct_node)
-                            {
-                                if (struct_node->type == NODE_STRUCT)
-                                {
-                                    ASTNode *field = struct_node->strct.fields;
-                                    while (field)
-                                    {
-                                        cJSON *item = cJSON_CreateObject();
-                                        cJSON_AddStringToObject(item, "label", field->field.name);
-                                        cJSON_AddNumberToObject(item, "kind", 5); // Field
-                                        cJSON_AddStringToObject(item, "detail", field->field.type);
-                                        cJSON_AddItemToArray(items, item);
-                                        field = field->next;
-                                    }
-                                }
-                                else if (struct_node->type == NODE_ENUM)
-                                {
-                                    ASTNode *variant = struct_node->enm.variants;
-                                    while (variant)
-                                    {
-                                        cJSON *item = cJSON_CreateObject();
-                                        cJSON_AddStringToObject(item, "label",
-                                                                variant->variant.name);
-                                        cJSON_AddNumberToObject(item, "kind", 12); // EnumMember
-                                        cJSON_AddItemToArray(items, item);
-                                        variant = variant->next;
-                                    }
-                                }
-                                dot_completed = 1;
-                            }
-
-                            // Show methods (Struct::Method)
-                            FuncSig *fn_sig = g_project->ctx->func_registry;
-                            char method_prefix[MAX_VAR_NAME_LEN + 4];
-                            snprintf(method_prefix, sizeof(method_prefix), "%s::", clean_name);
-                            while (fn_sig)
-                            {
-                                if (strncmp(fn_sig->name, method_prefix, strlen(method_prefix)) ==
-                                    0)
+                                ASTNode *variant = struct_node->enm.variants;
+                                while (variant)
                                 {
                                     cJSON *item = cJSON_CreateObject();
-                                    const char *method_name = fn_sig->name + strlen(method_prefix);
-                                    cJSON_AddStringToObject(item, "label", method_name);
-                                    cJSON_AddNumberToObject(item, "kind", 2); // Method
-                                    char detail[MAX_SHORT_MSG_LEN];
-                                    snprintf(detail, sizeof(detail), "fn %s", fn_sig->name);
-                                    cJSON_AddStringToObject(item, "detail", detail);
-
-                                    // Snippet format
-                                    char snippet[MAX_VAR_NAME_LEN];
-                                    if (fn_sig->total_args > 0)
-                                    {
-                                        snprintf(snippet, sizeof(snippet), "%s($1)", method_name);
-                                    }
-                                    else
-                                    {
-                                        snprintf(snippet, sizeof(snippet), "%s()", method_name);
-                                    }
-                                    cJSON_AddStringToObject(item, "insertText", snippet);
-                                    cJSON_AddNumberToObject(item, "insertTextFormat", 2);
-
+                                    cJSON_AddStringToObject(item, "label", variant->variant.name);
+                                    cJSON_AddNumberToObject(item, "kind", 12); // EnumMember
                                     cJSON_AddItemToArray(items, item);
+                                    variant = variant->next;
                                 }
-                                fn_sig = fn_sig->next;
                             }
-                            zfree(type_name);
+                            dot_completed = 1;
                         }
+
+                        // Show methods (Struct::Method)
+                        FuncSig *fn_sig = g_project->ctx->func_registry;
+                        char method_prefix[MAX_VAR_NAME_LEN + 4];
+                        snprintf(method_prefix, sizeof(method_prefix), "%s::", clean_name);
+                        while (fn_sig)
+                        {
+                            if (strncmp(fn_sig->name, method_prefix, strlen(method_prefix)) == 0)
+                            {
+                                cJSON *item = cJSON_CreateObject();
+                                const char *method_name = fn_sig->name + strlen(method_prefix);
+                                cJSON_AddStringToObject(item, "label", method_name);
+                                cJSON_AddNumberToObject(item, "kind", 2); // Method
+                                char detail[MAX_SHORT_MSG_LEN];
+                                snprintf(detail, sizeof(detail), "fn %s", fn_sig->name);
+                                cJSON_AddStringToObject(item, "detail", detail);
+
+                                // Snippet format
+                                char snippet[MAX_VAR_NAME_LEN];
+                                if (fn_sig->total_args > 0)
+                                {
+                                    snprintf(snippet, sizeof(snippet), "%s($1)", method_name);
+                                }
+                                else
+                                {
+                                    snprintf(snippet, sizeof(snippet), "%s()", method_name);
+                                }
+                                cJSON_AddStringToObject(item, "insertText", snippet);
+                                cJSON_AddNumberToObject(item, "insertTextFormat", 2);
+
+                                cJSON_AddItemToArray(items, item);
+                            }
+                            fn_sig = fn_sig->next;
+                        }
+                        zfree(type_name);
                     }
-                    zfree(copy);
                 }
+                zfree(copy);
             }
         }
     }
@@ -1168,24 +1237,62 @@ void lsp_completion(const char *uri, int line, int col, int id)
             cJSON_AddItemToArray(items, item);
         }
 
-        // Add other keywords that don't need snippets
-        const char *plain_keywords[] = {
-            "alias",  "true",    "false",      "int",         "char",   "bool",   "string",
-            "let",    "def",     "void",       "import",      "module", "defer",  "sizeof",
-            "opaque", "unsafe",  "asm",        "u8",          "u16",    "u32",    "u64",
-            "i8",     "i16",     "i32",        "i64",         "f32",    "f64",    "usize",
-            "isize",  "const",   "rune",       "U0",          "u0",     "c_int",  "c_char",
-            "c_long", "c_ulong", "c_longlong", "c_ulonglong", "extern", "inline", "noreturn",
-            NULL};
+        // Primitive type names — reuse the authoritative table from primitives.c
+        int type_count = 0;
+        const ZenPrimitive *types = get_zen_primitives(&type_count);
+        for (int i = 0; i < type_count; i++)
+        {
+            if (context == CTX_GLOBAL)
+            {
+                continue;
+            }
+            cJSON *item = cJSON_CreateObject();
+            cJSON_AddStringToObject(item, "label", types[i].zen_name);
+            cJSON_AddNumberToObject(item, "kind", 14);
+            cJSON_AddStringToObject(item, "sortText", "008");
+            cJSON_AddItemToArray(items, item);
+        }
+
+        // Non-type keywords and builtins
+        const char *plain_keywords[] = {"alias",      "and",       "asm",    "async",
+                                        "autofree",   "await",     "code",  "compile_error",
+                                        "compile_warn",            "comptime",
+                                        "__COMPTIME_FILE__",       "__COMPTIME_TARGET__",
+                                        "const",      "def",       "defer",  "do",
+                                        "embed",      "eprint",    "eprintln", "exit",
+                                        "expect",     "export",    "extern", "false",
+                                        "fopen",      "for",       "free",  "goto",
+                                        "guard",      "if",        "import", "include",
+                                        "inline",     "it",        "launch", "let",
+                                        "loop",       "malloc",    "mkdir", "module",
+                                        "noreturn",   "not",       "null",  "opaque",
+                                        "or",         "plugin",    "print", "printf",
+                                        "println",    "raw",       "realloc", "ref",
+                                        "register",   "repeat",    "restrict", "return",
+                                        "self",       "sizeof",    "snprintf", "sprintf",
+                                        "static",     "stdout",    "step",  "strcmp",
+                                        "strcpy",     "strlen",    "system", "true",
+                                        "type",       "typedef",   "union", "unless",
+                                        "unsafe",     "use",       "usleep", "va_list",
+                                        "volatile",   "while",     "with",  "yield",
+                                        NULL};
 
         for (int i = 0; plain_keywords[i]; i++)
         {
-            // Simple type filtering or global check
             if (context == CTX_GLOBAL)
             {
-                if (strcmp(plain_keywords[i], "import") != 0 &&
-                    strcmp(plain_keywords[i], "module") != 0 &&
-                    strcmp(plain_keywords[i], "alias") != 0)
+                const char *kw = plain_keywords[i];
+                if (strcmp(kw, "import") != 0 && strcmp(kw, "module") != 0 &&
+                    strcmp(kw, "alias") != 0 && strcmp(kw, "use") != 0 &&
+                    strcmp(kw, "const") != 0 && strcmp(kw, "def") != 0 &&
+                    strcmp(kw, "export") != 0 && strcmp(kw, "extern") != 0 &&
+                    strcmp(kw, "static") != 0 && strcmp(kw, "type") != 0 &&
+                    strcmp(kw, "comptime") != 0 && strcmp(kw, "include") != 0 &&
+                    strcmp(kw, "plugin") != 0 && strcmp(kw, "opaque") != 0 &&
+                    strcmp(kw, "expect") != 0 && strcmp(kw, "test") != 0 &&
+                    strcmp(kw, "raw") != 0 && strcmp(kw, "embed") != 0 &&
+                    strcmp(kw, "do") != 0 && strcmp(kw, "loop") != 0 &&
+                    strcmp(kw, "unsafe") != 0)
                 {
                     continue;
                 }
@@ -1356,6 +1463,43 @@ void lsp_completion(const char *uri, int line, int col, int id)
                         queue[q_tail++] = curr->for_stmt.body;
                     }
                 }
+            }
+        }
+    }
+
+    if (prefix_len > 0)
+    {
+        size_t plen = (size_t)prefix_len;
+        int i = 0;
+        while (i < cJSON_GetArraySize(items))
+        {
+            cJSON *item = cJSON_GetArrayItem(items, i);
+            cJSON *label_obj = cJSON_GetObjectItem(item, "label");
+            const char *label = label_obj ? label_obj->valuestring : "";
+            int match = 1;
+            size_t llen = strlen(label);
+            if (llen < plen)
+            {
+                match = 0;
+            }
+            else
+            {
+                for (size_t j = 0; j < plen; j++)
+                {
+                    if (tolower((unsigned char)label[j]) != tolower((unsigned char)prefix[j]))
+                    {
+                        match = 0;
+                        break;
+                    }
+                }
+            }
+            if (!match)
+            {
+                cJSON_DeleteItemFromArray(items, i);
+            }
+            else
+            {
+                i++;
             }
         }
     }
