@@ -144,7 +144,6 @@ static char *wait_for_response(int id)
             cJSON *id_item = cJSON_GetObjectItem(json, "id");
             if (id_item)
             {
-                // Check both number and string just in case
                 int got_id = -1;
                 if (cJSON_IsNumber(id_item))
                 {
@@ -158,25 +157,12 @@ static char *wait_for_response(int id)
                 if (got_id == id)
                 {
                     cJSON_Delete(json);
-                    return msg; // Found it
+                    return msg;
                 }
-                else
-                {
-                    printf("Mismatch ID: got %d (type=%d) expected %d\n", got_id, id_item->type,
-                           id);
-                }
-            }
-            else
-            {
-                printf("No ID in message\n");
+                printf("Mismatch ID: got %d expected %d\n", got_id, id);
             }
             cJSON_Delete(json);
         }
-        else
-        {
-            printf("JSON Parse Failed for: '%s'\n", msg);
-        }
-        printf("Ignored message (seq %d): %s\n", i, msg);
         free(msg);
     }
     return NULL;
