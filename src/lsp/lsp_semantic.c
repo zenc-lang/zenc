@@ -92,27 +92,18 @@ static int compare_tokens(const void *a, const void *b)
 // Keyword check: reuse parser's is_reserved_keyword() + primitives table.
 static int is_keyword(const char *w, size_t len)
 {
-    // Parser's reserved keyword check (covers pseudo_keywords like fn, let,
-    // struct, return, if, else, while, break, continue, loop, for, do, etc.)
     Token t = {.type = TOK_IDENT, .start = w, .len = len};
     if (is_reserved_keyword(t))
     {
         return 1;
     }
 
-    // Token-typed keywords that the parser maps to special tokens
-    // (these are not checked by is_reserved_keyword with TOK_IDENT):
-    //   test, assert, sizeof, def, defer, autofree, use, trait, impl
-    //   and, or, not, comptime, union, asm, volatile, async, await, alias, opaque
-    // Plus a few extra Zen keywords that don't fall into the above categories:
-    //   import, module, extern, inline, noreturn, public, private, typeof,
-    //   switch, match, external, true, false, null, in, union
-    // Plus C interop: extern, inline, noreturn
     static const char *more[] = {"and",     "asm",       "alias",   "assert",   "async",
                                  "await",   "autofree",  "comptime","def",      "defer",
-                                 "expect",  "extern",    "false",   "import",   "inline",
-                                 "match",   "module",    "noreturn","not",      "null",
-                                 "opaque",  "or",        "private", "public",   "sizeof",
+                                 "eprint",  "eprintln",  "expect",  "extern",   "false",
+                                 "import",  "inline",    "match",   "module",   "noreturn",
+                                 "not",     "null",      "opaque",  "or",       "print",
+                                 "printf",  "println",   "private", "public",   "sizeof",
                                  "switch",  "test",      "true",    "typeof",   "union",
                                  "use",     "volatile",  "impl",    "trait",    "in",
                                  "external","continue",
@@ -125,14 +116,17 @@ static int is_keyword(const char *w, size_t len)
             return 1;
         }
     }
+    return 0;
+}
 
-    // Primitive type names — authoritative list from primitives.c
-    int type_count = 0;
-    const ZenPrimitive *types = get_zen_primitives(&type_count);
-    for (int i = 0; i < type_count; i++)
+static int is_type_name(const char *w, size_t len)
+{
+    int count;
+    const ZenPrimitive *prims = get_zen_primitives(&count);
+    for (int i = 0; i < count; i++)
     {
-        size_t klen = strlen(types[i].zen_name);
-        if (len == klen && strncmp(w, types[i].zen_name, len) == 0)
+        size_t klen = strlen(prims[i].zen_name);
+        if (len == klen && strncmp(w, prims[i].zen_name, len) == 0)
         {
             return 1;
         }
@@ -164,7 +158,17 @@ static void emit_keywords(TokenBuilder *b, const char *source)
         }
         size_t len = (size_t)(p - start);
 
-        if (is_keyword(start, len))
+        int token_type = -1;
+        if (is_type_name(start, len))
+        {
+            token_type = TOKEN_TYPE_TYPE;
+        }
+        else if (is_keyword(start, len))
+        {
+            token_type = TOKEN_TYPE_KEYWORD;
+        }
+
+        if (token_type >= 0)
         {
             // Compute line/col by scanning from start of source
             int line = 0, col = 0;
@@ -182,7 +186,7 @@ static void emit_keywords(TokenBuilder *b, const char *source)
                 }
                 scan++;
             }
-            builder_push(b, line, col, (int)len, TOKEN_TYPE_KEYWORD, 0);
+            builder_push(b, line, col, (int)len, token_type, 0);
         }
     }
 }
