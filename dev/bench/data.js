@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786343425331,
+  "lastUpdate": 1786351030377,
   "repoUrl": "https://github.com/zenc-lang/zenc",
   "entries": {
     "Zen Compiler Benchmarks": [
@@ -11679,6 +11679,145 @@ window.BENCHMARK_DATA = {
           {
             "name": "Compile (test_vec_ops)",
             "value": 134,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "zuhaitz.zechhub@gmail.com",
+            "name": "Zuhaitz-dev",
+            "username": "Zuhaitz-dev"
+          },
+          "committer": {
+            "email": "zuhaitz.zechhub@gmail.com",
+            "name": "Zuhaitz-dev",
+            "username": "Zuhaitz-dev"
+          },
+          "distinct": true,
+          "id": "dffd423aa38e855fc08e324cb60f4b169630432f",
+          "message": "zenc: split the LSP, REPL, doc generator and formatter into standalone tools\n\nDebloat the compiler binary, Unix-style: each ancillary feature becomes its\nown focused executable instead of being compiled into zc.\n\nNew binaries (installed alongside zc):\n  * zc-lsp    - language server (JSON-RPC over stdio); entry lsp_main\n  * zc-repl   - read-eval-print loop; entry run_repl\n  * zc-doc    - documentation generator; parses and emits markdown\n  * zc-format - source formatter; wraps lsp_format_source\n\nzc now links only the core compiler (no lsp/repl/zen objects), shrinking the\nbinary and isolating each tool. The old subcommands remain as deprecated\nwrappers that exec the standalone binary, so scripts/editors keep working.\n\nSupporting changes:\n  * shared bootstrap (z_compiler_setup) in src/tools/tool_common.c\n  * g_is_indexing moved into the core (LSP sets it via extern)\n  * vendored cJSON moved src/lsp -> src/utils (used by utils + diagnostics)\n  * lsp_format_source returns libc-owned memory; callers free() it\n  * drop the --zen easter-egg facts (zen_facts.c, facts.json, zen_mode)\n  * Makefile/CMake/install/build.bat updated; tools gitignored",
+          "timestamp": "2026-08-10T11:34:27+03:00",
+          "tree_id": "e2562a89b14ed2523134585b389146d8e2158ca8",
+          "url": "https://github.com/zenc-lang/zenc/commit/dffd423aa38e855fc08e324cb60f4b169630432f"
+        },
+        "date": 1786351029146,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Compiler (Full Suite Transpilation)",
+            "value": 18150,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_bigint_factorial)",
+            "value": 3,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_bigint_factorial)",
+            "value": 141,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_comptime)",
+            "value": 0,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_comptime)",
+            "value": 59,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_fib_recursive)",
+            "value": 58,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_fib_recursive)",
+            "value": 56,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_hashmap)",
+            "value": 148,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_hashmap)",
+            "value": 97,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_hello)",
+            "value": 0,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_hello)",
+            "value": 54,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_json_parse)",
+            "value": 256,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_json_parse)",
+            "value": 675,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_mandelbrot)",
+            "value": 23,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_mandelbrot)",
+            "value": 57,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_sha256)",
+            "value": 128,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_sha256)",
+            "value": 483,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_sort_large)",
+            "value": 68,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_sort_large)",
+            "value": 87,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_string_concat)",
+            "value": 1,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_string_concat)",
+            "value": 335,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_vec_ops)",
+            "value": 18,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_vec_ops)",
+            "value": 132,
             "unit": "ms"
           }
         ]
