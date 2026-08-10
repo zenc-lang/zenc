@@ -67,4 +67,26 @@ impl Option<T> {
         if (self.is_some) { return self; }
         return other;
     }
+
+    // Returns the contained value, or the result of `f` when None.
+    fn unwrap_or_else(self, f: fn() -> T) -> T {
+        if (self.is_some) { return self.val; }
+        return f();
+    }
+
+    // Returns true when Some and `f` accepts the contained value.
+    fn is_some_and(self, f: fn(T) -> bool) -> bool {
+        return self.is_some && f(self.val);
+    }
+
+    // Returns true when None, or when Some and `f` accepts the value.
+    fn is_none_or(self, f: fn(T) -> bool) -> bool {
+        return !self.is_some || f(self.val);
+    }
+
+    // Keeps the value when Some and `f` accepts it, otherwise None.
+    fn filter(self, f: fn(T) -> bool) -> Option<T> {
+        if (self.is_some && f(self.val)) { return self; }
+        return Option<T>::None();
+    }
 }

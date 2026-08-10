@@ -1,0 +1,36 @@
+// stdlib: test_option_result
+import "std.zc"
+
+test "test_option_result_ergonomics" {
+    // Option ergonomics
+    let some = Option<int>::Some(10);
+    let none = Option<int>::None();
+
+    assert(some.is_some(), "some should be Some");
+    assert(none.is_none(), "none should be None");
+    assert(some.unwrap_or(0) == 10, "unwrap_or Some failed");
+    assert(none.unwrap_or(0) == 0, "unwrap_or None failed");
+    assert(none.unwrap_or_else(fn() { return 42; }) == 42, "unwrap_or_else failed");
+    assert(some.is_some_and(fn(x: int) { return x > 5; }), "is_some_and true failed");
+    assert(!some.is_some_and(fn(x: int) { return x > 50; }), "is_some_and false failed");
+    assert(some.is_none_or(fn(x: int) { return x > 5; }), "is_none_or Some failed");
+    assert(none.is_none_or(fn(x: int) { return false; }), "is_none_or None failed");
+    assert(some.filter(fn(x: int) { return x > 5; }).is_some(), "filter match failed");
+    assert(some.filter(fn(x: int) { return x > 50; }).is_none(), "filter miss failed");
+
+    // Result ergonomics
+    let ok = Result<int>::Ok(7);
+    let err = Result<int>::Err("boom");
+
+    assert(ok.is_ok(), "ok should be Ok");
+    assert(err.is_err(), "err should be Err");
+    assert(ok.unwrap_or(0) == 7, "unwrap_or Ok failed");
+    assert(err.unwrap_or(3) == 3, "unwrap_or Err failed");
+    assert(err.unwrap_or_else(fn() { return -1; }) == -1, "unwrap_or_else Err failed");
+    assert(err.err().is_some(), "err() on Err should be Some");
+    assert(ok.err().is_none(), "err() on Ok should be None");
+    assert(err.map_err(fn(m: char*) { return m; }).is_err(), "map_err failed");
+    assert(ok.is_ok_and(fn(x: int) { return x > 0; }), "is_ok_and true failed");
+    assert(!ok.is_ok_and(fn(x: int) { return x > 100; }), "is_ok_and false failed");
+    assert(err.is_err_and(fn(m: char*) { return m != NULL; }), "is_err_and failed");
+}

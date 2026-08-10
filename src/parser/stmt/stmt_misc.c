@@ -185,6 +185,7 @@ char *process_printf_sugar(ParserContext *ctx, Token srctoken, const char *conte
         char *p = brace + 1;
         char *colon = NULL;
         int depth = 1;
+        int paren_depth = 0;
         while (*p && depth > 0)
         {
             if (*p == '{')
@@ -195,7 +196,18 @@ char *process_printf_sugar(ParserContext *ctx, Token srctoken, const char *conte
             {
                 depth--;
             }
-            if (depth == 1 && *p == ':' && !colon)
+            if (*p == '(')
+            {
+                paren_depth++;
+            }
+            if (*p == ')')
+            {
+                if (paren_depth > 0)
+                {
+                    paren_depth--;
+                }
+            }
+            if (depth == 1 && paren_depth == 0 && *p == ':' && !colon)
             {
                 if (*(p + 1) == ':')
                 {

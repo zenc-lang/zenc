@@ -54,8 +54,9 @@ typedef struct
     /* Persistence */
     char history_path[MAX_PATH_LEN];
 
-    /* Compiler self-path (for subprocess re-invocations) */
-    const char *self_path;
+    /* Path to the main `zc` compiler binary (for subprocess re-invocations).
+     * zc-repl is standalone and does not implement `build`/`run` itself. */
+    char *compiler_path;
 
     /* Session symbols for tab completion */
     char **symbols;

@@ -437,7 +437,9 @@ void analyze_lambda_captures(ParserContext *ctx, ASTNode *lambda)
             strcmp(var_name, "fprintf") == 0 || strcmp(var_name, "stderr") == 0 ||
             strcmp(var_name, "stdout") == 0 || strcmp(var_name, "strcat") == 0 ||
             strcmp(var_name, "strcpy") == 0 || strcmp(var_name, "strlen") == 0 ||
-            strcmp(var_name, "Vec_new") == 0 || strcmp(var_name, "Vec_push") == 0)
+            strcmp(var_name, "Vec_new") == 0 || strcmp(var_name, "Vec_push") == 0 ||
+            strcmp(var_name, "NULL") == 0 || strcmp(var_name, "true") == 0 ||
+            strcmp(var_name, "false") == 0)
         {
             continue;
         }

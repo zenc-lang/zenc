@@ -282,6 +282,124 @@ void emit_enum_protos(ParserContext *ctx, ASTNode *node)
 }
 
 // Emit lambda definitions.
+// Collect the set of C type strings produced by `return <expr>;` in a lambda body.
+static void collect_lambda_return_types(ParserContext *ctx, ASTNode *node, char ***types,
+                                        int *count, int *cap)
+{
+    if (!node)
+    {
+        return;
+    }
+
+    if (node->type == NODE_RETURN && node->ret.value)
+    {
+        ASTNode *val = node->ret.value;
+        char *tstr = NULL;
+        if (val->type_info && val->type_info->kind != TYPE_UNKNOWN)
+        {
+            tstr = type_to_c_string(val->type_info);
+        }
+        else
+        {
+            tstr = infer_type(ctx, val);
+        }
+
+        if (tstr && strcmp(tstr, "void") != 0 && strcmp(tstr, "unknown") != 0)
+        {
+            int dup = 0;
+            for (int i = 0; i < *count; i++)
+            {
+                if (strcmp((*types)[i], tstr) == 0)
+                {
+                    dup = 1;
+                    break;
+                }
+            }
+            if (!dup)
+            {
+                if (*count >= *cap)
+                {
+                    *cap *= 2;
+                    *types = xrealloc(*types, sizeof(char *) * (size_t)(*cap));
+                }
+                (*types)[*count] = xstrdup(tstr);
+                (*count)++;
+            }
+        }
+        if (tstr)
+        {
+            zfree(tstr);
+        }
+        return;
+    }
+
+    switch (node->type)
+    {
+    case NODE_BLOCK:
+        for (ASTNode *s = node->block.statements; s; s = s->next)
+        {
+            collect_lambda_return_types(ctx, s, types, count, cap);
+        }
+        break;
+    case NODE_IF:
+        collect_lambda_return_types(ctx, node->if_stmt.then_body, types, count, cap);
+        collect_lambda_return_types(ctx, node->if_stmt.else_body, types, count, cap);
+        break;
+    case NODE_WHILE:
+        collect_lambda_return_types(ctx, node->while_stmt.body, types, count, cap);
+        break;
+    case NODE_FOR:
+        collect_lambda_return_types(ctx, node->for_stmt.body, types, count, cap);
+        break;
+    case NODE_FOR_RANGE:
+        collect_lambda_return_types(ctx, node->for_range.body, types, count, cap);
+        break;
+    case NODE_MATCH:
+        for (ASTNode *c = node->match_stmt.cases; c; c = c->next)
+        {
+            collect_lambda_return_types(ctx, c->match_case.body, types, count, cap);
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+// When the lambda's return type was not propagated from a call signature (e.g.
+// lambdas inside f-string interpolations, which skip the normal type-check pass),
+// infer it from the body's return statements.
+static void infer_lambda_return_type(ParserContext *ctx, ASTNode *node)
+{
+    if (node->type_info && node->type_info->inner && node->type_info->inner->kind != TYPE_UNKNOWN)
+    {
+        return;
+    }
+    if (node->lambda.return_type && strcmp(node->lambda.return_type, "void") != 0 &&
+        strcmp(node->lambda.return_type, "unknown") != 0)
+    {
+        return;
+    }
+
+    char **types = NULL;
+    int count = 0;
+    int cap = 8;
+    types = xmalloc(sizeof(char *) * (size_t)cap);
+
+    collect_lambda_return_types(ctx, node->lambda.body, &types, &count, &cap);
+
+    if (count == 1)
+    {
+        zfree(node->lambda.return_type);
+        node->lambda.return_type = xstrdup(types[0]);
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        zfree(types[i]);
+    }
+    zfree(types);
+}
+
 void emit_lambda_defs(ParserContext *ctx)
 {
     LambdaRef *cur = ctx->global_lambdas;
@@ -290,6 +408,8 @@ void emit_lambda_defs(ParserContext *ctx)
         ASTNode *node = cur->node;
         int saved_defer = ctx->cg.defer_count;
         ctx->cg.defer_count = 0;
+
+        infer_lambda_return_type(ctx, node);
 
         if (node->lambda.num_captures > 0)
         {

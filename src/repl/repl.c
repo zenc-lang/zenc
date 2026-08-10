@@ -27,12 +27,30 @@ static const char *get_home(void)
 void repl_state_init(ReplState *state, const char *self_path, CompilerConfig *cfg)
 {
     memset(state, 0, sizeof(*state));
-    state->self_path = self_path;
+    (void)self_path;
     state->history_cap = 64;
     state->history = malloc((size_t)(state->history_cap) * sizeof(char *));
     state->history_len = 0;
 
     state->config = cfg;
+
+    /* Resolve the main `zc` compiler binary: it ships next to zc-repl and is
+     * the one that implements `build`/`run` (the REPL itself is standalone). */
+    char exe_dir[MAX_PATH_SIZE];
+    z_get_executable_path(exe_dir, sizeof(exe_dir));
+    if (exe_dir[0])
+    {
+        state->compiler_path = xmalloc(strlen(exe_dir) + sizeof("/zc.exe"));
+#if ZC_OS_WINDOWS
+        sprintf(state->compiler_path, "%s/zc.exe", exe_dir);
+#else
+        sprintf(state->compiler_path, "%s/zc", exe_dir);
+#endif
+    }
+    else
+    {
+        state->compiler_path = xstrdup("zc");
+    }
 
     /* Ensure codegen knows we are using TCC for JIT */
     strncpy(cfg->cc, "tcc", sizeof(cfg->cc) - 1);
@@ -47,6 +65,8 @@ void repl_state_init(ReplState *state, const char *self_path, CompilerConfig *cf
 
 void repl_state_free(ReplState *state)
 {
+    zfree(state->compiler_path);
+
     for (int i = 0; i < state->history_len; i++)
     {
         zfree(state->history[i]);

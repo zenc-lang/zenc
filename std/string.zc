@@ -284,6 +284,29 @@ impl String {
         return Option<usize>::None();
     }
 
+    fn find_all_str(self, target: char*) -> Vec<usize> {
+        let indices = Vec<usize>::new();
+        let t_len = strlen(target);
+        if t_len == 0 { return indices; }
+        let s_len = self.length();
+        if t_len > s_len { return indices; }
+
+        for (let i: usize = 0; i <= s_len - t_len; i = i + 1) {
+            let is_match = true;
+            for (let k: usize = 0; k < t_len; k = k + 1) {
+                if self.vec.get(i + k) != target[k] {
+                    is_match = false;
+                    break;
+                }
+            }
+            if is_match {
+                indices.push(i);
+                // Optional: i = i + t_len - 1; (Un-comment to avoid overlapping matches)
+            }
+        }
+        return indices;
+    }
+
     fn to_lowercase(self) -> String {
         let len = self.length();
         let v = Vec<char>::with_capacity(len + 1);
