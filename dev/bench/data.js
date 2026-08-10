@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786377219427,
+  "lastUpdate": 1786380268331,
   "repoUrl": "https://github.com/zenc-lang/zenc",
   "entries": {
     "Zen Compiler Benchmarks": [
@@ -13486,6 +13486,145 @@ window.BENCHMARK_DATA = {
           {
             "name": "Compile (test_vec_ops)",
             "value": 136,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "zuhaitz.zechhub@gmail.com",
+            "name": "Zuhaitz-dev",
+            "username": "Zuhaitz-dev"
+          },
+          "committer": {
+            "email": "zuhaitz.zechhub@gmail.com",
+            "name": "Zuhaitz-dev",
+            "username": "Zuhaitz-dev"
+          },
+          "distinct": true,
+          "id": "16494ba3ad675af41610422cd9766bb665d1c3bc",
+          "message": "std: make format() reentrant via a ring of thread-local buffers\n\nNested format() calls (format(\"%s\", format(\"%d\", x))) previously clobbered\nthe single shared buffer. Now four 4 KiB thread-local buffers are used in a\nround-robin, so each returned pointer stays valid until 4 further format()\ncalls on the same thread.",
+          "timestamp": "2026-08-10T19:36:06+03:00",
+          "tree_id": "6fb865ae1281bb4e1853e87f52079d209002cea0",
+          "url": "https://github.com/zenc-lang/zenc/commit/16494ba3ad675af41610422cd9766bb665d1c3bc"
+        },
+        "date": 1786380267855,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Compiler (Full Suite Transpilation)",
+            "value": 18508,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_bigint_factorial)",
+            "value": 1,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_bigint_factorial)",
+            "value": 200,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_comptime)",
+            "value": 0,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_comptime)",
+            "value": 35,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_fib_recursive)",
+            "value": 55,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_fib_recursive)",
+            "value": 34,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_hashmap)",
+            "value": 86,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_hashmap)",
+            "value": 62,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_hello)",
+            "value": 0,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_hello)",
+            "value": 35,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_json_parse)",
+            "value": 160,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_json_parse)",
+            "value": 579,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_mandelbrot)",
+            "value": 13,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_mandelbrot)",
+            "value": 37,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_sha256)",
+            "value": 65,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_sha256)",
+            "value": 454,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_sort_large)",
+            "value": 41,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_sort_large)",
+            "value": 58,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_string_concat)",
+            "value": 1,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_string_concat)",
+            "value": 300,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_vec_ops)",
+            "value": 9,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_vec_ops)",
+            "value": 94,
             "unit": "ms"
           }
         ]
