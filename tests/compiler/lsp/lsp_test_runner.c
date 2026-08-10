@@ -5,7 +5,8 @@
 #include <sys/wait.h>
 #include <assert.h>
 #include <fcntl.h>
-#include "../../src/lsp/cJSON.h"
+#include <signal.h>
+#include "../../src/utils/cJSON.h"
 #include "../../src/platform/compiler.h"
 
 #define MAX_BUFFER (2 * 1024 * 1024)
@@ -54,9 +55,18 @@ static void send_request(const char *json)
 {
     char header[128];
     size_t len = strlen(json);
-    sprintf(header, "Content-Length: %d\r\n\r\n", (int)len);
-    write(pipe_in[1], header, strlen(header));
-    write(pipe_in[1], json, len);
+    int hdr_len = sprintf(header, "Content-Length: %d\r\n\r\n", (int)len);
+
+    // If the server has died, writing to the pipe would raise SIGPIPE (killing
+    // the runner with a cryptic 141). We ignore SIGPIPE (set in main) and
+    // report the failure clearly instead.
+    if (write(pipe_in[1], header, (size_t)hdr_len) != hdr_len ||
+        write(pipe_in[1], json, len) != (ssize_t)len)
+    {
+        fprintf(stderr,
+                "TEST FAIL: LSP server died (pipe closed). Check for a crash in `zc lsp`.\n");
+        exit(1);
+    }
 }
 
 char global_buf[MAX_BUFFER];
@@ -107,7 +117,8 @@ static char *read_message()
             fail("Buffer overflow in read_message");
         }
 
-        int n = (int)read(pipe_out[0], global_buf + global_len, (size_t)(MAX_BUFFER - 1 - global_len));
+        int n =
+            (int)read(pipe_out[0], global_buf + global_len, (size_t)(MAX_BUFFER - 1 - global_len));
         if (n <= 0)
         {
             // EOF or error, but maybe we have a message pending verification?
@@ -930,6 +941,10 @@ static void test_signature_help()
 
 int main()
 {
+    // Don't die with a cryptic 141 (SIGPIPE) if the LSP server crashes and
+    // closes its pipe; send_request will report a clear failure instead.
+    signal(SIGPIPE, SIG_IGN);
+
     start_lsp_server();
     test_initialize();
     test_hover();

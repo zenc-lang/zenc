@@ -43,7 +43,12 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         # Only push on main branch
         auto-push: ${{ github.ref == 'refs/heads/main' }}
-        # Show alert if performance regresses by 20%
-        alert-threshold: '120%'
-        comment-on-alert: true
-        fail-on-alert: true
+        # The action can only apply a single global threshold, which is too
+        # tight for micro-benchmarks on noisy GitHub-hosted runners. It just
+        # stores the data; the next step applies magnitude-aware thresholds.
+        alert-threshold: '200%'
+        comment-on-alert: false
+        fail-on-alert: false
+
+    - name: Check Benchmark Regressions (magnitude-aware)
+      run: python3 tests/scripts/check_benchmarks.py

@@ -198,7 +198,7 @@ make minimal             # 最小構建 (2.6 MB)
 make ZC_LSP=0 ZC_REPL=0  # 排除 LSP 和 REPL
 ```
 
-禁用的命令會顯示清晰的提示訊息而不會崩潰：`zc lsp` → "LSP support not included"。
+禁用的命令會顯示清晰的提示訊息而不會崩潰：`zc-lsp` → "LSP support not included"。
 
 ### 用法
 
@@ -210,16 +210,14 @@ zc run hello.zc
 zc build hello.zc -o hello
 
 # 交互式 Shell
-zc repl
+zc-repl
 
 # 文檔 (遞迴)
-zc doc main.zc
+zc-doc main.zc
 
 # 文檔 (單文件, 無檢查)
-zc doc --no-recursive-doc --no-check main.zc
+zc-doc --no-recursive-doc main.zc
 
-# 顯示 Zen Facts
-zc build hello.zc --zen
 ```
 
 ### 環境變量
@@ -296,7 +294,7 @@ Zen C 語言服務器 (LSP) 支持標準的 LSP 特性，用於編輯器集成�
 啟動語言服務器（通常在編輯器的 LSP 設置中配置）：
 
 ```bash
-zc lsp
+zc-lsp
 ```
 
 它通過標準 I/O (JSON-RPC 2.0) 進行通信。
@@ -306,7 +304,7 @@ zc lsp
 Read-Eval-Print Loop (REPL) 允許您使用現代的**程序內 JIT 編譯**（由 LibTCC 提供支持）互動式地嘗試 Zen C 程式碼。
 
 ```bash
-zc repl
+zc-repl
 ```
 
 #### 特性
@@ -352,7 +350,7 @@ Zen C 包含一個內建的語言伺服器，用於編輯器整合。
 - **[安裝與設定指南](translations/LSP_ZH_TW.md)**
 - **支援的編輯器**: VS Code, Neovim, Vim, Zed, 以及任何支援 LSP 的編輯器。
 
-使用 `zc lsp` 啟動服務器。
+使用 `zc-lsp` 啟動服務器。
 
 ### Zen C 調試
 

@@ -1,0 +1,34 @@
+// language/features/collections: indexing a Vec<T>* (e.g. the .data pointer of
+// a Vec<Vec<T>>) and calling a method on the element must use direct array
+// indexing. Regression: it used to desugar to Vec::index(...), and taking the
+// address of that call result is not an lvalue ("lvalue required as unary '&'").
+import "std.zc"
+
+struct Grid {
+    rows: Vec<Vec<int>>;
+}
+
+impl Grid {
+    fn new(n: int) -> Grid {
+        let g = Grid { rows: Vec<Vec<int>>::new() };
+        for i in 0..n {
+            g.rows.push(Vec<int>::new());
+        }
+        return g;
+    }
+
+    fn set(self, r: int, c: int, v: int) {
+        // Method call on an element reached through the data pointer.
+        self.rows.data[r].push(v);
+    }
+}
+
+test "method call on an element indexed through a Vec pointer" {
+    let g = Grid::new(2);
+    g.set(0, 0, 10);
+    g.set(0, 1, 20);
+    expect_eq(g.rows.data[0].len, 2, "row 0 should hold 2 elements after pushes");
+    expect_eq(g.rows.data[1].len, 0, "row 1 should stay empty");
+    expect_eq(g.rows.data[0][0], 10, "row 0 element 0 should be 10");
+    expect_eq(g.rows.data[0][1], 20, "row 0 element 1 should be 20");
+}

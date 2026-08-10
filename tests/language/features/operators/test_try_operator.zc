@@ -31,5 +31,27 @@ test "try chain ok" {
 
 test "try chain err" {
     let r = chain_err();
-    assert(r.is_err(), "chain err propagates");
+    assert(r.is_err(), "try chain err propagates");
+}
+
+fn read_val(flag: bool) -> Result<string> {
+    if (flag) {
+        return Result<string>::Ok("hello");
+    }
+    return Result<string>::Err("read failed");
+}
+
+fn convert(flag: bool) -> Result<int> {
+    let s = read_val(flag)?;
+    let n = strlen(s);
+    return Result<int>::Ok(n);
+}
+
+test "try unwraps a different result type" {
+    let ok_r = convert(true);
+    assert(ok_r.is_ok(), "mismatched ok is ok");
+    assert(ok_r.val == 5, "mismatched ok value");
+
+    let err_r = convert(false);
+    assert(err_r.is_err(), "mismatched err propagates");
 }

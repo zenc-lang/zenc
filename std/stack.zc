@@ -2,71 +2,72 @@ import "./option.zc"
 import "./mem.zc"
 
 struct Stack<T> {
-  data: T*;
-  len: usize;
-  cap: usize;
+    data: T*;
+    len: usize;
+    cap: usize;
 }
 
 impl Stack<T> {
-  fn new() -> Stack<T> {
-    return Stack<T>{data: NULL, len: 0, cap: 0};
-  }
-
-  fn free(self) {
-    if (self.data) {
-      dealloc<T>(self.data);
-      self.data = NULL;
+    fn new() -> Stack<T> {
+        return Stack<T>{data: NULL, len: 0, cap: 0};
     }
-    self.len = 0;
-  }
 
-  fn clone(self) -> Stack<T> {
+fn free(self) {
+    if (self.data) {
+        dealloc<T>(self.data);
+        self.data = NULL;
+    }
+self.len = 0;
+}
+
+fn clone(self) -> Stack<T> {
     let new_stack = Stack<T>::new();
     new_stack.len = self.len;
     new_stack.cap = self.cap;
     new_stack.data = alloc_n<T>(new_stack.cap);
     memcpy(new_stack.data, self.data, sizeof(T) * new_stack.len);
     return new_stack;
-  }
+}
 
-  fn push(self, value: T) {
+fn push(self, value: T) {
     if (!self.data) {
-      self.cap = 8;
-      self.data = alloc_n<T>(self.cap);
+        self.cap = 8;
+        self.data = alloc_n<T>(self.cap);
     }
-    if (self.len == self.cap) {
-      let old_cap = self.cap;
-      self.cap = self.cap * 2;
-      self.data = realloc_n<T>(self.data, old_cap, self.cap);
-    }
-    self.data[self.len] = value;
-    self.len = self.len + 1;
-  }
+if (self.len == self.cap) {
+    let old_cap = self.cap;
+    self.cap = self.cap * 2;
+    self.data = realloc_n<T>(self.data, old_cap, self.cap);
+}
+self.data[self.len] = value;
+self.len = self.len + 1;
+}
 
-  fn pop(self) -> Option<T> {
+fn pop(self) -> Option<T> {
     if (self.len > 0) {
-      let value = self.data[self.len - 1];
-      self.len = self.len - 1;
-      return Option<T>::Some(value);
+        let value = self.data[self.len - 1];
+        self.len = self.len - 1;
+        return Option<T>::Some(value);
     }
-    return Option<T>::None();
-  }
+return Option<T>::None();
+}
 
-  fn length(self) -> usize {
+fn length(self) -> usize {
     return self.len;
-  }
+}
 
-  fn clear(self) {
+fn clear(self) {
     self.len = 0;
-  }
+}
 
-  fn is_empty(self) -> bool {
+fn is_empty(self) -> bool {
     return self.len == 0;
-  }
+}
 }
 
 impl Drop for Stack<T> {
-  fn drop(self) {
-    self.free();
-  }
+    fn drop(self) {
+        self.free();
+    }
 }
+

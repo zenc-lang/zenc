@@ -170,24 +170,6 @@ void emitter_vprintf(Emitter *e, const char *fmt, va_list args)
     }
 }
 
-void emitter_puts(Emitter *e, const char *s)
-{
-    if (!e || !s)
-    {
-        return;
-    }
-    emitter_flush_buffered(e, s, strlen(s));
-}
-
-void emitter_putc(Emitter *e, char c)
-{
-    if (!e)
-    {
-        return;
-    }
-    emitter_flush_buffered(e, &c, 1);
-}
-
 void emitter_write(Emitter *e, const void *ptr, size_t size)
 {
     if (!e || !ptr || size == 0)
@@ -296,20 +278,4 @@ int emitter_pop(Emitter *e)
     e->indent_level = s->indent_level;
     e->output_line = s->output_line;
     return 1;
-}
-
-void emitter_release(Emitter *e)
-{
-    if (!e)
-    {
-        return;
-    }
-    if (e->mode == EMITTER_BUFFER)
-    {
-        free(e->buffer.buf);
-        e->buffer.buf = NULL;
-        e->buffer.len = 0;
-        e->buffer.cap = 0;
-    }
-    e->saved_count = 0;
 }

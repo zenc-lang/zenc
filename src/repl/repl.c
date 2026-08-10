@@ -26,8 +26,8 @@ static const char *get_home(void)
 
 void repl_state_init(ReplState *state, const char *self_path, CompilerConfig *cfg)
 {
-    (void)self_path;
     memset(state, 0, sizeof(*state));
+    state->self_path = self_path;
     state->history_cap = 64;
     state->history = malloc((size_t)(state->history_cap) * sizeof(char *));
     state->history_len = 0;
@@ -297,7 +297,7 @@ static int repl_process_line(ReplState *state, char *line_buf, int *brace_depth,
         return REPL_HANDLED;
     }
 
-    if (*input_len > 1 && (*input_buffer)[*input_len - 2] == '\n')
+    if (*input_len > 0 && (*input_buffer)[*input_len - 1] == '\n')
     {
         (*input_buffer)[--(*input_len)] = 0;
     }
@@ -322,13 +322,24 @@ static int repl_process_line(ReplState *state, char *line_buf, int *brace_depth,
     *input_buffer = NULL;
     *input_len = 0;
 
-    /* Synthesize program */
+    /* Synthesize program.
+     * The current line is already in history. Header lines (fn/struct/etc.)
+     * are reconstructed into global scope so they get compiled; everything
+     * else is excluded from the session body here and appended exactly once
+     * below (as a statement or auto-print), avoiding duplicate emission. */
+    int cur_is_header = is_header_line(raw_input);
     char *global_code = NULL;
     char *main_code = NULL;
-    repl_get_code(state->history, state->history_len, &global_code, &main_code);
+    repl_get_code(state->history, cur_is_header ? state->history_len : state->history_len - 1,
+                  &global_code, &main_code);
 
-    size_t total_size = strlen(global_code) + strlen(main_code) + 8192;
+    size_t total_size = strlen(global_code) + strlen(main_code) + strlen(raw_input) + 1024;
     char *full_code = malloc(total_size);
+    if (!full_code)
+    {
+        state->history_len--;
+        return REPL_HANDLED;
+    }
     snprintf(full_code, total_size, "%s\nfn main() { _z_suppress_stdout(); %s", global_code,
              main_code);
     zfree(global_code);
@@ -341,20 +352,21 @@ static int repl_process_line(ReplState *state, char *line_buf, int *brace_depth,
         char *check_buf = malloc(strlen(raw_input) + 2);
         sprintf(check_buf, "%s;", raw_input); /* TODO: check buffer size */
 
-        ParserContext pctx = {0};
-        pctx.cg.is_repl = 1;
-        module_state_init(&pctx.imports);
+        ParserContext pctx;
+        repl_parser_ctx_init(&pctx);
         pctx.cg.skip_preamble = 1;
-        pctx.is_fault_tolerant = 1;
-        pctx.on_error = repl_error_callback;
-        pctx.current_filename = "<repl>";
+        pctx.suppress_errors = 1;
         Lexer l;
         lexer_init(&l, check_buf, &g_compiler.config, pctx.current_filename);
         ASTNode *node = parse_statement(&pctx, &l);
         zfree(check_buf);
 
-        if (node && ((node->type >= NODE_EXPR_BINARY && node->type <= NODE_EXPR_SLICE) ||
-                     node->type == NODE_TERNARY || node->type == NODE_LAMBDA))
+        if (node &&
+            ((node->type >= NODE_EXPR_BINARY && node->type <= NODE_EXPR_SLICE) ||
+             node->type == NODE_TERNARY || node->type == NODE_LAMBDA) &&
+            /* Splicing quotes or braces into the "{...}" string literal would
+             * produce malformed code; fall back to evaluating as a statement. */
+            !strpbrk(raw_input, "\"{}"))
         {
             strcat(full_code, "println \"{");
             strcat(full_code, raw_input);
@@ -377,7 +389,9 @@ static int repl_process_line(ReplState *state, char *line_buf, int *brace_depth,
     {
         if (repl_jit_execute(c_code, state->config) != 0)
         {
-            zfree(state->history[--state->history_len]);
+            /* zfree() is a no-op under the arena allocator, so the decrement
+             * must happen explicitly rather than inside a zfree() argument. */
+            state->history_len--;
         }
         else
         {
@@ -387,7 +401,7 @@ static int repl_process_line(ReplState *state, char *line_buf, int *brace_depth,
     }
     else
     {
-        zfree(state->history[--state->history_len]);
+        state->history_len--;
     }
     printf("\n");
     zfree(full_code);

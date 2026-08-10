@@ -7,7 +7,6 @@ import "./core.zc"
 import "./result.zc"
 import "./mem.zc"
 import "./sync.zc"
-
 // Essential raw block: required for pthread operations and closure trampolining
 // This block cannot be eliminated because:
 // 1. z_closure_T is an internal compiler type for Zen-C closures
@@ -77,13 +76,6 @@ struct Thread {
 }
 
 impl Thread {
-    fn eq(self, other: const Thread) -> bool {
-        return _z_thread_equal(self.handle, other.handle);
-    }
-    fn neq(self, other: const Thread) -> bool {
-        return !(self == other);
-    }
-
     fn spawn(func: fn()) -> Result<Thread> {
         let out_handle: usize = 0; 
         

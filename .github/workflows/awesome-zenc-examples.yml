@@ -40,3 +40,12 @@ jobs:
         export ZC_ROOT=$GITHUB_WORKSPACE/zenc
         cd awesome-zenc
         ZC=../zenc/zc EXAMPLES_DIR=examples ../zenc/tests/scripts/run_example_transpile.sh
+
+    - name: Build Awesome Examples
+      # Transpile alone misses issues like duplicate `fn main` (separate
+      # solutions merged by the scraper) that only surface at compile time.
+      run: |
+        export ZC_ROOT=$GITHUB_WORKSPACE/zenc
+        cd awesome-zenc
+        ZC=../zenc/zc EXAMPLES_DIR=examples RUN_SMOKE=1 \
+          ../zenc/tests/scripts/run_example_build.sh

@@ -43,7 +43,6 @@ typedef struct CompilerConfig
     int emit_c;
     int verbose;
     int quiet;
-    int zen_mode;
     int mode_doc;
     int repl_mode;
     int is_freestanding;
@@ -55,7 +54,6 @@ typedef struct CompilerConfig
     int use_typecheck;
     int warn_as_errors;
     int no_suppress_warnings;
-    int warn_pedantic;
     int misra_mode;
     uint64_t diag_mask;
 

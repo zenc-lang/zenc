@@ -191,13 +191,10 @@ static int cmd_show(ReplState *state, const char *args)
         strcat(show_code, "\n");
     }
 
-    ParserContext ctx = {0};
-    module_state_init(&ctx.imports);
-    ctx.cg.is_repl = 1;
+    ParserContext ctx;
+    repl_parser_ctx_init(&ctx);
     ctx.cg.skip_preamble = 1;
     ctx.is_fault_tolerant = 1;
-    ctx.on_error = repl_error_callback;
-    ctx.current_filename = "<repl>";
     Lexer l;
     lexer_init(&l, show_code, &g_compiler.config, ctx.current_filename);
     ASTNode *nodes = parse_program(&ctx, &l);
@@ -498,6 +495,7 @@ static int cmd_load(ReplState *state, const char *args)
     {
         char buf[MAX_ERROR_MSG_LEN];
         int count = 0;
+        int in_main_wrapper = 0;
         while (fgets(buf, sizeof(buf), f))
         {
             size_t l = strlen(buf);
@@ -507,6 +505,21 @@ static int cmd_load(ReplState *state, const char *args)
             }
             if (l == 0)
             {
+                continue;
+            }
+            /* Strip the `fn main() { ... }` wrapper emitted by :save so that
+             * loading a saved session brings in the statements, not the
+             * synthesized entry point (defining main again would break the
+             * session). */
+            if (!in_main_wrapper &&
+                (strncmp(buf, "fn main() {", 11) == 0 || strncmp(buf, "fn main(){", 10) == 0))
+            {
+                in_main_wrapper = 1;
+                continue;
+            }
+            if (in_main_wrapper && strcmp(buf, "}") == 0)
+            {
+                in_main_wrapper = 0;
                 continue;
             }
             repl_history_add(state, buf);
@@ -576,13 +589,10 @@ static int cmd_vars_funcs_structs(ReplState *state, const char *args)
     zfree(global_code);
     zfree(main_code);
 
-    ParserContext ctx = {0};
-    module_state_init(&ctx.imports);
-    ctx.cg.is_repl = 1;
+    ParserContext ctx;
+    repl_parser_ctx_init(&ctx);
     ctx.cg.skip_preamble = 1;
     ctx.is_fault_tolerant = 1;
-    ctx.on_error = repl_error_callback;
-    ctx.current_filename = "<repl>";
 
     Lexer l;
     lexer_init(&l, code, &g_compiler.config, ctx.current_filename);

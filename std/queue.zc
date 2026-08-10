@@ -2,113 +2,114 @@ import "./option.zc"
 import "./mem.zc"
 
 struct Queue<T> {
-  data: T*;
-  cap: usize;
-  head: usize;
-  tail: usize;
-  count: usize;
+    data: T*;
+    cap: usize;
+    head: usize;
+    tail: usize;
+    count: usize;
 }
 
 impl Queue<T> {
-  fn new() -> Queue<T> {
-    return Queue<T>{data: NULL, cap: 0, head: 0, tail: 0, count: 0};
-  }
-
-  fn free(self) {
-    if (self.data) {
-      dealloc<T>(self.data);
-      self.data = NULL;
+    fn new() -> Queue<T> {
+        return Queue<T>{data: NULL, cap: 0, head: 0, tail: 0, count: 0};
     }
-    self.cap = 0;
-    self.head = 0;
-    self.tail = 0;
-    self.count = 0;
-  }
 
-  fn _grow(self) {
+fn free(self) {
+    if (self.data) {
+        dealloc<T>(self.data);
+        self.data = NULL;
+    }
+self.cap = 0;
+self.head = 0;
+self.tail = 0;
+self.count = 0;
+}
+
+fn _grow(self) {
     let new_cap = (self.cap == 0) ? 8 : self.cap * 2;
     let new_data: T* = alloc_n<T>(new_cap);
-    
+
     if (self.count > 0) {
         if (self.tail > self.head) {
             memcpy(new_data, self.data + self.head, sizeof(T) * self.count);
         } else {
-            let first_part = self.cap - self.head;
-            let second_part = self.tail;
-            memcpy(new_data, self.data + self.head, sizeof(T) * first_part);
-            memcpy(new_data + first_part, self.data, sizeof(T) * second_part);
-        }
+        let first_part = self.cap - self.head;
+        let second_part = self.tail;
+        memcpy(new_data, self.data + self.head, sizeof(T) * first_part);
+        memcpy(new_data + first_part, self.data, sizeof(T) * second_part);
     }
-    
-    if (self.data) dealloc<T>(self.data);
-    self.data = new_data;
-    self.cap = new_cap;
-    self.head = 0;
-    self.tail = self.count;
-  }
+}
 
-  fn clone(self) -> Queue<T> {
+if (self.data) dealloc<T>(self.data);
+self.data = new_data;
+self.cap = new_cap;
+self.head = 0;
+self.tail = self.count;
+}
+
+fn clone(self) -> Queue<T> {
     let new_queue = Queue<T>::new();
     new_queue.data = alloc_n<T>(self.cap);
     new_queue.cap = self.cap;
     new_queue.head = 0;
     new_queue.tail = self.count;
     new_queue.count = self.count;
-    
+
     if (self.count > 0) {
         if (self.tail > self.head) {
             memcpy(new_queue.data, self.data + self.head, sizeof(T) * self.count);
-        } 
-        else {
-            let first_part = self.cap - self.head;
-            let second_part = self.tail;
-            memcpy(new_queue.data, self.data + self.head, sizeof(T) * first_part);
-            memcpy(new_queue.data + first_part, self.data, sizeof(T) * second_part);
         }
+    else {
+        let first_part = self.cap - self.head;
+        let second_part = self.tail;
+        memcpy(new_queue.data, self.data + self.head, sizeof(T) * first_part);
+        memcpy(new_queue.data + first_part, self.data, sizeof(T) * second_part);
     }
-    
-    return new_queue;
-  }
+}
 
-  fn push(self, value: T) {
+return new_queue;
+}
+
+fn push(self, value: T) {
     if (self.count == self.cap) {
-      self._grow();
+        self._grow();
     }
-    
-    self.data[self.tail] = value;
-    self.tail = (self.tail + 1) % self.cap;
-    self.count = self.count + 1;
-  }
 
-  fn pop(self) -> Option<T> {
+self.data[self.tail] = value;
+self.tail = (self.tail + 1) % self.cap;
+self.count = self.count + 1;
+}
+
+fn pop(self) -> Option<T> {
     if (self.count == 0) {
-      return Option<T>::None();
+        return Option<T>::None();
     }
-    
-    let value = self.data[self.head];
-    self.head = (self.head + 1) % self.cap;
-    self.count = self.count - 1;
-    
-    return Option<T>::Some(value);
-  }
 
-  fn length(self) -> usize {
+let value = self.data[self.head];
+self.head = (self.head + 1) % self.cap;
+self.count = self.count - 1;
+
+return Option<T>::Some(value);
+}
+
+fn length(self) -> usize {
     return self.count;
-  }
+}
 
-  fn clear(self) {
+fn clear(self) {
     self.head = 0;
     self.tail = 0;
     self.count = 0;
-  }
+}
 
-  fn is_empty(self) -> bool {
+fn is_empty(self) -> bool {
     return self.count == 0;
-  }
+}
 }
 
 impl Drop for Queue<T> {
-  fn drop(self) {
-    self.free();
-  }
+    fn drop(self) {
+        self.free();
+    }
 }
+

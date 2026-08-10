@@ -52,7 +52,7 @@ filter_test() {
 
 run_test() {
     local test_file="$1"
-    local src out actual
+    local src actual
 
     src=$(mktemp /tmp/zc_lisp_XXXXXX.lisp)
     actual=$(mktemp /tmp/zc_lisp_out_XXXXXX)

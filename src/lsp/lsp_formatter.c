@@ -15,7 +15,7 @@ char *lsp_format_source(const char *src)
     }
 
     size_t len = strlen(src);
-    char *out = malloc(len * 2 + 1); // Extra space for added characters
+    char *out = libc_malloc(len * 2 + 1); // Extra space for added characters
     if (!out)
     {
         return NULL;

@@ -46,10 +46,14 @@ for test_file in "$TEST_DIR"/*.zc; do
         # Verify diagnostics for each expected rule
         while IFS= read -r rule; do
             [ -z "$rule" ] && continue
-            if [[ ! "$output" =~ "$rule" ]]; then
-                file_failed=1
-                missing_rules="$missing_rules $rule"
-            fi
+            # Literal substring match (case avoids =~ quoting pitfalls)
+            case "$output" in
+                *"$rule"*) ;;
+                *)
+                    file_failed=1
+                    missing_rules="$missing_rules $rule"
+                    ;;
+            esac
         done <<< "$expected_rules"
         
         if [ -z "$expected_rules" ] && [ $exit_code -ne 0 ]; then

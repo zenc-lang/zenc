@@ -18,10 +18,11 @@ typedef enum
     VAL_NULL,
     VAL_INT,
     VAL_BOOL,
-    VAL_STRING
+    VAL_STRING,
+    VAL_ARRAY
 } CValType;
 
-typedef struct
+typedef struct CValue
 {
     CValType type;
     union
@@ -29,6 +30,11 @@ typedef struct
         int64_t i;
         int b;
         char *s;
+        struct
+        {
+            struct CValue *data;
+            size_t len;
+        } arr;
     } as;
 } CValue;
 
@@ -110,11 +116,60 @@ static CValue val_string(const char *s)
 
 static void val_free(CValue *v)
 {
+    if (!v)
+    {
+        return;
+    }
     if (v->type == VAL_STRING)
     {
         zfree(v->as.s);
         v->as.s = NULL;
     }
+    else if (v->type == VAL_ARRAY)
+    {
+        for (size_t k = 0; k < v->as.arr.len; k++)
+        {
+            val_free(&v->as.arr.data[k]);
+        }
+        zfree(v->as.arr.data);
+        v->as.arr.data = NULL;
+        v->as.arr.len = 0;
+    }
+}
+
+// Deep copy a CValue so that assigning or reading an array element does not
+// alias the storage of another value. Scalars copy by value; strings and
+// arrays allocate fresh storage.
+static CValue val_deep_copy(const CValue *v)
+{
+    if (!v)
+    {
+        return val_null;
+    }
+    if (v->type == VAL_STRING)
+    {
+        return val_string(v->as.s);
+    }
+    if (v->type == VAL_ARRAY)
+    {
+        CValue out = {VAL_ARRAY, {0}};
+        out.as.arr.len = v->as.arr.len;
+        out.as.arr.data = xcalloc(v->as.arr.len ? v->as.arr.len : 1, sizeof(CValue));
+        for (size_t k = 0; k < v->as.arr.len; k++)
+        {
+            out.as.arr.data[k] = val_deep_copy(&v->as.arr.data[k]);
+        }
+        return out;
+    }
+    return *v;
+}
+
+static CValue val_new_array(size_t len)
+{
+    CValue v = {VAL_ARRAY, {0}};
+    v.as.arr.len = len;
+    v.as.arr.data = xcalloc(len ? len : 1, sizeof(CValue));
+    return v;
 }
 
 static void yield_append(CInterp *ci, const char *s)
@@ -148,6 +203,7 @@ static void yield_append(CInterp *ci, const char *s)
 // Forward declarations
 static CValue eval_expr(CInterp *ci, ASTNode *node);
 static void exec_stmt(CInterp *ci, ASTNode *node);
+static void exec_assign_index(CInterp *ci, ASTNode *node);
 static CValue call_builtin(CInterp *ci, const char *name, ASTNode *args);
 static CValue call_comptime_fn(CInterp *ci, ASTNode *fn_node, ASTNode *args);
 
@@ -219,6 +275,11 @@ static CValue eval_var(CInterp *ci, ASTNode *node)
     if (found->type == VAL_STRING)
     {
         v = val_string(found->as.s);
+    }
+    else if (found->type == VAL_ARRAY)
+    {
+        // Deep copy so reads never alias the scope's array storage.
+        v = val_deep_copy(found);
     }
     else
     {
@@ -652,6 +713,39 @@ static CValue call_comptime_fn(CInterp *ci, ASTNode *fn_node, ASTNode *args)
     return val_null;
 }
 
+static CValue eval_index(CInterp *ci, ASTNode *node)
+{
+    CValue arr = eval_expr(ci, node->index.array);
+    if (ci->error_happened)
+    {
+        return val_null;
+    }
+    if (arr.type != VAL_ARRAY)
+    {
+        val_free(&arr);
+        zerror_at(node->token, "comptime: cannot index a non-array value");
+        ci->error_happened = 1;
+        return val_null;
+    }
+    int64_t idx = eval_int(ci, node->index.index);
+    if (ci->error_happened)
+    {
+        val_free(&arr);
+        return val_null;
+    }
+    if (idx < 0 || (uint64_t)idx >= arr.as.arr.len)
+    {
+        val_free(&arr);
+        zerror_at(node->token, "comptime: array index %lld out of bounds (length %zu)",
+                  (long long)idx, arr.as.arr.len);
+        ci->error_happened = 1;
+        return val_null;
+    }
+    CValue elem = val_deep_copy(&arr.as.arr.data[idx]);
+    val_free(&arr);
+    return elem;
+}
+
 static CValue eval_expr(CInterp *ci, ASTNode *node)
 {
     if (ci->step_count++ > MAX_STEPS)
@@ -678,6 +772,11 @@ static CValue eval_expr(CInterp *ci, ASTNode *node)
         return eval_unary(ci, node);
     case NODE_EXPR_CALL:
         return eval_call(ci, node);
+    case NODE_EXPR_INDEX:
+        return eval_index(ci, node);
+    case NODE_EXPR_CAST:
+        // Casts are transparent in the comptime value model.
+        return eval_expr(ci, node->cast.expr);
     case NODE_EXPR_MEMBER:
         // Simple member access not supported yet
         zerror_at(node->token, "comptime: member access not supported yet");
@@ -706,12 +805,29 @@ static void exec_let(CInterp *ci, ASTNode *node)
             return;
         }
     }
+    else if (node->var_decl.type_info && node->var_decl.type_info->kind == TYPE_ARRAY &&
+             node->var_decl.type_info->array_size > 0)
+    {
+        // Materialize a zero-initialized fixed-size array (e.g. let fib: long[20];)
+        val = val_new_array((size_t)node->var_decl.type_info->array_size);
+    }
     ci->scope = scope_push(ci->scope, name, val);
 }
 
 static void exec_assign(CInterp *ci, ASTNode *node)
 {
-    if (!node->binary.left || node->binary.left->type != NODE_EXPR_VAR)
+    if (!node->binary.left)
+    {
+        zerror_at(node->token, "comptime: assignment target must be a variable");
+        ci->error_happened = 1;
+        return;
+    }
+    if (node->binary.left->type == NODE_EXPR_INDEX)
+    {
+        exec_assign_index(ci, node);
+        return;
+    }
+    if (node->binary.left->type != NODE_EXPR_VAR)
     {
         zerror_at(node->token, "comptime: assignment target must be a variable");
         ci->error_happened = 1;
@@ -732,6 +848,53 @@ static void exec_assign(CInterp *ci, ASTNode *node)
     }
     val_free(existing);
     *existing = new_val;
+}
+
+// Assign to an array element (left side of '=' is a NODE_EXPR_INDEX).
+// Writes directly into the scope's array storage so the mutation persists.
+static void exec_assign_index(CInterp *ci, ASTNode *node)
+{
+    ASTNode *lhs = node->binary.left;
+    if (!lhs->index.array || lhs->index.array->type != NODE_EXPR_VAR)
+    {
+        zerror_at(node->token, "comptime: can only assign to an element of an array variable");
+        ci->error_happened = 1;
+        return;
+    }
+    const char *name = lhs->index.array->var_ref.name;
+    CValue *existing = scope_find(ci->scope, name);
+    if (!existing)
+    {
+        zerror_at(node->token, "comptime: undefined variable '%s'", name);
+        ci->error_happened = 1;
+        return;
+    }
+    if (existing->type != VAL_ARRAY)
+    {
+        zerror_at(node->token, "comptime: cannot index a non-array value");
+        ci->error_happened = 1;
+        return;
+    }
+    int64_t idx = eval_int(ci, lhs->index.index);
+    if (ci->error_happened)
+    {
+        return;
+    }
+    if (idx < 0 || (uint64_t)idx >= existing->as.arr.len)
+    {
+        zerror_at(node->token, "comptime: array index %lld out of bounds (length %zu)",
+                  (long long)idx, existing->as.arr.len);
+        ci->error_happened = 1;
+        return;
+    }
+    CValue new_val = eval_expr(ci, node->binary.right);
+    if (ci->error_happened)
+    {
+        return;
+    }
+    CValue *slot = existing->as.arr.data + idx;
+    val_free(slot);
+    *slot = new_val;
 }
 
 static void exec_if(CInterp *ci, ASTNode *node)

@@ -3,7 +3,6 @@ import "./mem.zc"
 import "./result.zc"
 import "./string.zc"
 import "./vec.zc"
-import "./mem.zc"
 import "sys/fs.zc"
 
 def Z_SEEK_SET = 0;

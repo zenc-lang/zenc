@@ -4,6 +4,10 @@
 *.a
 *.d
 zc
+zc-lsp
+zc-repl
+zc-doc
+zc-format
 zc-fuzz
 zc-fuzz-cmplog
 zc-fuzz-libfuzzer
@@ -62,6 +66,10 @@ benchmarks_result.json
 .vscode/
 *.swp
 *.swo
+
+# Python (rosetta scraper)
+__pycache__/
+*.py[cod]
 
 # OS
 .DS_Store

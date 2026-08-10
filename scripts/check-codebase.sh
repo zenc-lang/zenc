@@ -73,7 +73,6 @@ while IFS= read -r line; do
         *"= {0}"*)               continue ;;
         *token.h*)               continue ;;
         *".o:"*)                 continue ;;
-        *zen_facts.c*)           continue ;;
         *"return (Token){0}"*)   continue ;;  # zero-init Token return value
     esac
     err "$line"

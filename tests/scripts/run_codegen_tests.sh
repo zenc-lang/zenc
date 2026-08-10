@@ -39,8 +39,7 @@ echo "** Running Codegen Verification Tests **"
 TEST_NAME="test_dedup_typedefs.zc"
 echo -n "Testing $TEST_DIR/$TEST_NAME (Duplicate Typedefs)... "
 
-$ZC "$TEST_DIR/$TEST_NAME" --emit-c > /dev/null 2>&1
-if [ $? -ne 0 ]; then
+if ! "$ZC" "$TEST_DIR/$TEST_NAME" --emit-c > /dev/null 2>&1; then
     echo "FAIL (Compilation error)"
     ((FAILED++))
 else
@@ -70,8 +69,7 @@ rm -f "${TEST_NAME%.zc}.c" "${TEST_NAME%.zc}" a.out
 TEST_NAME="test_emit_source_mapping.zc"
 echo -n "Testing $TEST_DIR/$TEST_NAME (Source Mappings)... "
 
-$ZC check "$TEST_DIR/$TEST_NAME" -g --warn-errors > /dev/null 2>&1
-if [ $? -ne 0 ]; then
+if ! "$ZC" check "$TEST_DIR/$TEST_NAME" -g --warn-errors > /dev/null 2>&1; then
     echo "FAIL"
     ((FAILED++))
 else
@@ -86,8 +84,7 @@ fi
 TEST_NAME="test_slice_instantiation_offset.zc"
 echo -n "Testing $TEST_DIR/$TEST_NAME (Slice Naming)... "
 
-$ZC "$TEST_DIR/$TEST_NAME" --emit-c > /dev/null 2>&1
-if [ $? -ne 0 ]; then
+if ! "$ZC" "$TEST_DIR/$TEST_NAME" --emit-c > /dev/null 2>&1; then
     echo "FAIL (Compilation error)"
     ((FAILED++))
 else

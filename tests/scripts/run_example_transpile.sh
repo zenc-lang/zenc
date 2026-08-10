@@ -17,6 +17,10 @@ TEST_FILES=("$@")
 if [ ${#TEST_FILES[@]} -gt 0 ]; then
     TEST_LIST=$(printf "%s\n" "${TEST_FILES[@]}" | grep "$EXAMPLES_DIR"/)
 else
+    if [ ! -d "$EXAMPLES_DIR" ]; then
+        echo "** Example directory '$EXAMPLES_DIR' not found; skipping (clone awesome-zenc to enable)."
+        exit 0
+    fi
     TEST_LIST=$(find "$EXAMPLES_DIR" -name "*.zc" | sort)
 fi
 

@@ -55,11 +55,6 @@ void zpanic_with_hints(Token t, const char *msg, const char *const *hints);
 ZEN_FORMAT_PRINTF(2, 3) void zerror_at(Token t, const char *fmt, ...);
 
 /**
- * @brief Non-fatal error with suggestion (does not exit).
- */
-void zerror_with_suggestion(Token t, const char *msg, const char *suggestion);
-
-/**
  * @brief Non-fatal error with multiple suggestions/hints (NULL-terminated array).
  */
 void zerror_with_hints(Token t, const char *msg, const char *const *hints);

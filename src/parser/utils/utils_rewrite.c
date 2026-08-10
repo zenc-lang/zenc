@@ -563,14 +563,6 @@ char *rewrite_expr_methods(ParserContext *ctx, char *raw)
     return result;
 }
 
-char *consume_and_rewrite(ParserContext *ctx, Lexer *l)
-{
-    char *r = consume_until_semicolon(l);
-    char *rw = rewrite_expr_methods(ctx, r);
-    zfree(r);
-    return rw;
-}
-
 char *parse_and_convert_args(ParserContext *ctx, Lexer *l, char ***defaults_out,
                              ASTNode ***default_values_out, int *count_out, Type ***types_out,
                              char ***names_out, int *is_varargs_out, char ***ctype_overrides_out)

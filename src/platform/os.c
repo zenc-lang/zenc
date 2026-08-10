@@ -252,16 +252,6 @@ void z_get_absolute_path(const char *path, char *buffer, size_t size)
 #endif
 }
 
-ZEN_CONST int z_is_zip_path(const char *path)
-{
-#ifdef __COSMOPOLITAN__
-    return path && strncmp(path, "/zip", 4) == 0;
-#else
-    (void)path;
-    return 0;
-#endif
-}
-
 int z_isatty(int fd)
 {
 #if ZC_OS_WINDOWS
@@ -269,40 +259,6 @@ int z_isatty(int fd)
 #else
     return isatty(fd);
 #endif
-}
-
-int z_match_os(const char *os_name)
-{
-    if (!os_name)
-    {
-        return 0;
-    }
-
-    if (0 == strcmp(os_name, "linux"))
-    {
-#if ZC_OS_LINUX
-        return 1;
-#else
-        return 0;
-#endif
-    }
-    else if (0 == strcmp(os_name, "windows"))
-    {
-#if ZC_OS_WINDOWS
-        return 1;
-#else
-        return 0;
-#endif
-    }
-    else if (0 == strcmp(os_name, "macos") || 0 == strcmp(os_name, "darwin"))
-    {
-#if ZC_OS_MACOS
-        return 1;
-#else
-        return 0;
-#endif
-    }
-    return 0;
 }
 
 ZEN_CONST const char *z_get_system_name(void)

@@ -79,7 +79,6 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/src/analysis
     ${PROJECT_SOURCE_DIR}/src/lsp
     ${PROJECT_SOURCE_DIR}/src/diagnostics
-    ${PROJECT_SOURCE_DIR}/std/third-party/tre/include
 )
 
 # Source files
@@ -104,13 +103,11 @@ endif()
 option(ZC_NO_PLUGINS "Disable the plugin system entirely" OFF)
 option(ZC_NO_LSP "Disable LSP server" OFF)
 option(ZC_NO_REPL "Disable interactive REPL" OFF)
-option(ZC_NO_ZEN "Disable Zen facts/docs" OFF)
 option(ZC_NO_BACKENDS "Disable non-C backends" OFF)
 
 add_compile_definitions(ZC_HAS_LSP=$<NOT:$<BOOL:${ZC_NO_LSP}>>)
 add_compile_definitions(ZC_HAS_REPL=$<NOT:$<BOOL:${ZC_NO_REPL}>>)
 add_compile_definitions(ZC_HAS_PLUGINS=$<NOT:$<BOOL:${ZC_NO_PLUGINS}>>)
-add_compile_definitions(ZC_HAS_ZEN=$<NOT:$<BOOL:${ZC_NO_ZEN}>>)
 add_compile_definitions(ZC_HAS_CPP_BACKEND=$<NOT:$<BOOL:${ZC_NO_BACKENDS}>>)
 add_compile_definitions(ZC_HAS_CUDA_BACKEND=$<NOT:$<BOOL:${ZC_NO_BACKENDS}>>)
 add_compile_definitions(ZC_HAS_OBJC_BACKEND=$<NOT:$<BOOL:${ZC_NO_BACKENDS}>>)
@@ -181,7 +178,6 @@ endforeach()
 install(TARGETS zc DESTINATION bin)
 install(FILES std.zc DESTINATION share/zenc)
 install(DIRECTORY std DESTINATION share/zenc)
-install(FILES src/zen/facts.json DESTINATION share/zenc)
 install(FILES src/repl/docs.json DESTINATION share/zenc)
 install(FILES plugins/zprep_plugin.h DESTINATION include/zenc)
 install(DIRECTORY ${CMAKE_BINARY_DIR}/plugins/ DESTINATION lib/zenc/plugins 

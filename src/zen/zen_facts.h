@@ -8,17 +8,14 @@
 #define ZEN_FACTS_H
 
 #include "../zprep.h"
-#include "../parser/parser.h"
 #include "../compiler_config.h"
 struct Token;
 
-typedef struct CompilerConfig CompilerConfig;
-
 /**
- * @brief Triggers for Zen facts (easter egg system).
+ * @brief Triggers for the (removed) Zen facts easter-egg system.
  *
- * Each trigger corresponds to a specific coding pattern or event
- * which may elicit a "Zen Fact" message to the user.
+ * Kept so the parser's `hook_zen_trigger` field retains its type; the hook is
+ * never installed anymore (the feature was dropped), so these are unused.
  */
 typedef enum
 {
@@ -36,14 +33,5 @@ typedef enum
     TRIGGER_STRUCT_PADDING, ///< Implicit padding detection.
     TRIGGER_GLOBAL          ///< Global variables.
 } ZenTrigger;
-
-void zen_init(void);
-
-int zen_trigger_at(ZenTrigger t, Token location, CompilerConfig *cfg);
-
-void zen_trigger_global(CompilerConfig *cfg);
-
-void zzen_at(Token t, const char *msg, const char *url);
-const char *zen_get_fact(ZenTrigger t);
 
 #endif

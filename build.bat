@@ -24,8 +24,7 @@ set CFLAGS=-std=%C_STD% -Wall -Wextra -Wshadow -Wformat=2 -Wmissing-prototypes ^
  -Wpacked -Wdisabled-optimization -Wduplicated-cond -Wlogical-op -Wformat-signedness ^
  -g ^
  -I./src -I./src/ast -I./src/parser -I./src/codegen -I./plugins -I./src/zen ^
- -I./src/utils -I./src/lexer -I./src/analysis -I./src/lsp -I./src/diagnostics ^
- -I./std/third-party/tre/include
+ -I./src/utils -I./src/lexer -I./src/analysis -I./src/lsp -I./src/diagnostics
 set CFLAGS=%CFLAGS% -DZEN_VERSION=\"%ZEN_VERSION%\" -DZEN_SHARE_DIR=\".\" -DZC_ALLOW_INTERNAL
 
 rem Feature flags

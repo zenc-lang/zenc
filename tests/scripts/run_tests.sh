@@ -52,7 +52,6 @@ if [ "$ZC_TEST_NO_SOURCE" = "1" ]; then
 fi
 
 TEST_FILES=()
-sys_type=$(uname -s)
 sys_arch=$(uname -m)
 zc_args=()
 
@@ -103,7 +102,8 @@ done
 # Also check ZC_FLAGS for --cpp (backwards compat)
 if [[ "$ZC_FLAGS" == *"--cpp"* ]]; then
     USE_CPP=1
-    zc_args+=($ZC_FLAGS)
+    read -r -a zc_flag_words <<< "$ZC_FLAGS"
+    zc_args+=("${zc_flag_words[@]}")
 fi
 
 # Build mode label
@@ -154,7 +154,6 @@ run_test() {
     local test_file="$1"
     local job_id="$2"
     local result_file="$RESULTS_DIR/$job_id"
-    local output_buf=""
     
     # Skip tests logic (duplicated for subprocess context)
     if [[ "$CC_NAME" == *"tcc"* ]]; then
@@ -236,11 +235,6 @@ run_test() {
         output=$(set -o pipefail; run_single); exit_code=$?
     fi
 
-    local bin_outfile="${tmp_out}"
-    if [ -f "${tmp_out}.exe" ]; then
-        bin_outfile="${tmp_out}.exe"
-    fi
-
     if grep -q "// EXPECT: FAIL" "$test_file"; then
         if [ $exit_code -ne 0 ]; then
             echo "PASS_EXPECTED_FAIL" > "$result_file.status"
@@ -280,8 +274,10 @@ run_test() {
                         bin_path="${tmp_out}.exe"
                     fi
                     if [ -n "$bin_path" ]; then
-                        local bin_sz=$(wc -c < "$bin_path" 2>/dev/null || echo "?")
-                        local magic=$(od -A n -t x1 -N 4 "$bin_path" 2>/dev/null | tr -d ' \n' || echo "?")
+                        local bin_sz
+                        local magic
+                        bin_sz=$(wc -c < "$bin_path" 2>/dev/null || echo "?")
+                        magic=$(od -A n -t x1 -N 4 "$bin_path" 2>/dev/null | tr -d ' \n' || echo "?")
                         echo "Binary: $bin_path ($bin_sz bytes, header: $magic)"
                     fi
                     echo "(Exit 127 from the binary may indicate a missing runtime DLL or a platform limitation.)"

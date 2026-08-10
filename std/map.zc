@@ -19,8 +19,6 @@ fn _map_hash_str(str: const char*) -> usize {
     return hash;
 }
 
-import "./mem.zc"
-
 struct Map<V> {
     keys: char**;
     vals: V*;

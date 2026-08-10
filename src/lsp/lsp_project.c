@@ -9,7 +9,6 @@
 #include <sys/stat.h>
 
 LSPProject *g_project = NULL;
-int g_is_indexing = 0;
 
 static void scan_dir(const char *dir_path);
 void lsp_default_on_error(void *data, Token t, const char *msg);
@@ -46,6 +45,13 @@ void lsp_project_init(const char *root_path)
         fprintf(stderr, "zls: Warning: Failed to create hoist_out temporary file. Hoisting will be "
                         "disabled.\n");
     }
+
+    // Register this persistent context as the parser/token/diagnostic context.
+    // Without config the lexer/parser deref ctx->config (e.g. misra_mode) and
+    // segfault on the first didOpen, and without the diagnostic context a parse
+    // error would fall through to exit(1) and kill the whole server.
+    token_set_parser_ctx(g_project->ctx);
+    diag_set_parser_ctx(g_project->ctx);
 
     // Set a default error handler that just logs to stderr (or ignores)
     // to prevent exit(1) during initial scan.

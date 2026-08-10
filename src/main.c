@@ -2,15 +2,9 @@
 #include "codegen/codegen.h"
 #include "parser/parser.h"
 #include "constants.h"
+#include "tools/tool_common.h"
 #if ZC_HAS_PLUGINS
 #include "plugins/plugin_manager.h"
-#endif
-#if ZC_HAS_REPL
-#include "repl/repl.h"
-#endif
-#if ZC_HAS_ZEN
-#include "zen/zen_doc.h"
-#include "zen/zen_facts.h"
 #endif
 #include "zprep.h"
 #include "analysis/typecheck.h"
@@ -27,118 +21,60 @@
 #include <sys/wait.h>
 #endif
 
-static void handle_crash(int sig)
+// The standalone tools (zc-lsp, zc-repl, zc-doc, zc-format) ship alongside
+// zc. `zc lsp|repl|doc|format` are deprecated wrappers that dispatch to them.
+static int exec_tool(const char *cmd, const char *tool, int argc, char **argv)
 {
-    fprintf(stderr, "\n------------------------------------------------\n");
-    fprintf(stderr, "CRITICAL: Compiler crashed with signal %d\n", sig);
-    fprintf(stderr, "This is likely a bug in the Zen compiler.\n");
-    fprintf(stderr, "Flushing all output files before exit...\n");
-    fprintf(stderr, "------------------------------------------------\n");
-    fflush(NULL);
-    _exit(139);
+    fprintf(stderr, "note: 'zc %s' is deprecated; use '%s' directly\n", cmd, tool);
+    fflush(stderr);
+
+    // The tools are standalone binaries and do not expect the `zc` subcommand
+    // in argv, so forward everything after it.
+    char *forward[128];
+    int n = 0;
+    forward[n++] = NULL; // argv[0] placeholder (replaced with the tool path)
+    for (int i = 2; i < argc && n < 127; i++)
+    {
+        forward[n++] = argv[i];
+    }
+    forward[n] = NULL;
+
+    // z_get_executable_path returns the directory of the executable.
+    char self_path[MAX_PATH_SIZE];
+    z_get_executable_path(self_path, sizeof(self_path));
+
+    char path[MAX_PATH_SIZE + 32];
+    if (self_path[0])
+    {
+        snprintf(path, sizeof(path), "%s/%s", self_path, tool);
+    }
+    else
+    {
+        snprintf(path, sizeof(path), "%s", tool);
+    }
+
+    forward[0] = path;
+    execv(path, forward);
+    execvp(tool, forward);
+
+    fprintf(stderr, "error: could not launch '%s' (is it installed?)\n", tool);
+    return 127;
 }
 
-// Forward decl for LSP
-#if ZC_HAS_LSP
-int lsp_main(int argc, char **argv);
-#endif
 int main(int argc, char **argv)
 {
-    signal(SIGSEGV, handle_crash);
-    signal(SIGABRT, handle_crash);
-    signal(SIGFPE, handle_crash);
+    z_compiler_setup();
 
     int i;
     const char *optimization_level = NULL;
     char *env_root;
     char *input_file_copy;
-    char self_path[MAX_PATH_SIZE];
 
-    z_setup_terminal();
-    memset(&g_config, 0, sizeof(g_config));
-    g_config.mode_debug = 1;
-    if (z_is_windows())
-    {
-        strncpy(g_config.cc, "gcc.exe", sizeof(g_config.cc) - 1);
-        g_config.cc[sizeof(g_config.cc) - 1] = '\0';
-    }
-    else
-    {
-        strncpy(g_config.cc, "gcc", sizeof(g_config.cc) - 1);
-        g_config.cc[sizeof(g_config.cc) - 1] = '\0';
-    }
-
-    // Default diagnostics: Enable standard Zen C diagnostics
-    set_diag_by_name("unused", 1);
-    set_diag_by_name("safety", 1);
-    set_diag_by_name("logic", 1);
-    set_diag_by_name("conversion", 1);
-    set_diag_by_name("style", 1);
-
-    codegen_init_backends();
-
-    z_get_executable_path(self_path, sizeof(self_path));
-    if (self_path[0])
-    {
-        g_config.root_path = xstrdup(self_path);
-
-        // Improve root_path discovery: look for std.zc in root_path or its parents
-        char current_root[MAX_PATH_SIZE];
-        strncpy(current_root, self_path, sizeof(current_root) - 1);
-        current_root[sizeof(current_root) - 1] = '\0';
-
-        while (current_root[0])
-        {
-            char check_path[MAX_PATH_SIZE + 32];
-            snprintf(check_path, sizeof(check_path), "%s/std.zc", current_root);
-            if (access(check_path, F_OK) == 0)
-            {
-                // Found it!
-                zfree(g_config.root_path);
-                g_config.root_path = xstrdup(current_root);
-                break;
-            }
-
-            // Try parent
-            char *last_slash = (char *)strrchr(current_root, '/');
-            if (last_slash && last_slash != current_root)
-            {
-                *last_slash = '\0';
-            }
-            else
-            {
-                break; // Reached root or no more slashes
-            }
-        }
-    }
-    else
-    {
-        g_config.root_path = NULL;
-    }
-
-    env_root = getenv("ZC_ROOT");
-    if (env_root && env_root[0])
-    {
-        if (g_config.root_path)
-        {
-            zfree(g_config.root_path);
-        }
-        g_config.root_path = xstrdup(env_root);
-    }
-
-    if (ZC_OS_WINDOWS)
-    {
-        zvec_push_Str(&g_config.cfg_defines, xstrdup("windows"));
-    }
-    else if (ZC_OS_LINUX)
-    {
-        zvec_push_Str(&g_config.cfg_defines, xstrdup("linux"));
-    }
-    else if (ZC_OS_MACOS)
-    {
-        zvec_push_Str(&g_config.cfg_defines, xstrdup("apple"));
-        zvec_push_Str(&g_config.cfg_defines, xstrdup("macos"));
-    }
+    i = 0;
+    (void)i;
+    (void)optimization_level;
+    (void)env_root;
+    (void)input_file_copy;
 
     if (argc < 2)
     {
@@ -152,24 +88,20 @@ int main(int argc, char **argv)
 
     if (strcmp(command, "lsp") == 0)
     {
-#if ZC_HAS_LSP
-        return lsp_main(argc, argv);
-#else
-        fprintf(stderr, "LSP support not included in this build\n");
-        return 1;
-#endif
+        return exec_tool("lsp", "zc-lsp", argc, argv);
     }
     else if (strcmp(command, "repl") == 0)
     {
-#if ZC_HAS_REPL
-        run_repl(argv[0], argc, argv); // Pass self path and args for -c support
-        return 0;
-#else
-        fprintf(stderr, "REPL support not included in this build\n");
-        return 1;
-#endif
+        return exec_tool("repl", "zc-repl", argc, argv);
     }
-
+    else if (strcmp(command, "doc") == 0)
+    {
+        return exec_tool("doc", "zc-doc", argc, argv);
+    }
+    else if (strcmp(command, "format") == 0)
+    {
+        return exec_tool("format", "zc-format", argc, argv);
+    }
     else if (strcmp(command, "transpile") == 0 || strcmp(command, "-c") == 0)
     {
         g_config.mode_transpile = 1;
@@ -187,14 +119,6 @@ int main(int argc, char **argv)
     else if (strcmp(command, "check") == 0)
     {
         g_config.mode_check = 1;
-    }
-    else if (strcmp(command, "doc") == 0)
-    {
-        g_config.mode_doc = 1;
-        g_config.keep_comments = 1;
-        g_config.recursive_doc = 1;
-        g_config.mode_check = 0; // Disable typecheck by default for documentation to reduce noise
-        g_config.use_typecheck = 0;
     }
     else if (strcmp(command, "help") == 0)
     {
@@ -255,13 +179,9 @@ int main(int argc, char **argv)
         {
             g_config.keep_comments = 1;
         }
-        else if (strcmp(arg, "--recursive-doc") == 0)
+        else if (strcmp(arg, "--recursive-doc") == 0 || strcmp(arg, "--no-recursive-doc") == 0)
         {
-            g_config.recursive_doc = 1;
-        }
-        else if (strcmp(arg, "--no-recursive-doc") == 0)
-        {
-            g_config.recursive_doc = 0;
+            fprintf(stderr, "note: --recursive-doc only applies to 'zc doc' (now 'zc-doc')\n");
         }
         else if (strcmp(arg, "--version") == 0 || strcmp(arg, "-V") == 0)
         {
@@ -278,10 +198,6 @@ int main(int argc, char **argv)
         else if (strcmp(arg, "--quiet") == 0 || strcmp(arg, "-q") == 0)
         {
             g_config.quiet = 1;
-        }
-        else if (strcmp(arg, "--zen") == 0)
-        {
-            g_config.zen_mode = 1;
         }
         else if (strcmp(arg, "--check") == 0 || strcmp(arg, "-c") == 0)
         {
@@ -340,7 +256,6 @@ int main(int argc, char **argv)
             }
             g_config.use_cpp = 1;
             g_config.backend_name = "cpp";
-            g_config.use_cpp = 1;
         }
         else if (strcmp(arg, "--cuda") == 0)
         {
@@ -381,7 +296,7 @@ int main(int argc, char **argv)
         else if (strcmp(arg, "--filcc") == 0)
         {
             // Auto-discover bundled Fil-C compiler relative to known paths
-            const char *search_paths[] = {g_config.root_path, self_path, NULL};
+            const char *search_paths[] = {g_config.root_path, NULL};
             int found = 0;
             for (int pi = 0; search_paths[pi]; pi++)
             {

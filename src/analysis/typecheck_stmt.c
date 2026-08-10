@@ -164,6 +164,104 @@ void check_var_decl(TypeChecker *tc, ASTNode *node, int depth)
     }
 }
 
+static ASTNode *loop_body(ASTNode *loop)
+{
+    switch (loop->type)
+    {
+    case NODE_LOOP:
+        return loop->loop_stmt.body;
+    case NODE_WHILE:
+        return loop->while_stmt.body;
+    case NODE_FOR:
+        return loop->for_stmt.body;
+    case NODE_FOR_RANGE:
+        return loop->for_range.body;
+    case NODE_REPEAT:
+        return loop->repeat_stmt.body;
+    case NODE_DO_WHILE:
+        return loop->do_while_stmt.body;
+    default:
+        return NULL;
+    }
+}
+
+// Returns 1 if `node` contains a `break` that can exit the loop whose label is
+// `loop_label` (NULL = unlabeled). `nested` is 1 while inside a loop nested
+// within the loop we are testing, so unlabeled breaks there do not count.
+static int stmt_has_exit_break(ASTNode *node, const char *loop_label, int nested)
+{
+    if (!node)
+    {
+        return 0;
+    }
+
+    switch (node->type)
+    {
+    case NODE_BREAK:
+        if (node->break_stmt.target_label)
+        {
+            return loop_label != NULL && strcmp(node->break_stmt.target_label, loop_label) == 0;
+        }
+        return !nested;
+
+    case NODE_BLOCK:
+        for (ASTNode *s = node->block.statements; s; s = s->next)
+        {
+            if (stmt_has_exit_break(s, loop_label, nested))
+            {
+                return 1;
+            }
+        }
+        return 0;
+
+    case NODE_IF:
+        return stmt_has_exit_break(node->if_stmt.then_body, loop_label, nested) ||
+               stmt_has_exit_break(node->if_stmt.else_body, loop_label, nested);
+
+    case NODE_MATCH:
+        for (ASTNode *c = node->match_stmt.cases; c; c = c->next)
+        {
+            if (stmt_has_exit_break(c, loop_label, nested))
+            {
+                return 1;
+            }
+        }
+        return 0;
+
+    case NODE_MATCH_CASE:
+        return stmt_has_exit_break(node->match_case.body, loop_label, nested);
+
+    case NODE_GUARD:
+        return stmt_has_exit_break(node->guard_stmt.body, loop_label, nested);
+    case NODE_UNLESS:
+        return stmt_has_exit_break(node->unless_stmt.body, loop_label, nested);
+
+    case NODE_DEFER:
+        return stmt_has_exit_break(node->defer_stmt.stmt, loop_label, nested);
+
+    case NODE_LOOP:
+    case NODE_WHILE:
+    case NODE_FOR:
+    case NODE_FOR_RANGE:
+    case NODE_REPEAT:
+    case NODE_DO_WHILE:
+        // Nested loop: unlabeled breaks here target the nested loop, but a
+        // labeled break naming our loop still exits ours.
+        return stmt_has_exit_break(loop_body(node), loop_label, 1);
+
+    case NODE_RETURN:
+    case NODE_CONTINUE:
+    default:
+        return 0;
+    }
+}
+
+// Returns 1 if `loop` (a NODE_LOOP) contains a `break` that can exit it.
+static int stmt_loop_has_exit_break(ASTNode *loop)
+{
+    return stmt_has_exit_break(loop->loop_stmt.body, loop->loop_stmt.loop_label, 0);
+}
+
 int stmt_always_returns(ASTNode *stmt)
 {
     if (!stmt)
@@ -217,7 +315,12 @@ int stmt_always_returns(ASTNode *stmt)
     }
 
     case NODE_LOOP:
-        return 0;
+        // An infinite `loop` only leaves via `break` or `return`. With no
+        // exit-break it can never fall through (it returns from within or
+        // diverges), so it satisfies the always-returns requirement. This
+        // mirrors the move analysis, which already treats a break-less
+        // infinite loop as unreachable-after.
+        return !stmt_loop_has_exit_break(stmt);
 
     default:
         return 0;

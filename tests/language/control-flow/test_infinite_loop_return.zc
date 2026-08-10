@@ -1,0 +1,15 @@
+// language/control-flow: an infinite `loop` with a conditional return satisfies the
+// always-returns analysis (it can only leave via `return`, never by falling through)
+fn next_pow2(n: int) -> int {
+    let x = 1;
+    loop {
+        if x >= n { return x; }
+        x *= 2;
+    }
+}
+
+test "infinite loop with conditional return" {
+    expect_eq(next_pow2(1), 1, "next_pow2(1) should return 1");
+    expect_eq(next_pow2(10), 16, "next_pow2(10) should return the next power of two >= 10");
+    expect_eq(next_pow2(64), 64, "next_pow2(64) should return 64 when n is already a power of two");
+}

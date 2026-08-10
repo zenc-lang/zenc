@@ -10,13 +10,20 @@ impl<T> MyGeneric<T> {
         printf("Private method called!\n");
     }
 
+    fn private_method(self) {
+        printf("Plain method called!\n");
+    }
+
     fn public_method(self) {
         self._private_method();
+        self.private_method();
     }
 }
 
 test "underscore mangling" {
     let m = MyGeneric<int>{val: 10};
     m.public_method();
+    m._private_method();
+    m.private_method();
     printf("Success!\n");
 }

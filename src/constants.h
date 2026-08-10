@@ -82,28 +82,11 @@ static inline bool str_is_isize_type(const char *t)
            (strcmp(t, "isize") == 0 || strcmp(t, "ptrdiff_t") == 0 || strcmp(t, "ssize_t") == 0);
 }
 
-static inline bool str_is_string_type(const char *t)
-{
-    return t &&
-           (strcmp(t, "string") == 0 || strcmp(t, "char*") == 0 || strcmp(t, "const char*") == 0);
-}
-
 static inline bool str_is_basic_type(const char *t)
 {
     return t && (str_is_int_type(t) || str_is_bool_type(t) || str_is_char_type(t) ||
                  str_is_void_type(t) || str_is_float_type(t) || str_is_double_type(t) ||
                  str_is_usize_type(t) || str_is_isize_type(t) || strcmp(t, "__auto_type") == 0);
-}
-
-static inline bool str_is_numeric_type(const char *t)
-{
-    return t && (str_is_int_type(t) || str_is_float_type(t) || str_is_double_type(t) ||
-                 str_is_usize_type(t) || str_is_isize_type(t));
-}
-
-static inline bool str_is_ptr_type(const char *t)
-{
-    return t && strchr(t, '*') != NULL;
 }
 
 static inline bool str_is_struct_prefix(const char *t)

@@ -236,11 +236,7 @@ ASTNode *parse_tuple_expression(ParserContext *ctx, Lexer *l, const char *type_n
     n->tuple_literal.count = count;
 
     extern int g_is_indexing;
-#if ZC_HAS_LSP
     if (g_is_indexing)
-#else
-    if (0)
-#endif
     {
         n->resolved_type = xstrdup("Tuple__Indexing");
         return n;

@@ -61,14 +61,11 @@ void emitter_init_file(Emitter *e, FILE *file);
 void emitter_init_buffer(Emitter *e);
 ZEN_FORMAT_PRINTF(2, 3) void emitter_printf(Emitter *e, const char *fmt, ...);
 ZEN_FORMAT_PRINTF(2, 0) void emitter_vprintf(Emitter *e, const char *fmt, va_list args);
-void emitter_puts(Emitter *e, const char *s);
-void emitter_putc(Emitter *e, char c);
 void emitter_write(Emitter *e, const void *ptr, size_t size);
 char *emitter_take_string(Emitter *e);
 void emitter_indent(Emitter *e);
 void emitter_dedent(Emitter *e);
 int emitter_push(Emitter *e);
 int emitter_pop(Emitter *e);
-void emitter_release(Emitter *e);
 
 #endif

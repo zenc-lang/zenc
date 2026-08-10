@@ -107,6 +107,33 @@ void handle_if_expr(ParserContext *ctx, ASTNode *node)
     EMIT(ctx, "} _ifval; })");
 }
 
+static int type_is_enum(ParserContext *ctx, const char *name)
+{
+    if (!name)
+    {
+        return 0;
+    }
+    StructRef *er = ctx->parsed_enums_list;
+    while (er)
+    {
+        if (er->node && er->node->type == NODE_ENUM && strcmp(er->node->enm.name, name) == 0)
+        {
+            return 1;
+        }
+        er = er->next;
+    }
+    ASTNode *ins = ctx->instantiated_structs;
+    while (ins)
+    {
+        if (ins->type == NODE_ENUM && strcmp(ins->enm.name, name) == 0)
+        {
+            return 1;
+        }
+        ins = ins->next;
+    }
+    return 0;
+}
+
 void handle_try_expr(ParserContext *ctx, ASTNode *node)
 {
     char *type_name = "Result";
@@ -126,37 +153,26 @@ void handle_try_expr(ParserContext *ctx, ASTNode *node)
         type_name = "Result";
     }
 
-    char *search_name = type_name;
-    if (strncmp(search_name, "struct ", 7) == 0)
+    const char *search_name = str_strip_struct_prefix(type_name);
+
+    // The unwrapped value (`_try`) has the expression's type, so its field
+    // accessors (`.tag`, `.data`, `.is_ok`, `.err`, ...) follow that type.
+    // But `?` returns from the enclosing function, so the Err/None value we
+    // construct and return must belong to the FUNCTION's return type, which
+    // may differ from the expression's type, e.g.
+    //   fn f() -> Result<int> { let s = read_all()?; ... }  // read_all -> Result<string>
+    // The constructor name (Result__int32_t__Err, Option__X__None, ...) is
+    // therefore derived from current_func_ret_type, falling back to the
+    // expression's type when the function does not return a Result/Option.
+    const char *ret_name = ctx->cg.current_func_ret_type
+                               ? str_strip_struct_prefix(ctx->cg.current_func_ret_type)
+                               : NULL;
+    if (!ret_name || !(str_is_result_type(ret_name) || str_is_option_type(ret_name)))
     {
-        search_name += 7;
+        ret_name = search_name;
     }
 
-    int is_enum = 0;
-    StructRef *er = ctx->parsed_enums_list;
-    while (er)
-    {
-        if (er->node && er->node->type == NODE_ENUM && strcmp(er->node->enm.name, search_name) == 0)
-        {
-            is_enum = 1;
-            break;
-        }
-        er = er->next;
-    }
-    if (!is_enum)
-    {
-        ASTNode *ins = ctx->instantiated_structs;
-        while (ins)
-        {
-            if (ins->type == NODE_ENUM && strcmp(ins->enm.name, search_name) == 0)
-            {
-                is_enum = 1;
-                break;
-            }
-            ins = ins->next;
-        }
-    }
-
+    int is_enum = type_is_enum(ctx, search_name);
     int is_option = str_is_option_type(search_name);
 
     EMIT(ctx, "({ ");
@@ -169,22 +185,22 @@ void handle_try_expr(ParserContext *ctx, ASTNode *node)
         if (is_enum)
         {
             EMIT(ctx, "; if (_try.tag == %s__None_Tag) return (%s__None()); _try.data.Some; })",
-                 search_name, search_name);
+                 ret_name, ret_name);
         }
         else
         {
-            EMIT(ctx, "; if (!_try.is_some) return %s__None(); _try.val; })", search_name);
+            EMIT(ctx, "; if (!_try.is_some) return %s__None(); _try.val; })", ret_name);
         }
     }
     else if (is_enum)
     {
         EMIT(ctx,
              "; if (_try.tag == %s__Err_Tag) return (%s__Err(_try.data.Err)); _try.data.Ok; })",
-             search_name, search_name);
+             ret_name, ret_name);
     }
     else
     {
-        EMIT(ctx, "; if (!_try.is_ok) return %s__Err(_try.err); _try.val; })", search_name);
+        EMIT(ctx, "; if (!_try.is_ok) return %s__Err(_try.err); _try.val; })", ret_name);
     }
 }
 

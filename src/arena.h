@@ -29,6 +29,4 @@ char *xstrdup(const char *s) __attribute__((returns_nonnull));
 #define realloc(p, s) xrealloc(p, s)
 #define calloc(n, s) xcalloc(n, s)
 
-void arena_reset(zarena *a);
-
 #endif // ARENA_H

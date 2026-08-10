@@ -1,4 +1,91 @@
-import "./arena.zc"
+import "./core.zc"
+
+// --- MISRA static arena ---
+// A fixed-size arena used as the allocation backend in MISRA mode (where
+// malloc/calloc/free are disallowed). It lives here rather than in arena.zc so
+// that mem.zc does not import arena.zc: arena.zc implements Drop (which
+// auto-imports mem.zc), so a mem.zc -> arena.zc edge would form an import cycle.
+
+struct StaticArena {
+    data: byte*;
+    capacity: usize;
+    used: usize;
+}
+
+// 64KB static buffer for MISRA modes
+let _z_misra_static_buffer: [byte; 65536];
+
+impl StaticArena {
+    fn init(self) {
+        self.data = (byte*) &_z_misra_static_buffer;
+        self.capacity = 65536;
+        self.used = 0;
+    }
+
+    fn alloc_bytes(self, size: usize) -> void* {
+        // Simple 8-byte alignment
+        let aligned = (self.used + 7) & ~7;
+        if (aligned + size > self.capacity) {
+            // In MISRA mode, we panic on exhaustion rather than returning NULL
+            // to ensure deterministic failure.
+            !"Panic: MISRA Static Arena exhausted!";
+            exit(1);
+        }
+        let ptr: void* = (byte*)self.data + aligned;
+        self.used = aligned + size;
+        return ptr;
+    }
+
+    fn alloc<T>(self) -> T* {
+        let ptr: T* = (T*)self.alloc_bytes(sizeof(T));
+        if (ptr != NULL) {
+            memset(ptr, 0, sizeof(T));
+        }
+        return ptr;
+    }
+
+    fn alloc_n<T>(self, count: usize) -> T* {
+        let size = sizeof(T) * count;
+        let ptr: T* = (T*)self.alloc_bytes(size);
+        if (ptr != NULL) {
+            memset(ptr, 0, size);
+        }
+        return ptr;
+    }
+
+    fn realloc<T>(self, old_ptr: T*, old_count: usize, new_count: usize) -> T* {
+        let new_size = sizeof(T) * new_count;
+        let old_size = sizeof(T) * old_count;
+
+        // If it's the most recent allocation, we can just grow it in place!
+        let aligned_old = (self.used - old_size + 7) & ~7;
+        if ((byte*)self.data + aligned_old == (byte*)old_ptr) {
+            let new_aligned = (aligned_old + new_size + 7) & ~7;
+            if (new_aligned <= self.capacity) {
+                self.used = aligned_old + new_size;
+                return old_ptr;
+            }
+        }
+
+        // Otherwise, allocate new space and copy
+        let new_ptr = (T*)self.alloc_bytes(new_size);
+        if (old_ptr != NULL && old_size > 0) {
+            memcpy(new_ptr, old_ptr, old_size);
+        }
+        return new_ptr;
+    }
+}
+
+let _z_internal_arena: StaticArena;
+let _z_arena_initialized: bool = false;
+
+fn _z_get_std_arena() -> StaticArena* {
+    if (!_z_arena_initialized) {
+        _z_internal_arena.init();
+        _z_arena_initialized = true;
+    }
+    return &_z_internal_arena;
+}
 
 // --- Non-generic internal helpers for conditional compilation ---
 // These avoid the 'StringPtr' mangling bug in generic functions with @cfg attributes.

@@ -8,20 +8,60 @@
 #include "repl_state.h"
 #include "codegen/codegen.h"
 
+/* Common setup for every ParserContext the REPL creates.
+ * The parser dereferences ctx->config (e.g. ctx->config->keep_comments) and
+ * the global token/diagnostic contexts during parsing; without these the
+ * REPL segfaults on any input. */
+void repl_parser_ctx_init(ParserContext *ctx)
+{
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->config = &g_compiler.config;
+    ctx->current_filename = "<repl>";
+    ctx->cg.is_repl = 1;
+    ctx->is_fault_tolerant = 1;
+    ctx->on_error = repl_error_callback;
+    module_state_init(&ctx->imports);
+    token_set_parser_ctx(ctx);
+    diag_set_parser_ctx(ctx);
+}
+
+typedef struct
+{
+    int count;
+} ReplErrorCounter;
+
+static void repl_counting_error_callback(void *data, Token t, const char *msg)
+{
+    ReplErrorCounter *c = (ReplErrorCounter *)data;
+    if (c)
+    {
+        c->count++;
+    }
+    else
+    {
+        repl_error_callback(NULL, t, msg);
+    }
+}
+
 char *repl_transpile(const char *zen_c_code)
 {
-    ParserContext ctx = {0};
-    module_state_init(&ctx.imports);
-    ctx.cg.is_repl = 1;
+    ParserContext ctx;
+    repl_parser_ctx_init(&ctx);
     ctx.cg.skip_preamble = 0;
-    ctx.on_error = repl_error_callback;
-    ctx.current_filename = "<repl>";
+
+    /* Track parser errors via the callback: zpanic_at/zpanic_with_* all
+     * invoke on_error in fault-tolerant mode, and parse_program resets
+     * had_error during recovery, so a callback counter is the reliable
+     * signal for "this program failed to parse". */
+    ReplErrorCounter errs = {0};
+    ctx.on_error = repl_counting_error_callback;
+    ctx.error_callback_data = &errs;
 
     Lexer lex;
     lexer_init(&lex, zen_c_code, &g_compiler.config, ctx.current_filename);
 
     ASTNode *root = parse_program(&ctx, &lex);
-    if (!root)
+    if (!root || errs.count > 0)
     {
         return NULL;
     }
@@ -37,49 +77,29 @@ int is_header_line(const char *line)
     {
         line++;
     }
-    if (strncmp(line, "struct", 6) == 0)
+    /* Preprocessor directives (e.g. #include, #define) only make sense at
+     * global scope. */
+    if (*line == '#')
     {
         return 1;
     }
-    if (strncmp(line, "impl", 4) == 0)
+    static const char *const HEADER_KEYWORDS[] = {"struct",  "impl",  "fn",    "use", "include",
+                                                  "typedef", "enum",  "const", "def", "import",
+                                                  "trait",   "alias", "extern"};
+    for (size_t i = 0; i < sizeof(HEADER_KEYWORDS) / sizeof(HEADER_KEYWORDS[0]); i++)
     {
-        return 1;
-    }
-    if (strncmp(line, "fn", 2) == 0)
-    {
-        return 1;
-    }
-    if (strncmp(line, "use", 3) == 0)
-    {
-        return 1;
-    }
-    if (strncmp(line, "include", 7) == 0)
-    {
-        return 1;
-    }
-    if (strncmp(line, "typedef", 7) == 0)
-    {
-        return 1;
-    }
-    if (strncmp(line, "enum", 4) == 0)
-    {
-        return 1;
-    }
-    if (strncmp(line, "const", 5) == 0)
-    {
-        return 1;
-    }
-    if (strncmp(line, "def", 3) == 0)
-    {
-        return 1;
-    }
-    if (strncmp(line, "#include", 8) == 0)
-    {
-        return 1;
-    }
-    if (strncmp(line, "import", 6) == 0)
-    {
-        return 1;
+        size_t kw_len = strlen(HEADER_KEYWORDS[i]);
+        if (strncmp(line, HEADER_KEYWORDS[i], kw_len) == 0)
+        {
+            /* Require a word boundary so identifiers that merely start with a
+             * keyword (e.g. "fneg(x)", "user_name = ...") are not routed to
+             * global scope. */
+            char c = line[kw_len];
+            if (c == 0 || !(isalnum((unsigned char)c) || c == '_'))
+            {
+                return 1;
+            }
+        }
     }
     return 0;
 }
@@ -164,15 +184,23 @@ void repl_get_code(char **history, int len, char **out_global, char **out_main)
             strcat(main_buf, line);
             strcat(main_buf, " ");
         }
+        int in_quote = 0;
         for (char *p = line; *p; p++)
         {
-            if (*p == '{')
+            if (*p == '"')
             {
-                brace_depth++;
+                in_quote = !in_quote;
             }
-            else if (*p == '}')
+            else if (!in_quote)
             {
-                brace_depth--;
+                if (*p == '{')
+                {
+                    brace_depth++;
+                }
+                else if (*p == '}')
+                {
+                    brace_depth--;
+                }
             }
         }
     }
@@ -327,13 +355,10 @@ void repl_update_symbols(ReplState *state)
     snprintf(code, sz, "%s\nfn main() { %s }", global_code, main_code);
     zfree(global_code);
     zfree(main_code);
-    ParserContext ctx = {0};
-    module_state_init(&ctx.imports);
-    ctx.cg.is_repl = 1;
+    ParserContext ctx;
+    repl_parser_ctx_init(&ctx);
     ctx.cg.skip_preamble = 1;
     ctx.is_fault_tolerant = 1;
-    ctx.on_error = repl_error_callback;
-    ctx.current_filename = "<repl>";
     Lexer lex;
     lexer_init(&lex, code, &g_compiler.config, ctx.current_filename);
     ASTNode *nodes = parse_program(&ctx, &lex);
@@ -365,7 +390,7 @@ void repl_extract_c_code(const char *filename)
     {
         if (!in_main)
         {
-            if (strstr(buf, "int main() {"))
+            if (strstr(buf, "int main() {") || strstr(buf, "int main(void)"))
             {
                 in_main = 1;
                 br = 1;

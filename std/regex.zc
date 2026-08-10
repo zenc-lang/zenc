@@ -1,4 +1,4 @@
-include "std/third-party/tre/include/tre.h"
+include <tre.h>
 @link("std/third-party/tre/tre_full.c")
 
 import "./core.zc"

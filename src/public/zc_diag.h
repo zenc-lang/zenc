@@ -25,11 +25,6 @@ void zerror_at(Token t, const char *fmt, ...);
 void zwarn_at(Token t, const char *fmt, ...);
 
 /**
- * @brief Report an error with a suggestion for fixing it.
- */
-void zerror_with_suggestion(Token t, const char *msg, const char *suggestion);
-
-/**
  * @brief Report a warning with a suggestion.
  */
 void zwarn_with_suggestion(Token t, const char *msg, const char *suggestion);

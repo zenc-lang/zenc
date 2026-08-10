@@ -128,45 +128,6 @@ char *replace_string_type(const char *args)
     return res;
 }
 
-// Type introspection
-
-int is_struct_return_type(const char *ret_type)
-{
-    if (!ret_type)
-    {
-        return 0;
-    }
-
-    if (find_primitive_by_name(ret_type) || find_primitive_by_c_name(ret_type))
-    {
-        return 0;
-    }
-
-    if (strcmp(ret_type, "size_t") == 0 || strcmp(ret_type, "ptrdiff_t") == 0 ||
-        strcmp(ret_type, "ssize_t") == 0 || strcmp(ret_type, "intptr_t") == 0 ||
-        strcmp(ret_type, "uintptr_t") == 0)
-    {
-        return 0;
-    }
-
-    if ((ret_type[0] == 'i' || ret_type[0] == 'u') && isdigit(ret_type[1]))
-    {
-        return 0;
-    }
-
-    return 1;
-}
-
-int z_is_struct_type(Type *t)
-{
-    if (!t)
-    {
-        return 0;
-    }
-    Type *base = get_inner_type(t);
-    return (base->kind == TYPE_STRUCT || base->kind == TYPE_ENUM);
-}
-
 // Type name mapping
 
 const char *map_to_c_type(const char *t)

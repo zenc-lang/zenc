@@ -110,7 +110,6 @@ impl Server {
         }
         
         let listener = listener_res.unwrap();
-        println "Server listening on port {self.port}"; 
         
         while (true) {
             let client_res = listener.accept();

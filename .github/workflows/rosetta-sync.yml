@@ -33,14 +33,30 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install build dependencies
+        # A few Rosetta solutions import system libraries (GNU MP, GTK3); the
+        # scraper build-validates every example, so those headers must be
+        # available for such examples to be kept.
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev libgtk-3-dev
+
+      - name: Build Zen C compiler
+        working-directory: zen-c
+        # JIT (libtcc) is not needed for transpile/build validation.
+        run: make -j$(nproc) ZC_HAS_JIT=0
+
       - name: Setup Awesome-Zen-C repository
         run: |
           cd zen-c
           git clone https://x-access-token:${{ secrets.WEBSITE_REPO_TOKEN }}@github.com/zenc-lang/awesome-zenc.git examples
 
       - name: Run Rosetta Code Scraper
+        # The scraper validates every candidate solution with `zc transpile`
+        # and `zc build` before writing it, so broken or invalid examples are
+        # never committed.
         run: |
           cd zen-c
+          export ZC_ROOT=$PWD
+          export ZC_BINARY=$PWD/zc
           python .github/scripts/scrape_rosetta.py
 
       - name: Commit .zc files to Awesome-Zen-C Repo

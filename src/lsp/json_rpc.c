@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "json_rpc.h"
-#include "cJSON.h"
+#include "../utils/cJSON.h"
 #include "lsp_project.h"
 #include "lsp_formatter.h"
 #include <stdio.h>
@@ -416,7 +416,7 @@ void handle_request(const char *json_str)
                         fflush(stdout);
                         zfree(str);
                         cJSON_Delete(res_json);
-                        zfree(formatted);
+                        libc_free(formatted);
                     }
                 }
             }

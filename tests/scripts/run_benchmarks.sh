@@ -47,9 +47,9 @@ mad_of() {
     local devs=()
     for v in "${arr[@]}"; do
         d=$(( v > med ? v - med : med - v ))
-        devs+=($d)
+        devs+=("$d")
     done
-    IFS=$'\n' devs_sorted=($(sort -n <<<"${devs[*]}")); unset IFS
+    mapfile -t devs_sorted < <(printf '%s\n' "${devs[@]}" | sort -n)
     local len=${#devs_sorted[@]}
     local mid=$((len / 2))
     if ((len % 2 == 0)); then
@@ -61,14 +61,15 @@ mad_of() {
 
 echo "=== Compiler Benchmark: Full Suite Transpilation ==="
 FILE_COUNT=$(find tests -name "*.zc" -not -name "_*.zc" | wc -l)
-for iter in $(seq 1 $ITERANCES); do
+for _ in $(seq 1 "$ITERATIONS"); do
     START=$(date +%s%3N)
-    find tests -name "*.zc" -not -name "_*.zc" | xargs -L 1 $ZC transpile -o .bench_comp_temp.c -w > /dev/null 2>&1
+    find tests -name "*.zc" -not -name "_*.zc" -print0 |
+        xargs -0 -L 1 "$ZC" transpile -o .bench_comp_temp.c -w > /dev/null 2>&1
     END=$(date +%s%3N)
     comp_times+=($((END - START)))
 done
 rm -f .bench_comp_temp.c
-IFS=$'\n' comp_sorted=($(sort -n <<<"${comp_times[*]}")); unset IFS
+mapfile -t comp_sorted < <(printf '%s\n' "${comp_times[@]}" | sort -n)
 COMP_MED=$(median_of "${comp_sorted[@]}")
 COMP_MAD=$(mad_of "${comp_sorted[@]}")
 COMP_AVG=$((COMP_MED / FILE_COUNT))
@@ -84,8 +85,7 @@ for bench in tests/bench/*.zc; do
     echo -n "Compiling $name... "
 
     COMP_START=$(date +%s%3N)
-    $ZC build "$bench" -o "bench_$name" -w > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
+    if ! "$ZC" build "$bench" -o "bench_$name" -w > /dev/null 2>&1; then
         echo "FAILED"
         continue
     fi
@@ -94,16 +94,16 @@ for bench in tests/bench/*.zc; do
     echo "compiled in ${COMP_TIME}ms"
 
     # Warmup run (discarded)
-    ./bench_$name > /dev/null 2>&1
+    "./bench_$name" > /dev/null 2>&1
 
     # Measure N iterations
     results=()
     echo -n "  runs:"
-    for iter in $(seq 1 $ITERATIONS); do
-        output=$(./bench_$name 2>/dev/null)
+    for _ in $(seq 1 "$ITERATIONS"); do
+        output=$("./bench_$name" 2>/dev/null)
         val=$(echo "$output" | grep "RESULT:" | cut -d' ' -f2)
         if [ -n "$val" ]; then
-            results+=($val)
+            results+=("$val")
             echo -n " $val"
         fi
     done
@@ -115,7 +115,7 @@ for bench in tests/bench/*.zc; do
         continue
     fi
 
-    IFS=$'\n' sorted=($(sort -n <<<"${results[*]}")); unset IFS
+    mapfile -t sorted < <(printf '%s\n' "${results[@]}" | sort -n)
     MED=$(median_of "${sorted[@]}")
     MAD=$(mad_of "${sorted[@]}")
     echo "  median=$MED ms, MAD=$MAD ms"

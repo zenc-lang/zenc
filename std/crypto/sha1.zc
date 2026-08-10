@@ -115,8 +115,7 @@ impl Sha1 {
 
     fn final(self) -> Sha1Digest {
          let count: u64 = self.count;
-         // let i was unused
-         
+
          let final_count: u8[8];
          for(let k=0; k<8; k=k+1) {
              final_count[k] = (u8)((count >> ((7-k)*8)) & 0xFF);
@@ -125,64 +124,15 @@ impl Sha1 {
          let c: u8 = 0x80;
          self.update(&c, 1);
          
+         // Pad with 0x00 until the length is congruent to 448 bits (56 bytes)
+         // modulo 512; `update` also keeps `count` aligned for the loop below.
          let zero: u8 = 0;
-         while ((self.count & 504) != 448) { // 504 = 0x1F8 ?? No, wait. logic check.
-             // Just pad with zeros until length % 64 == 56 bytes
-             // The simplified update logic handles buffer filling.
-             // Just call update with 0 until satisfies condition.
-             // (count % 512) == 448 bits = 56 bytes
-             // count is in bits. 
-             // (count / 8) % 64 == 56
+         while ((self.count & 504) != 448) {
              self.update(&zero, 1);
          }
          
-         // Append length (64 bits, big endian)
-         // Actually the standard says append 0x80, then 0s, then 64-bit length.
-         // My loop above pads 0s.
-         // But I need to pass the raw bytes of length.
-         // I can't call update because update modifies count!
-         // Ah, classic mistake. 
-         // I should manually patch buffer? 
-         
-         // RFC 3174 Method 1:
-         // 1. Pad with '1' bit (0x80 byte) - Done above.
-         // 2. Pad with '0' bits until length % 512 == 448
-         // 3. Append 64-bit length.
-         
-         // My update logic handles the buffer filling and transform.
-         // But update increments count.
-         // The length to append is the ORIGINAL length.
-         // So I saved `final_count` (bytes of original length) before padding.
-         
-         // But calls to update are modifying buffer.
-         // I need to ensure the LAST block (56-64 bytes) is filled correctly.
-         
-         // Let's do explicit padding without update for the last part? 
-         // Or just trick it. Pass data but don't increment count? No.
-         
-         // Correct Approach:
-         // `final` should handle padding logic directly on buffer?
-         
-         // Let's rely on `update` for padding 0s, but use a dummy object or just correct logic?
-         // NO. Standard implementations usually just manual fill buffer.
-         
-         // Simpler logic:
-         // We already appended 0x80.
-         // Now logic:
-         // Pad with 0s until data size is congruent to 56 mod 64.
-         // Then append 8 bytes of length.
-         
-         // zero already defined above
-         while((self.count & 504) != 448) {
-             self.update(&zero, 1);
-         }
-         // Note: `update` increases self.count. 
-         // But we assume `final_count` holds the length BEFORE padding.
-         // We need to write `final_count` into the stream.
-         // But `update` will ADD 64 bits to count if we use it to write the length.
-         // It doesn't matter, `count` is not used in hash computation (transform), only for padding alignment.
-         // So calling update with length bytes is fine, as long as we put the RIGHT bytes.
-         
+         // Append the original message length (64 bits, big endian). The count
+         // is no longer needed after this, so using `update` is fine.
          self.update(&final_count[0], 8);
          
          // Extract result

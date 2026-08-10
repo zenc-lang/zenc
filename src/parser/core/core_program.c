@@ -88,6 +88,23 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             // Push to config.c_files immediately (module AST may be freed later)
             const char *path = attrs.link_path;
             char *resolved = realpath(path, NULL);
+            if (!resolved && ctx->config->root_path)
+            {
+                // The path may be relative to the workspace/stdlib root
+                // (ZC_ROOT) rather than the current working directory.
+                char alt[MAX_PATH_LEN];
+                snprintf(alt, sizeof(alt), "%s/%s", ctx->config->root_path, path);
+                resolved = realpath(alt, NULL);
+            }
+            if (!resolved && ctx->config->std_root[0])
+            {
+                // Installed compilers resolve the std root from an actual std
+                // import; @link paths inside std (e.g. the vendored TRE unity
+                // build) are relative to that root.
+                char alt[MAX_PATH_LEN];
+                snprintf(alt, sizeof(alt), "%s/%s", ctx->config->std_root, path);
+                resolved = realpath(alt, NULL);
+            }
             zvec_push_Str(&ctx->config->c_files, xstrdup(resolved ? resolved : path));
             if (resolved)
             {

@@ -111,7 +111,6 @@ void print_usage(void)
     print_help_item(COLOR_CYAN "--check, --free" COLOR_RESET,
                     "Borrow checker / No standard library");
     print_help_item(COLOR_CYAN "--misra" COLOR_RESET, "Generate strictly MISRA C compliant code");
-    print_help_item(COLOR_CYAN "-Wpedantic" COLOR_RESET, "Enable pedantic warnings");
     print_help_item(COLOR_CYAN "--cpp, --cuda" COLOR_RESET, "C++ or CUDA compatibility modes");
     print_help_item(COLOR_CYAN "-c, -S, -E, -shared" COLOR_RESET,
                     "Compile/Asm/Preprocess only / DLL");
@@ -290,6 +289,14 @@ void build_compile_arg_list(ArgList *list, const char *outfile, const char *temp
             arg_list_add_fmt(list, "-I%s", abs_root);
         }
 
+        // Installed compilers resolve std via cfg->std_root (discovered from an
+        // actual std import); add it as an include path so generated C that
+        // does `#include "std/..."` (e.g. the vendored TRE unity build) works.
+        if (!cfg->is_freestanding && cfg->std_root[0])
+        {
+            arg_list_add_fmt(list, "-I%s", cfg->std_root);
+        }
+
         char tre_path[MAX_PATH_LEN + 128];
         snprintf(tre_path, sizeof(tre_path), "%s/std/third-party/tre/include", abs_root);
 
@@ -298,6 +305,19 @@ void build_compile_arg_list(ArgList *list, const char *outfile, const char *temp
         {
             arg_list_add_fmt(list, "-I%s", tre_path);
             tre_found = 1;
+        }
+
+        // The executable walk-up (root_path) fails for an installed compiler
+        // (std.zc lives under the share dir, not a parent of the binary), so
+        // also try the std root resolved from an actual std import.
+        if (!tre_found && !cfg->is_freestanding && cfg->std_root[0])
+        {
+            snprintf(tre_path, sizeof(tre_path), "%s/std/third-party/tre/include", cfg->std_root);
+            if (access(tre_path, F_OK) == 0)
+            {
+                arg_list_add_fmt(list, "-I%s", tre_path);
+                tre_found = 1;
+            }
         }
 
         // Robust fallback: if not found via root_path, try relative to the executable's physical
@@ -373,96 +393,6 @@ void build_compile_arg_list(ArgList *list, const char *outfile, const char *temp
             arg_list_add(list, abs_input_dir);
         }
     }
-}
-
-void cmd_init(CmdBuilder *cmd)
-{
-    cmd->cap = 1024;
-    cmd->len = 0;
-    cmd->buf = xmalloc(cmd->cap);
-    cmd->buf[0] = '\0';
-}
-
-static void ensure_cap(CmdBuilder *cmd, size_t needed)
-{
-    if (cmd->len + needed >= cmd->cap)
-    {
-        while (cmd->len + needed >= cmd->cap)
-        {
-            cmd->cap *= 2;
-        }
-        cmd->buf = xrealloc(cmd->buf, cmd->cap);
-    }
-}
-
-void cmd_add(CmdBuilder *cmd, const char *str)
-{
-    if (!str || !str[0])
-    {
-        return;
-    }
-
-    size_t len = strlen(str);
-    size_t needed = len + 1 + 1; // + space + null terminator
-
-    ensure_cap(cmd, needed);
-
-    if (cmd->len > 0 && cmd->buf[cmd->len - 1] != ' ')
-    {
-        strcat(cmd->buf, " ");
-        cmd->len++;
-    }
-
-    strcat(cmd->buf, str);
-    cmd->len += len;
-}
-
-void cmd_add_fmt(CmdBuilder *cmd, const char *fmt, ...)
-{
-    va_list args;
-
-    if (!fmt)
-    {
-        return;
-    }
-
-    // First pass to get size
-    va_start(args, fmt);
-    int size = vsnprintf(NULL, 0, fmt, args);
-    va_end(args);
-
-    if (size < 0)
-    {
-        return;
-    }
-
-    size_t needed = (size_t)(size) + 1 + 1; // + space + null
-    ensure_cap(cmd, needed);
-
-    if (cmd->len > 0 && cmd->buf[cmd->len - 1] != ' ')
-    {
-        strcat(cmd->buf, " ");
-        cmd->len++;
-    }
-
-    va_start(args, fmt);
-    vsnprintf(cmd->buf + cmd->len, cmd->cap - cmd->len, fmt, args);
-    va_end(args);
-
-    cmd->len += (size_t)(size);
-}
-
-void cmd_free(CmdBuilder *cmd)
-{
-    zfree(cmd->buf);
-    cmd->buf = NULL;
-    cmd->len = 0;
-    cmd->cap = 0;
-}
-
-const char *cmd_to_string(CmdBuilder *cmd)
-{
-    return cmd->buf;
 }
 
 void arg_list_init(ArgList *list)

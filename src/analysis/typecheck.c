@@ -360,7 +360,12 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
                 is_ptr = 1;
             }
 
-            if (t->kind == TYPE_STRUCT && t->name)
+            // Pointers must use direct array indexing (base[i]), not the
+            // __index/__get operator overload: taking the address of the
+            // overload's return value is not an lvalue. This matches the
+            // parser/codegen policy ("Pointers should use array indexing by
+            // default, not operator overload").
+            if (t->kind == TYPE_STRUCT && t->name && !is_ptr)
             {
                 size_t tname_len = strlen(t->name);
                 char *mangled_idx = xmalloc(tname_len + sizeof("__index"));
@@ -438,7 +443,19 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
         }
         break;
     case NODE_EXPR_MEMBER:
-        check_node(tc, node->member.target, depth + 1);
+        if (node->member.field && strcmp(node->member.field, "forget") == 0)
+        {
+            // .forget() is a consuming operation: it is valid on a value that
+            // was already moved into a container (e.g. `vec.push(x); x.forget();`),
+            // so the use-after-move report is suppressed for the receiver.
+            tc->is_forget_receiver = 1;
+            check_node(tc, node->member.target, depth + 1);
+            tc->is_forget_receiver = 0;
+        }
+        else
+        {
+            check_node(tc, node->member.target, depth + 1);
+        }
         if (node->member.target && node->member.target->type_info)
         {
             Type *target_type = get_inner_type(node->member.target->type_info);

@@ -77,10 +77,11 @@ int repl_jit_execute(const char *c_code, CompilerConfig *cfg)
     fclose(f);
 
     char cmd[1024];
-    /* Try to use the same compiler used for building zc or just system cc */
-    snprintf(cmd, sizeof(cmd), "cc %s -o %s -lws2_32 && ./%s", tmp_c, tmp_exe, tmp_exe);
 #ifdef _WIN32
-    snprintf(cmd, sizeof(cmd), "gcc %s -o %s -lws2_32 && .\\%s", tmp_c, tmp_exe, tmp_exe);
+    /* The generated C uses the Zen runtime preamble plus C runtime functions. */
+    snprintf(cmd, sizeof(cmd), "gcc %s -o %s -lm && .\\%s", tmp_c, tmp_exe, tmp_exe);
+#else
+    snprintf(cmd, sizeof(cmd), "cc %s -o %s -lm && ./%s", tmp_c, tmp_exe, tmp_exe);
 #endif
 
     int res = system(cmd);

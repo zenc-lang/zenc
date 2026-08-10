@@ -1,0 +1,16 @@
+// EXPECT: FAIL
+// language/control-flow: a labeled break that exits the outer loop still allows
+// the function to fall through without a value, so it must be rejected
+fn may_fall_through(n: int) -> int {
+    outer: loop {
+        inner: loop {
+            if n > 0 { break outer; }
+            break inner;
+        }
+    }
+}
+
+fn main() {
+    let r = may_fall_through(1);
+    println "r={r}";
+}

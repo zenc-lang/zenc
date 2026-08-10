@@ -3,7 +3,7 @@
 #include "../utils/colors.h"
 #include "constants.h"
 #include "parser.h"
-#include "lsp/cJSON.h"
+#include "utils/cJSON.h"
 #include <stdio.h>
 #include <stddef.h>
 
@@ -282,6 +282,14 @@ void zwarn_with_suggestion(Token t, const char *msg, const char *suggestion)
 
 void zpanic_at(Token t, const char *fmt, ...)
 {
+    if (d_ctx.parser_ctx && d_ctx.parser_ctx->suppress_errors)
+    {
+        if (d_ctx.parser_ctx->is_fault_tolerant)
+        {
+            d_ctx.parser_ctx->had_error = 1;
+        }
+        return;
+    }
     if (diag_cfg()->json_output)
     {
         char msg[MAX_ERROR_MSG_LEN];
@@ -346,6 +354,14 @@ void zpanic_at(Token t, const char *fmt, ...)
 // Enhanced error with suggestion.
 void zpanic_with_suggestion(Token t, const char *msg, const char *suggestion)
 {
+    if (d_ctx.parser_ctx && d_ctx.parser_ctx->suppress_errors)
+    {
+        if (d_ctx.parser_ctx->is_fault_tolerant)
+        {
+            d_ctx.parser_ctx->had_error = 1;
+        }
+        return;
+    }
     if (diag_cfg()->json_output)
     {
         emit_json("error", t, msg, suggestion, DIAG_NONE);
@@ -405,6 +421,14 @@ void zpanic_with_suggestion(Token t, const char *msg, const char *suggestion)
 
 void zpanic_with_hints(Token t, const char *msg, const char *const *hints)
 {
+    if (d_ctx.parser_ctx && d_ctx.parser_ctx->suppress_errors)
+    {
+        if (d_ctx.parser_ctx->is_fault_tolerant)
+        {
+            d_ctx.parser_ctx->had_error = 1;
+        }
+        return;
+    }
     if (diag_cfg()->json_output)
     {
         char combined_hints[MAX_PATH_LEN] = {0};
@@ -544,49 +568,6 @@ void zerror_at(Token t, const char *fmt, ...)
         va_end(args2);
 
         d_ctx.parser_ctx->on_error(d_ctx.parser_ctx->error_callback_data, t, msg);
-    }
-    g_error_count++;
-}
-
-void zerror_with_suggestion(Token t, const char *msg, const char *suggestion)
-{
-    if (diag_cfg()->json_output)
-    {
-        g_error_count++;
-        emit_json("error", t, msg, suggestion, DIAG_NONE);
-        if (d_ctx.parser_ctx && d_ctx.parser_ctx->on_error)
-        {
-            char full_msg[MAX_ERROR_MSG_LEN];
-            snprintf(full_msg, sizeof(full_msg), "%s (Suggestion: %s)", msg,
-                     suggestion ? suggestion : "");
-            d_ctx.parser_ctx->on_error(d_ctx.parser_ctx->error_callback_data, t, full_msg);
-        }
-        return;
-    }
-    // Header.
-    fprintf(stderr, COLOR_RED "error: " COLOR_RESET COLOR_BOLD "%s" COLOR_RESET "\n", msg);
-
-    // Context.
-    if (t.start && t.col > 0)
-    {
-        diag_print_location(stderr, t);
-        diag_print_context(stderr, t, COLOR_RED);
-        if (suggestion)
-        {
-            fprintf(stderr, COLOR_CYAN "   = help: " COLOR_RESET "%s\n", suggestion);
-        }
-    }
-    else
-    {
-        diag_print_location(stderr, t);
-    }
-
-    {
-        // Construct error message buffer
-        char full_msg[MAX_ERROR_MSG_LEN];
-        snprintf(full_msg, sizeof(full_msg), "%s (Suggestion: %s)", msg,
-                 suggestion ? suggestion : "");
-        d_ctx.parser_ctx->on_error(d_ctx.parser_ctx->error_callback_data, t, full_msg);
     }
     g_error_count++;
 }

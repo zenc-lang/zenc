@@ -206,6 +206,19 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
         sig_arg_idx = 1;
     }
 
+    // Method calls are lowered to direct calls with the receiver as the first
+    // argument. .forget() is allowed on an already-moved receiver, so suppress
+    // the use-after-move report for that call's arguments.
+    size_t fn_len = func_name ? strlen(func_name) : 0;
+    int forget_receiver_arg =
+        func_name && ((fn_len >= 8 && strcmp(func_name + fn_len - 8, "__forget") == 0) ||
+                      strcmp(func_name, "forget") == 0);
+    if (forget_receiver_arg && node->call.callee && node->call.callee->type != NODE_EXPR_MEMBER &&
+        node->call.args)
+    {
+        tc->is_forget_receiver = 1;
+    }
+
     while (arg)
     {
         Type *expected = NULL;
@@ -281,6 +294,7 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
         arg = arg->next;
         sig_arg_idx++;
     }
+    tc->is_forget_receiver = 0;
 
     // Propagate return type from function signature
     if (sig && sig->ret_type)

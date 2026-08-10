@@ -1,0 +1,20 @@
+// language/features/structs: a struct can define both `_add` and `add` with
+// different signatures without their mangled symbols colliding
+struct Calc {
+    base: int;
+}
+impl Calc {
+    fn _add(self, a: int, b: int) -> int { return self.base + a + b; }
+    fn add(self, a: int) -> int { return self.base + a; }
+    fn both(self) -> int {
+        let r1 = self._add(2, 3);
+        let r2 = self.add(1);
+        return r1 + r2;
+    }
+}
+test "underscore-prefixed and plain methods coexist" {
+    let c = Calc { base: 10 };
+    expect_eq(c._add(2, 3), 15, "_add(2,3) should use the two-argument method (10+2+3)");
+    expect_eq(c.add(1), 11, "add(1) should use the one-argument method (10+1)");
+    expect_eq(c.both(), 26, "both() should apply _add then add (15+11)");
+}

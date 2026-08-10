@@ -8,10 +8,6 @@
 #include "../analysis/const_fold.h"
 #include "../utils/cmd.h"
 #include "../utils/utils.h"
-#if ZC_HAS_ZEN
-#include "../zen/zen_facts.h"
-#include "../zen/zen_doc.h"
-#endif
 #if ZC_HAS_PLUGINS
 #include "../plugins/plugin_manager.h"
 #endif
@@ -46,10 +42,36 @@ int driver_run(ZenCompiler *compiler)
         zvec_push_Str(&compiler->config.cfg_defines, xstrdup("__FILCC__"));
     }
 
-    init_builtins();
-#if ZC_HAS_ZEN
-    zen_init();
+    // Make the host OS available to @cfg(...) so @cfg(windows)/@cfg(not(windows))
+    // and @cfg(apple)/@cfg(not(apple)) (used by std/sys/fs.zc, std/sys/env.zc,
+    // std/sync.zc) resolve against the host platform instead of always falling
+    // through to the non-Windows/non-Apple branch.
+    const char *host_cfg = NULL;
+#if ZC_OS_WINDOWS
+    host_cfg = "windows";
+#elif ZC_OS_MACOS
+    host_cfg = "apple";
+#else
+    host_cfg = "linux";
 #endif
+    if (host_cfg)
+    {
+        int found = 0;
+        for (size_t i = 0; i < compiler->config.cfg_defines.length; i++)
+        {
+            if (strcmp(compiler->config.cfg_defines.data[i], host_cfg) == 0)
+            {
+                found = 1;
+                break;
+            }
+        }
+        if (!found)
+        {
+            zvec_push_Str(&compiler->config.cfg_defines, xstrdup(host_cfg));
+        }
+    }
+
+    init_builtins();
 
 #if ZC_HAS_PLUGINS
 #ifndef ZC_NO_PLUGINS
@@ -70,15 +92,6 @@ int driver_run(ZenCompiler *compiler)
     }
     zptr_plugin_mgr_cleanup();
 #endif
-#endif
-
-#if ZC_HAS_ZEN
-    if (compiler->config.verbose)
-    {
-        printf(COLOR_BOLD COLOR_CYAN "   Evaluating" COLOR_RESET " Zen facts...\n");
-        fflush(stdout);
-    }
-    zen_trigger_global(&compiler->config);
 #endif
 
     return result;
@@ -114,11 +127,6 @@ int driver_compile(ZenCompiler *compiler)
 #if ZC_HAS_PLUGINS
     ctx.hook_find_plugin = (void *(*)(const char *))zptr_find_plugin;
     ctx.hook_plugin_init_api = (void (*)(void *, const char *, int, CompilerConfig *))zptr_init_api;
-#endif
-
-    // Zen hooks
-#if ZC_HAS_ZEN
-    ctx.hook_zen_trigger = (int (*)(int, Token, CompilerConfig *))zen_trigger_at;
 #endif
 
     char *src = load_file(compiler->config.input_file, ctx.current_filename);
@@ -276,14 +284,6 @@ int driver_compile(ZenCompiler *compiler)
         {
             return 1;
         }
-    }
-
-    if (compiler->config.mode_doc)
-    {
-#if ZC_HAS_ZEN
-        generate_docs(&ctx, root);
-#endif
-        return 0;
     }
 
     if (compiler->config.mode_check)

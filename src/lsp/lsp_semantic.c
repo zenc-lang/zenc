@@ -2,7 +2,7 @@
 #include "../constants.h"
 #include "../ast/primitives.h"
 #include "lsp_project.h"
-#include "cJSON.h"
+#include "../utils/cJSON.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

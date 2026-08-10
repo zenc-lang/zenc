@@ -1,0 +1,15 @@
+// EXPECT: FAIL
+// language/control-flow: a `loop` with a `break` can fall through, so a non-void
+// function that relies on it without a trailing return must be rejected
+fn may_fall_through(n: int) -> int {
+    let x = 0;
+    loop {
+        if x >= n { break; }
+        x += 1;
+    }
+}
+
+fn main() {
+    let r = may_fall_through(3);
+    println "r={r}";
+}

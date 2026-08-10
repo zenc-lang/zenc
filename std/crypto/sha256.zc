@@ -13,10 +13,6 @@ struct Sha256 {
 
 include <string.h>
 
-fn _rotleft(a: u32, b: u32) -> u32 {
-    return (a << b) | (a >> (32 - b));
-}
-
 fn _rotright(a: u32, b: u32) -> u32 {
     return (a >> b) | (a << (32 - b));
 }

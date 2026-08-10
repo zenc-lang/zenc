@@ -178,16 +178,14 @@ zc run hello.zc
 zc build hello.zc -o hello
 
 # Interactive Shell
-zc repl
+zc-repl
 
 # Documentation (Recursive)
-zc doc main.zc
+zc-doc main.zc
 
 # Documentation (Single file, no check)
-zc doc --no-recursive-doc --no-check main.zc
+zc-doc --no-recursive-doc main.zc
 
-# Show Zen Facts
-zc build hello.zc --zen
 ```
 
 ### Environment Variables
@@ -310,7 +308,7 @@ The Zen C Language Server (LSP) supports standard LSP features for editor integr
 To start the language server (typically configured in your editor's LSP settings):
 
 ```bash
-zc lsp
+zc-lsp
 ```
 
 It communicates via standard I/O (JSON-RPC 2.0).
@@ -320,7 +318,7 @@ It communicates via standard I/O (JSON-RPC 2.0).
 The Read-Eval-Print Loop allows you to experiment with Zen C code interactively using modern **In-Process JIT Compilation** (powered by LibTCC).
 
 ```bash
-zc repl
+zc-repl
 ```
 
 #### Features
@@ -328,8 +326,8 @@ zc repl
 *   **JIT Execution**: Code is compiled in-memory and executed directly within the REPL process for lightning-fast feedback.
 
 *   **Interactive Coding**: Type expressions or statements for immediate evaluation.
-*   **Persistent History**: Commands are saved to `~/.zprep_history`.
-*   **Startup Script**: Auto-loads commands from `~/.zprep_init.zc`.
+*   **Persistent History**: Commands are saved to `~/.zenc_history`.
+*   **Startup Script**: Auto-loads commands from `~/.zencrc`.
 
 #### Commands
 
@@ -366,7 +364,7 @@ Zen C includes a built-in Language Server for editor integration.
 - **[Installation & Setup Guide](docs/LSP.md)**
 - **Supported Editors**: VS Code, Neovim, Vim ([zenc.vim](https://github.com/zenc-lang/zenc.vim)), Zed, and any LSP-capable editor.
 
-Use `zc lsp` to start the server.
+Use `zc-lsp` to start the server.
 
 ### Debugging Zen C
 

@@ -780,10 +780,17 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
             if (strncmp(original_method, it->struct_name, strlen(it->struct_name)) == 0)
             {
                 original_method += strlen(it->struct_name);
-            }
-            while (*original_method == '_')
-            {
-                original_method++;
+                // Strip the separator (legacy single "_" or the "__" separator),
+                // but keep the method's own leading underscores so that e.g.
+                // "_private_method" stays distinct from "private_method".
+                if (original_method[0] == '_' && original_method[1] == '_')
+                {
+                    original_method += 2;
+                }
+                else if (original_method[0] == '_')
+                {
+                    original_method += 1;
+                }
             }
 
             char *temp = xmalloc(strlen(mangled_struct_name) + strlen(original_method) + 3);

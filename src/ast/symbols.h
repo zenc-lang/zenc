@@ -110,11 +110,6 @@ typedef struct Scope
 Scope *symbol_scope_create(Scope *parent, const char *name);
 
 /**
- * @brief Frees a scope and all its symbols.
- */
-void symbol_scope_free(Scope *s);
-
-/**
  * @brief Adds a symbol to the given scope.
  */
 ZenSymbol *symbol_add(Scope *s, const char *name, SymbolKind kind);

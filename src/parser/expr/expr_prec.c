@@ -1000,9 +1000,7 @@ static ASTNode *parse_expr_prec_impl(ParserContext *ctx, Lexer *l, Precedence mi
 
                 if (struct_name)
                 {
-                    char buf[MAX_ERROR_MSG_LEN];
-                    snprintf(buf, sizeof(buf), "%s__%s", struct_name, lhs->member.field);
-                    char *mangled = merge_underscores(buf);
+                    char *mangled = mangle_method_symbol(struct_name, NULL, lhs->member.field);
 
                     FuncSig *sig = find_func(ctx, mangled);
 
@@ -1017,11 +1015,9 @@ static ASTNode *parse_expr_prec_impl(ParserContext *ctx, Lexer *l, Precedence mi
                                 if (ref->node->impl_trait.target_type &&
                                     strcmp(ref->node->impl_trait.target_type, struct_name) == 0)
                                 {
-                                    char buf_trait[MAX_ERROR_MSG_LEN];
-                                    snprintf(buf_trait, sizeof(buf_trait), "%s__%s__%s",
-                                             struct_name, ref->node->impl_trait.trait_name,
-                                             lhs->member.field);
-                                    char *trait_mangled = merge_underscores(buf_trait);
+                                    char *trait_mangled = mangle_method_symbol(
+                                        struct_name, ref->node->impl_trait.trait_name,
+                                        lhs->member.field);
 
                                     if (find_func(ctx, trait_mangled))
                                     {

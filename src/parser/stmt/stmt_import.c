@@ -677,6 +677,13 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
 
     if (strlen(fn) > 2 && strcmp(fn + strlen(fn) - 2, ".h") == 0)
     {
+        // Headers are turned into NODE_INCLUDE without parsing their contents,
+        // so they must be released from the cycle-tracking set here (the
+        // currently_parsing removal below is only reached for .zc modules).
+        // Otherwise a second import of the same header (e.g. via a std module)
+        // would be misreported as a circular import.
+        zmap_remove(&ctx->imports.currently_parsing, fn);
+        mark_file_imported(ctx, fn);
         ASTNode *n = ast_create(NODE_INCLUDE);
         n->include.path = xstrdup(fn);
         n->include.is_system = 0;

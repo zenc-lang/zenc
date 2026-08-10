@@ -23,10 +23,6 @@ void emit_misra_preamble(FILE *out);
 // --- MISRA C:2012 Compliance Modules ---
 
 // Section 10/11/12: Essential Type Model & Conversions
-void misra_check_ess_type_categories(ParserContext *ctx, struct Type *left, struct Type *right,
-                                     Token token);
-void misra_check_ess_type_composite(ParserContext *ctx, struct Type *target, struct Type *source,
-                                    Token token);
 void misra_check_implicit_conversion(ParserContext *ctx, struct Type *target, struct Type *source,
                                      struct ASTNode *source_node, Token token);
 void misra_check_char_arithmetic(ParserContext *ctx, struct Type *left, struct Type *right,
@@ -79,8 +75,6 @@ void misra_check_goto_constraint(ParserContext *ctx, Token goto_tok, Token label
 void misra_check_union(ParserContext *ctx, Token token);
 void misra_check_iteration_termination(ParserContext *ctx, Token token);
 void misra_check_stdarg(ParserContext *ctx, Token token);
-void misra_check_vla(ParserContext *ctx, Type *t, Token token);
-void misra_check_flexible_array(struct ASTNode *strct, struct ASTNode *field);
 void misra_check_identifier_collision(Token tok, const char *name1, const char *name2, int limit);
 
 // Section 2: Unused Code
@@ -97,8 +91,6 @@ void misra_check_assignment_overlap(ParserContext *ctx, struct ASTNode *left, st
 
 // Zen C Extensions
 void misra_check_raw_block(ParserContext *ctx, Token token);
-void misra_check_preprocessor_directive(ParserContext *ctx, Token token);
-void misra_check_preprocessor_expression(ParserContext *ctx, Token tok, const char *expression);
 void misra_check_preprocessor_expression_parser(struct ParserContext *ctx, Token tok,
                                                 const char *expression);
 void misra_check_plugin_block(ParserContext *ctx, Token token);
@@ -111,7 +103,6 @@ void misra_check_string_compare(ParserContext *ctx, struct Type *left, struct Ty
 
 // Phase 3 MISRA
 void misra_check_evaluation_order(ParserContext *ctx, struct ASTNode *expr);
-void misra_check_error_tested(ParserContext *ctx, struct ASTNode *stmt);
 void misra_check_typographic_ambiguity(ParserContext *ctx, const char *new_name, Token loc);
 void misra_check_null_pointer_constant(ParserContext *ctx, struct ASTNode *node, Token token);
 

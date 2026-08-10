@@ -191,7 +191,7 @@ make minimal             # Minimal (2.6 MB)
 make ZC_LSP=0 ZC_REPL=0  # LSP und REPL ausschließen
 ```
 
-Deaktivierte Befehle zeigen eine klare Meldung statt abzustürzen: `zc lsp` → "LSP support not included".
+Deaktivierte Befehle zeigen eine klare Meldung statt abzustürzen: `zc-lsp` → "LSP support not included".
 
 ### Verwendung
 
@@ -203,16 +203,14 @@ zc run hello.zc
 zc build hello.zc -o hello
 
 # Interaktive Shell
-zc repl
+zc-repl
 
 # Dokumentation (Rekursiv)
-zc doc main.zc
+zc-doc main.zc
 
 # Dokumentation (Einzelne Datei, ohne Prüfung)
-zc doc --no-recursive-doc --no-check main.zc
+zc-doc --no-recursive-doc main.zc
 
-# Zen-Fakten zeigen
-zc build hello.zc --zen
 ```
 
 ### Umgebungsvariablen
@@ -332,7 +330,7 @@ Der Zen C Language Server unterstützt das Language Server Protocol (LSP) und bi
 Starten des Sprachserver (normalerweise in den LSP-Einstellungen deinem Editors konfiguriert):
 
 ```bash
-zc lsp
+zc-lsp
 ```
 
 Es kommuniziert über Standard I/O (JSON-RPC 2.0).
@@ -342,7 +340,7 @@ Es kommuniziert über Standard I/O (JSON-RPC 2.0).
 Die Read-Eval-Print-Schleife (REPL) ermöglicht es Ihnen, mit Zen C-Code interaktiv zu experimentieren, unter Verwendung der modernen **In-Process-JIT-Kompilierung** (unterstützt von LibTCC).
 
 ```bash
-zc repl
+zc-repl
 ```
 
 #### Features
@@ -387,7 +385,7 @@ Zen C enthält einen integrierten Sprachserver zur Editorintegration.
 - **[Installations- und Einrichtungsanleitung](../docs/LSP.md)**
 - **Unterstützte Editoren**: VS Code, Neovim, Vim ([zenc.vim](https://github.com/zenc-lang/zenc.vim)), Zed und alle LSP-fähigen Editoren.
 
-Verwende `zc lsp`, um den Server zu starten.
+Verwende `zc-lsp`, um den Server zu starten.
 
 ### Debugging Zen C
 

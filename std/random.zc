@@ -4,7 +4,6 @@ import "std/time.zc"
 import "stdlib.h" as c_stdlib;
 
 struct Random {
-    seed: U32;
 }
 
 impl Random {
@@ -12,13 +11,13 @@ impl Random {
     fn new() -> Random {
         let seed = (U32)Time::now();
         c_stdlib::srand(seed);
-        return Random { seed: seed };
+        return Random {};
     }
 
     // Creates a new random generator with a specific seed
     fn from_seed(seed: U32) -> Random {
         c_stdlib::srand(seed);
-        return Random { seed: seed };
+        return Random {};
     }
 
     // Returns a pseudo-random integer in the range [0, RAND_MAX]

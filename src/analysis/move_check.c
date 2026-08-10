@@ -346,6 +346,13 @@ void check_use_validity(TypeChecker *tc, ASTNode *use_node)
         return;
     }
 
+    // The receiver of a .forget() call is expected to have been moved already
+    // (pattern: `vec.push(x); x.forget();`), so do not report use-after-move.
+    if (tc->is_forget_receiver)
+    {
+        return;
+    }
+
     char *path = get_node_path(use_node, 0, tc->pctx);
     if (!path && use_node->type == NODE_EXPR_VAR)
     {

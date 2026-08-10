@@ -66,15 +66,6 @@ static const ZenPrimitive primitives[] = {{"U0", TYPE_VOID, "void"},
                                           {"c_uchar", TYPE_C_UCHAR, "unsigned char"},
                                           {"string", TYPE_STRING, "char*"}};
 
-const ZenPrimitive *get_zen_primitives(int *count)
-{
-    if (count)
-    {
-        *count = sizeof(primitives) / sizeof(primitives[0]);
-    }
-    return primitives;
-}
-
 const ZenPrimitive *find_primitive_by_name(const char *name)
 {
     int count = sizeof(primitives) / sizeof(primitives[0]);

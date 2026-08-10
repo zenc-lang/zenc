@@ -149,7 +149,6 @@ void z_get_executable_path(char *buffer, size_t size);
  * @param size Size of the buffer.
  */
 void z_get_absolute_path(const char *path, char *buffer, size_t size);
-ZEN_CONST int z_is_zip_path(const char *path);
 
 /**
  * @brief Check if file descriptor refers to a terminal.
@@ -168,7 +167,6 @@ void *z_dlsym(void *handle, const char *symbol);
 void z_dlclose(void *handle);
 
 // OS Helpers
-int z_match_os(const char *os_name);
 ZEN_CONST const char *z_get_system_name(void);
 FILE *z_tmpfile(void);
 

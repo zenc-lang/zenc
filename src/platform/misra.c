@@ -117,43 +117,6 @@ static int get_type_width(Type *t)
     return 0;
 }
 
-void misra_check_ess_type_categories(ParserContext *ctx, Type *left, Type *right, Token token)
-{
-    if (!ctx->config->misra_mode)
-    {
-        return;
-    }
-    EssentialCategory cl = get_essential_category(left);
-    EssentialCategory cr = get_essential_category(right);
-
-    if (cl != cr && cl != ESS_UNKNOWN && cr != ESS_UNKNOWN)
-    {
-        if ((cl == ESS_BOOL || cr == ESS_BOOL))
-        {
-            zerror_at(token, "MISRA Rule 10.4");
-        }
-        else if ((cl == ESS_SIGNED && cr == ESS_UNSIGNED) ||
-                 (cl == ESS_UNSIGNED && cr == ESS_SIGNED))
-        {
-            zerror_at(token, "MISRA Rule 10.4");
-        }
-    }
-}
-
-void misra_check_ess_type_composite(ParserContext *ctx, Type *target, Type *source, Token token)
-{
-    if (!ctx->config->misra_mode)
-    {
-        return;
-    }
-    int tw = get_type_width(target);
-    int sw = get_type_width(source);
-    if (sw < tw)
-    {
-        zerror_at(token, "MISRA Rule 10.7");
-    }
-}
-
 void misra_check_implicit_conversion(struct ParserContext *ctx, struct Type *target,
                                      struct Type *source, struct ASTNode *source_node, Token token)
 {
@@ -957,43 +920,6 @@ void misra_audit_unused_symbols(ParserContext *ctx)
     }
 }
 
-void misra_check_vla(ParserContext *ctx, Type *t, Token token)
-{
-    if (ctx->config->misra_mode && t && t->kind == TYPE_ARRAY)
-    {
-        // In Zen C, all arrays are technically checked for constant sizes,
-        // but if we are in this check, we enforce that any array declaration
-        // must not be a VLA.
-        zerror_at(token, "MISRA Rule 18.8");
-    }
-}
-
-void misra_check_flexible_array(struct ASTNode *strct, struct ASTNode *field)
-{
-    if (!strct || !field)
-    {
-        return;
-    }
-
-    // Flexible array members (Rule 18.7)
-    // In Zen C, a zero-sized array or a slice at the end of a struct is a FAM
-    if (field->type_info && field->type_info->kind == TYPE_ARRAY &&
-        field->type_info->array_size == 0)
-    {
-        // Check if it's the last field
-        ASTNode *last = strct->strct.fields;
-        while (last && last->next)
-        {
-            last = last->next;
-        }
-
-        if (last == field)
-        {
-            zerror_at(field->token, "MISRA Rule 18.7");
-        }
-    }
-}
-
 void misra_check_identifier_collision(Token tok, const char *name1, const char *name2, int limit)
 {
     if (!name1 || !name2)
@@ -1142,26 +1068,12 @@ void misra_check_raw_block(struct ParserContext *ctx, Token token)
     }
 }
 
-void misra_check_preprocessor_directive(struct ParserContext *ctx, Token token)
-{
-    if (ctx->config->misra_mode)
-    {
-        zerror_at(token, "MISRA Rule Zen 1.4");
-    }
-}
-
 void misra_check_plugin_block(struct ParserContext *ctx, Token token)
 {
     if (ctx->config->misra_mode)
     {
         zerror_at(token, "MISRA Rule Zen 1.2");
     }
-}
-
-void misra_check_preprocessor_expression(struct ParserContext *ctx, Token tok,
-                                         const char *expression)
-{
-    misra_check_preprocessor_expression_parser(ctx, tok, expression);
 }
 
 void misra_check_preprocessor_expression_parser(struct ParserContext *ctx, Token tok,
@@ -1731,20 +1643,4 @@ void misra_check_evaluation_order(struct ParserContext *ctx, struct ASTNode *exp
         }
         arg = arg->next;
     }
-}
-
-/**
- * @brief Dir 4.7 (Required): If a function returns error information, that error information
- * shall be tested. Forwards to the existing misra_check_function_return_usage logic.
- * This function exists as a dedicated hook point for Dir 4.7-specific integration.
- */
-void misra_check_error_tested(struct ParserContext *ctx, struct ASTNode *stmt)
-{
-    if (!ctx->config->misra_mode || !stmt)
-    {
-        return;
-    }
-
-    // Delegate to the existing return value check which already handles Dir 4.7
-    misra_check_function_return_usage(ctx, stmt);
 }
