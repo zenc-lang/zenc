@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786478808088,
+  "lastUpdate": 1786480962728,
   "repoUrl": "https://github.com/zenc-lang/zenc",
   "entries": {
     "Zen Compiler Benchmarks": [
@@ -15710,6 +15710,145 @@ window.BENCHMARK_DATA = {
           {
             "name": "Compile (test_vec_ops)",
             "value": 151,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "zuhaitz.zechhub@gmail.com",
+            "name": "Zuhaitz-dev",
+            "username": "Zuhaitz-dev"
+          },
+          "committer": {
+            "email": "zuhaitz.zechhub@gmail.com",
+            "name": "Zuhaitz-dev",
+            "username": "Zuhaitz-dev"
+          },
+          "distinct": true,
+          "id": "1c17ccd59aea4b91f47c6af5542fcd54f5c426b6",
+          "message": "compiler: Tier 2 robustness - recursion guard, error recovery, NODE_ERRONEOUS\n\n* RECURSION_GUARD/TOKEN now decrement recursion_depth before the early return,\n  so a single over-limit event no longer wedges the parser/typechecker/codegen\n  for the rest of a fault-tolerant (LSP/REPL) session.\n* codegen dispatches NODE_ERRONEOUS to a handler that emits a C comment instead\n  of silently falling through, so error-recovered source is visibly incomplete.\n* stmt_match: repair the dead fault-tolerant recovery for a match without '{'.\n\nKnown limitation (left as-is, high regression risk): type_eq treats TYPE_UNKNOWN\nas equal to anything, so unresolved types are accepted silently in some paths.",
+          "timestamp": "2026-08-11T23:37:45+03:00",
+          "tree_id": "c69c15681027704ba81c2189e4fb808cdee0f982",
+          "url": "https://github.com/zenc-lang/zenc/commit/1c17ccd59aea4b91f47c6af5542fcd54f5c426b6"
+        },
+        "date": 1786480961998,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Compiler (Full Suite Transpilation)",
+            "value": 30692,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_bigint_factorial)",
+            "value": 3,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_bigint_factorial)",
+            "value": 218,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_comptime)",
+            "value": 0,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_comptime)",
+            "value": 59,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_fib_recursive)",
+            "value": 52,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_fib_recursive)",
+            "value": 56,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_hashmap)",
+            "value": 149,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_hashmap)",
+            "value": 97,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_hello)",
+            "value": 0,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_hello)",
+            "value": 56,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_json_parse)",
+            "value": 258,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_json_parse)",
+            "value": 893,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_mandelbrot)",
+            "value": 23,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_mandelbrot)",
+            "value": 58,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_sha256)",
+            "value": 186,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_sha256)",
+            "value": 665,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_sort_large)",
+            "value": 68,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_sort_large)",
+            "value": 88,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_string_concat)",
+            "value": 1,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_string_concat)",
+            "value": 423,
+            "unit": "ms"
+          },
+          {
+            "name": "Runtime (test_vec_ops)",
+            "value": 18,
+            "unit": "ms"
+          },
+          {
+            "name": "Compile (test_vec_ops)",
+            "value": 144,
             "unit": "ms"
           }
         ]
