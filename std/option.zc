@@ -1,16 +1,18 @@
-
 import "./core.zc"
 
+/// An optional value: `Some(v)` or `None`.
 struct Option<T> {
     is_some: bool;
     val: T;
 }
 
 impl Option<T> {
+    /// Wraps a value in a `Some` option.
     fn Some(v: T) -> Option<T> {
          return Option<T> { is_some: true, val: v };
     }
 
+    /// Returns the `None` option.
     fn None() -> Option<T> {
          let opt: Option<T>;
          opt.is_some = false;
@@ -18,18 +20,23 @@ impl Option<T> {
          return opt;
     }
 
+    /// Returns `true` when the option is `Some`.
     fn is_some(self) -> bool {
         return self.is_some;
     }
 
+    /// Returns `true` when the option is `None`.
     fn is_none(self) -> bool {
         return !self.is_some;
     }
 
+    /// Zeroes out the internal value without calling destructors or freeing
+    /// memory.
     fn forget(self) {
         memset(&self.val, 0, sizeof(T));
     }
 
+    /// Returns the contained value. Panics when `None`.
     fn unwrap(self) -> T {
         if (!self.is_some) {
             !"Panic: unwrap called on None";
@@ -40,6 +47,7 @@ impl Option<T> {
         return v;
     }
 
+    /// Returns a pointer to the contained value. Panics when `None`.
     fn unwrap_ref(self) -> T* {
         if (!self.is_some) {
             !"Panic: unwrap_ref called on None";
@@ -47,14 +55,22 @@ impl Option<T> {
         }
         return &self.val;
     }
-    
+
+    /// Returns the contained value, or `def_val` when `None`.
     fn unwrap_or(self, def_val: T) -> T {
         if (self.is_some) {
             return self.val;
         }
         return def_val;
     }
-    
+
+    /// Returns the contained value, or the result of `f` when `None`.
+    fn unwrap_or_else(self, f: fn() -> T) -> T {
+        if (self.is_some) { return self.val; }
+        return f();
+    }
+
+    /// Returns the contained value, or panics with `msg` when `None`.
     fn expect(self, msg: char*) -> T {
         if (!self.is_some) {
             !"Panic: {msg}";
@@ -62,29 +78,24 @@ impl Option<T> {
         }
         return self.val;
     }
-    
+
+    /// Returns the option when `Some`, otherwise returns `other`.
     fn or_else(self, other: Option<T>) -> Option<T> {
         if (self.is_some) { return self; }
         return other;
     }
 
-    // Returns the contained value, or the result of `f` when None.
-    fn unwrap_or_else(self, f: fn() -> T) -> T {
-        if (self.is_some) { return self.val; }
-        return f();
-    }
-
-    // Returns true when Some and `f` accepts the contained value.
+    /// Returns `true` when `Some` and `f` accepts the contained value.
     fn is_some_and(self, f: fn(T) -> bool) -> bool {
         return self.is_some && f(self.val);
     }
 
-    // Returns true when None, or when Some and `f` accepts the value.
+    /// Returns `true` when `None`, or when `Some` and `f` accepts the value.
     fn is_none_or(self, f: fn(T) -> bool) -> bool {
         return !self.is_some || f(self.val);
     }
 
-    // Keeps the value when Some and `f` accepts it, otherwise None.
+    /// Keeps the value when `Some` and `f` accepts it, otherwise `None`.
     fn filter(self, f: fn(T) -> bool) -> Option<T> {
         if (self.is_some && f(self.val)) { return self; }
         return Option<T>::None();

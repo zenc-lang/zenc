@@ -46,3 +46,28 @@ test "Random Double" {
         assert(v >= 0.0 && v < 1.0, "Random double in [0, 1)");
     }
 }
+
+test "Random Per-Instance Independence" {
+    // Two generators seeded differently must produce different sequences, and
+    // each generator's state is independent of the other.
+    let r1 = Random::from_seed(1);
+    let r2 = Random::from_seed(2);
+    let a = r1.next_int();
+    let b = r2.next_int();
+    assert(a != b, "Different seeds produce different first values");
+    let c = r1.next_int();
+    let d = r2.next_int();
+    assert(c != d, "Sequences stay independent");
+    // r1's own sequence must advance regardless of r2's use.
+    let e = r1.next_int();
+    assert(e != c, "r1 state advances between calls");
+}
+
+test "Random Deterministic Sequence" {
+    let a = Random::from_seed(99);
+    let b = Random::from_seed(99);
+    for (let i = 0; i < 10; i = i + 1) {
+        assert(a.next_int() == b.next_int(), "Identical seeds produce identical sequences");
+    }
+}
+

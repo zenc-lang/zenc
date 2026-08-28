@@ -40,3 +40,60 @@ test "bigfloat" {
     println "100 + 0.001 = {s3}";
     free(s3);
 }
+
+test "bigfloat compare" {
+    let a = BigFloat::from_string("1.5").unwrap();
+    let b = BigFloat::from_string("0.5").unwrap();
+    assert(a.compare(&b) == 1, "1.5 > 0.5");
+    assert(b.compare(&a) == -1, "0.5 < 1.5");
+    let c = BigFloat::from_string("1.50").unwrap();
+    assert(a.compare(&c) == 0, "1.5 == 1.50");
+}
+
+test "bigfloat from_string" {
+    let r = BigFloat::from_string("12.5");
+    assert(r.is_ok(), "valid parse");
+    let v = r.unwrap();
+    let s = v.to_string();
+    assert(s[0] == '1' && s[1] == '2' && s[2] == '.' && s[3] == '5', "12.5 digits");
+    free(s);
+
+    let i = BigFloat::from_string("42");
+    assert(i.is_ok(), "integer parse");
+    let iv = i.unwrap();
+    let is = iv.to_string();
+    assert(is[0] == '4' && is[1] == '2', "42 digits");
+    free(is);
+
+    let bad = BigFloat::from_string("1.2.3");
+    assert(bad.is_err(), "double dot invalid");
+    let bad2 = BigFloat::from_string("");
+    assert(bad2.is_err(), "empty invalid");
+}
+
+test "bigfloat arithmetic" {
+    let a = BigFloat::from_string("1.5").unwrap();
+    let b = BigFloat::from_string("0.5").unwrap();
+
+    let d = a.sub(&b);
+    let ds = d.to_string();
+    assert(ds[0] == '1' && ds[1] == '.', "1.5-0.5=1.0");
+    free(ds);
+
+    let m = a.mul(&b);
+    let ms = m.to_string();
+    assert(ms[0] == '0' && ms[1] == '.' && ms[2] == '7' && ms[3] == '5', "1.5*0.5=0.75");
+    free(ms);
+
+    let q = a.div(&b, 3);
+    let qs = q.to_string();
+    assert(qs[0] == '3' && qs[1] == '.' && qs[2] == '0', "1.5/0.5=3.000");
+    free(qs);
+
+    let x = BigFloat::from_string("100").unwrap();
+    let y = BigFloat::from_string("7").unwrap();
+    let r = x.div(&y, 2);
+    let rs = r.to_string();
+    assert(rs[0] == '1' && rs[1] == '4' && rs[2] == '.' && rs[3] == '2' && rs[4] == '8', "100/7=14.28");
+    free(rs);
+}

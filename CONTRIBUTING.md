@@ -1,94 +1,72 @@
 # Contributing to Zen C
 
-First off, thank you for considering contributing to Zen C! It's people like you that make this project great.
+Thanks for contributing! This file covers the repository's expectations,
+especially for changes to the compiler itself (`src/`).
 
-We welcome all contributions, whether it's fixing bugs, adding documentation, proposing new features, or just reporting issues.
+## Compiler conventions
 
-## How to Contribute
+The compiler is intentionally written to be **coherent**: one rule per
+concern, applied everywhere. When changing compiler code, follow these.
 
-The general workflow for contributing is:
+### Error handling
 
-1.  **Fork the Repository**: Use the standard GitHub workflow to fork the repository to your own account.
-2.  **Create a Feature Branch**: Create a new branch for your feature or bugfix. This keeps your changes organized and separate from the main branch.
-    ```bash
-    git checkout -b feature/NewThing
-    ```
-3.  **Make Changes**: Write your code or documentation changes.
-4.  **Verify**: Ensure your changes work as expected and don't break existing functionality (see [Running Tests](#running-tests)).
-5.  **Submit a Pull Request**: Push your branch to your fork and submit a Pull Request (PR) to the main Zen C repository.
+| Class | Macro | Behavior |
+| :-- | :-- | :-- |
+| Fatal / syntax | `zpanic_at(token, "…")` | Aborts (or delegates to the LSP handler in fault-tolerant mode). |
+| Warning | `zwarn_at(token, "…")` | Non-fatal diagnostic. |
+| Semantic (typechecker) | `tc_error(tc, token, "…")` | Recoverable type error. |
+| Semantic (parser, recoverable) | `zerror_at(token, "…")` | Recoverable non-fatal error. |
 
-## Issues and Pull Requests
+- `"Expected …"` syntax errors use `zpanic_at`, consistently.
+- Every error path that returns `NULL`/an error node must already have emitted
+  a diagnostic.
 
-We use GitHub Issues and Pull Requests to track bugs and features. To help us maintain quality:
+### Symbol mangling
 
--   **Use Templates**: When opening an Issue or PR, please use the provided templates.
-    -   **Bug Report**: For reporting bugs.
-    -   **Feature Request**: For suggesting new features.
-    -   **Pull Request**: For submitting code changes.
--   **Be Descriptive**: Please provide as much detail as possible.
-    -   **Automated Checks**: We have an automated workflow that checks the description length of new Issues and PRs. If the description is too short (< 50 characters), it will be automatically closed. This is to ensure we have enough information to help you.
+- The one canonical mangler is `mangle_method_symbol(base, trait, method)` in
+  `src/parser/struct/struct_shared.c`. Use it everywhere; never re-implement
+  `%s__%s` + `merge_underscores` inline.
+- A method beginning with `_` keeps its triple underscore (`Struct___method`)
+  so it cannot collide with `Struct__method`.
+- `merge_underscores` collapses runs of **four or more** underscores; a run of
+  exactly three is preserved (it encodes `__` + a leading-`_` name).
 
-## Development Guidelines
+### Memory management
 
-### Code Style
-- Follow the existing C style found in the codebase. Consistency is key.
-- Use `make format` to auto-format all source files with the provided `.clang-format`.
-- Use `make lint` to verify formatting and check shell scripts.
-- An `.editorconfig` file is provided for consistent editor settings (4-space indent, UTF-8, LF endings).
-- **Pre-commit hooks**: Install with `pip install pre-commit && pre-commit install` to automatically check formatting, trailing whitespace, and shell scripts before each commit.
-- Keep code clean and readable.
+- Use `xmalloc` / `xcalloc` / `xrealloc` / `xstrdup` (arena allocation);
+  `zfree` is a no-op (arena memory is reclaimed all at once).
+- `arena.h` macro-redirects bare `malloc` / `realloc` / `calloc` to the arena,
+  so a bare `free()` on a redirected pointer is an **invalid free**. Frees on
+  arena memory are `zfree` (no-op).
+- Use the explicit `libc_malloc` / `libc_free` / `libc_realloc` escape hatches
+  for short-lived buffers that should be heap-managed (e.g. `realpath` results,
+  cJSON's allocator), and pair them correctly.
 
-### Project Structure
-If you are looking to extend the compiler, here is a quick map of the codebase:
-*   **Parser**: `src/parser/` - Contains the recursive descent parser implementation.
-*   **Codegen**: `src/codegen/` - Contains the transpiler logic that converts Zen C to GNU C/C11.
-*   **Standard Library**: `std/` - The standard library modules, written in Zen C itself.
+### Recursion safety
 
-## Running Tests
+- Guard unbounded recursion with `RECURSION_GUARD` / `RECURSION_GUARD_TOKEN`.
+- Recursive type/AST walkers that aren't parser-bounded carry a depth
+  parameter (see `sync_type_linkage_depth`).
 
-The test suite is your best friend when developing. Please ensure all tests pass before submitting a PR.
+### Field naming
 
-### Run All Tests
-```bash
-make test
-```
+- Discriminant fields use `kind` (`ASTNode.kind`, `Token.kind`, `Type.kind`,
+  `CValue.kind`, the literal union's `kind`). `field.type` is a type-name
+  string, not a discriminant.
+- Count fields use `<X>_count` (`arg_count`, `binding_count`,
+  `capture_count`, `output_count`, `generic_param_count`).
 
-### Run Specific Test
-```bash
-./zc run tests/language/control_flow/test_match.zc
-```
+### Dead code
 
-Or via the test runner:
-```bash
-make test only="tests/language/control_flow/test_match.zc"
-```
+- No consecutive duplicate `return` statements; no code after an unconditional
+  return; no empty `if`/`while` bodies without an explanatory comment.
+- Run `clang-format` (enforced by the CI Lint job) and the fuzzer before
+  landing compiler changes.
 
-### Test with Different Backends
-```bash
-./tests/scripts/run_tests.sh --cc clang    # Clang
-./tests/scripts/run_tests.sh --cc zig      # Zig cc
-./tests/scripts/run_tests.sh --cc tcc      # Tiny C Compiler
-```
+## Development workflow
 
-### Specialized Test Suites
-```bash
-make test-lsp      # LSP integration tests
-make test-tcc      # Full suite with TCC backend
-make test-misra    # MISRA C compliance checks
-make test-asan     # AddressSanitizer / UBSan tests
-```
-
-### Warnings as Errors
-To build with `-Werror` (recommended before submitting a PR):
-```bash
-make clean && make WERROR=1 -j$(nproc)
-```
-
-## Pull Request Process
-
-1.  Ensure you have added tests for any new functionality.
-2.  Ensure all existing tests pass.
-3.  Update the documentation (Markdown files in `docs/` or `README.md`) if appropriate.
-4.  Describe your changes clearly in the PR description. Link to any related issues.
-
-Thank you for your contribution!
+- `make` builds the compiler; `make test` runs the full suite.
+- `make fuzz-libfuzzer-build` builds the libFuzzer target; the nightly
+  `Scheduled Fuzzing` workflow runs it.
+- Keep changes in small, focused commits. The `std` library (Zen C), the
+  website docs, and the awesome-zenc examples live in separate repositories.

@@ -1,0 +1,68 @@
+// std/cpp/string.zc
+// Zen-C native wrapper for std::string (requires --cpp)
+
+include <string>
+
+struct CppString {
+    ptr: void*
+}
+
+raw {
+    #ifdef __cplusplus
+    extern "C" {
+        void* _z_cpp_string_new(char* s) {
+            return new std::string(s ? s : "");
+        }
+        void _z_cpp_string_delete(void* p) {
+            delete static_cast<std::string*>(p);
+        }
+        char* _z_cpp_string_c_str(void* p) {
+            return const_cast<char*>(static_cast<std::string*>(p)->c_str());
+        }
+        int _z_cpp_string_len(void* p) {
+            return static_cast<int>(static_cast<std::string*>(p)->size());
+        }
+        void _z_cpp_string_append(void* p, char* s) {
+            static_cast<std::string*>(p)->append(s);
+        }
+    }
+    #endif
+}
+
+extern fn _z_cpp_string_new(s: string) -> void*;
+extern fn _z_cpp_string_delete(p: void*);
+extern fn _z_cpp_string_c_str(p: void*) -> string;
+extern fn _z_cpp_string_len(p: void*) -> int;
+extern fn _z_cpp_string_append(p: void*, s: string);
+
+fn cpp_string_create(s: string) -> CppString {
+    return CppString { ptr: _z_cpp_string_new(s) };
+}
+
+impl CppString {
+    fn c_str(self) -> string {
+        return _z_cpp_string_c_str(self.ptr);
+    }
+
+    fn length(self) -> int {
+        return _z_cpp_string_len(self.ptr);
+    }
+
+    // Deprecated alias; use `length`.
+    fn len(self) -> int {
+        return self.length();
+    }
+
+    fn append(self, s: string) {
+        _z_cpp_string_append(self.ptr, s);
+    }
+}
+
+impl Drop for CppString {
+    fn drop(self) {
+        if self.ptr != null {
+            _z_cpp_string_delete(self.ptr);
+            self.ptr = null;
+        }
+    }
+}

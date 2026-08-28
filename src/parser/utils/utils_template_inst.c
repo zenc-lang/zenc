@@ -14,8 +14,8 @@
 int is_unmangle_primitive(const char *base);
 char *unmangle_ptr_suffix(const char *s);
 Type *replace_type_formal(Type *t, const char *p, const char *c, const char *os, const char *ns);
-ASTNode *copy_ast_replacing(ASTNode *n, const char *p, const char *c, const char *os,
-                            const char *ns);
+ASTNode *copy_ast_replacing(ParserContext *ctx, ASTNode *n, const char *p, const char *c,
+                            const char *os, const char *ns);
 
 // Helper function to recursively scan AST for sizeof types AND generic calls to trigger
 // instantiation
@@ -76,7 +76,7 @@ static void trigger_type_instantiation(ParserContext *ctx, Type *t)
     trigger_type_instantiation(ctx, t->inner);
     if (t->args)
     {
-        for (int i = 0; i < t->arg_count; i++)
+        for (int i = 0; i < t->count; i++)
         {
             trigger_type_instantiation(ctx, t->args[i]);
         }
@@ -97,7 +97,7 @@ static void trigger_instantiations(ParserContext *ctx, ASTNode *node)
     }
 
     // Process current node
-    if (node->type == NODE_EXPR_SIZEOF && node->size_of.target_type)
+    if (node->kind == NODE_EXPR_SIZEOF && node->size_of.target_type)
     {
         const char *type_str = node->size_of.target_type;
         if (strchr(type_str, '_'))
@@ -154,7 +154,7 @@ static void trigger_instantiations(ParserContext *ctx, ASTNode *node)
             zfree(type_copy);
         }
     }
-    else if (node->type == NODE_EXPR_VAR)
+    else if (node->kind == NODE_EXPR_VAR)
     {
         const char *name = node->var_ref.name;
         if (strchr(name, '_'))
@@ -178,7 +178,7 @@ static void trigger_instantiations(ParserContext *ctx, ASTNode *node)
             }
         }
     }
-    else if (node->type == NODE_EXPR_STRUCT_INIT && node->struct_init.struct_name)
+    else if (node->kind == NODE_EXPR_STRUCT_INIT && node->struct_init.struct_name)
     {
         const char *name = node->struct_init.struct_name;
         if (strchr(name, '_'))
@@ -219,7 +219,7 @@ static void trigger_instantiations(ParserContext *ctx, ASTNode *node)
         }
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_FUNCTION:
         trigger_instantiations(ctx, node->func.body);
@@ -465,18 +465,18 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
 
                 // Split concrete types
                 char **args = xmalloc(sizeof(char *) * (size_t)(template_param_count));
-                int arg_count = 0;
+                int count = 0;
                 const char *types_ptr = types_src;
-                while (types_ptr && *types_ptr && arg_count < template_param_count)
+                while (types_ptr && *types_ptr && count < template_param_count)
                 {
                     const char *types_next = (char *)strchr(types_ptr, ',');
                     int types_len =
                         types_next ? (int)(types_next - types_ptr) : (int)strlen(types_ptr);
 
-                    args[arg_count] = xmalloc((size_t)(types_len + 1));
-                    strncpy(args[arg_count], types_ptr, (size_t)(types_len));
-                    args[arg_count][types_len] = 0;
-                    arg_count++;
+                    args[count] = xmalloc((size_t)(types_len + 1));
+                    strncpy(args[count], types_ptr, (size_t)(types_len));
+                    args[count][types_len] = 0;
+                    count++;
 
                     if (types_next)
                     {
@@ -490,7 +490,7 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
 
                 // Now instantiate the struct with these args
                 Token dummy_tok = {0};
-                if (arg_count == 1)
+                if (count == 1)
                 {
                     // Unmangle Ptr suffix if needed (e.g., intPtr -> int*)
                     char *unmangled = xstrdup(args[0]);
@@ -514,13 +514,13 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
                     instantiate_generic(ctx, struct_base, args[0], unmangled, dummy_tok);
                     zfree(unmangled);
                 }
-                else if (arg_count > 1)
+                else if (count > 1)
                 {
-                    instantiate_generic_multi(ctx, struct_base, args, arg_count, dummy_tok);
+                    instantiate_generic_multi(ctx, struct_base, args, count, dummy_tok);
                 }
 
                 // Cleanup
-                for (int i = 0; i < arg_count; i++)
+                for (int i = 0; i < count; i++)
                 {
                     zfree(args[i]);
                 }
@@ -531,8 +531,9 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
         zfree(param_suffix);
     }
 
-    ASTNode *new_fn = copy_ast_replacing(tpl->func_node, tpl->generic_param, subst_arg, NULL, NULL);
-    if (!new_fn || new_fn->type != NODE_FUNCTION)
+    ASTNode *new_fn =
+        copy_ast_replacing(ctx, tpl->func_node, tpl->generic_param, subst_arg, NULL, NULL);
+    if (!new_fn || new_fn->kind != NODE_FUNCTION)
     {
         return NULL;
     }
@@ -543,7 +544,7 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
 
     add_instantiated_func(ctx, new_fn);
 
-    register_func(ctx, ctx->global_scope, mangled, new_fn->func.arg_count, new_fn->func.defaults,
+    register_func(ctx, ctx->global_scope, mangled, new_fn->func.count, new_fn->func.defaults,
                   new_fn->func.arg_types, new_fn->func.ret_type_info, new_fn->func.is_varargs, 0,
                   new_fn->func.pure, new_fn->link_name, new_fn->token, new_fn->func.is_export);
 
@@ -551,7 +552,7 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
 
     if (new_fn->func.arg_types)
     {
-        for (int i = 0; i < new_fn->func.arg_count; i++)
+        for (int i = 0; i < new_fn->func.count; i++)
         {
             Type *at = new_fn->func.arg_types[i];
             if (at && at->kind == TYPE_ARRAY && at->array_size == 0 && at->inner)
@@ -717,7 +718,7 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
     char *raw = (char *)(unmangled_arg ? unmangled_arg : arg);
     char *subst_arg = unmangle_ptr_suffix(raw);
 
-    ASTNode *new_impl = copy_ast_replacing(it->impl_node, it->generic_param, subst_arg,
+    ASTNode *new_impl = copy_ast_replacing(ctx, it->impl_node, it->generic_param, subst_arg,
                                            it->struct_name, mangled_struct_name);
 
     // Also replace mangled template name (both List__G and List_G)
@@ -726,7 +727,8 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
         char *sanitized = sanitize_mangled_name(it->struct_name);
         if (strcmp(sanitized, it->struct_name) != 0)
         {
-            ASTNode *tmp = copy_ast_replacing(new_impl, NULL, NULL, sanitized, mangled_struct_name);
+            ASTNode *tmp =
+                copy_ast_replacing(ctx, new_impl, NULL, NULL, sanitized, mangled_struct_name);
             new_impl = tmp;
         }
 
@@ -740,7 +742,7 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
         if (strcmp(old_sanitized, it->struct_name) != 0 && strcmp(old_sanitized, sanitized) != 0)
         {
             ASTNode *tmp =
-                copy_ast_replacing(new_impl, NULL, NULL, old_sanitized, mangled_struct_name);
+                copy_ast_replacing(ctx, new_impl, NULL, NULL, old_sanitized, mangled_struct_name);
             new_impl = tmp;
         }
 
@@ -752,12 +754,12 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
 
     ASTNode *meth = NULL;
 
-    if (new_impl->type == NODE_IMPL)
+    if (new_impl->kind == NODE_IMPL)
     {
         new_impl->impl.struct_name = xstrdup(mangled_struct_name);
         meth = new_impl->impl.methods;
     }
-    else if (new_impl->type == NODE_IMPL_TRAIT)
+    else if (new_impl->kind == NODE_IMPL_TRAIT)
     {
         new_impl->impl_trait.target_type = xstrdup(mangled_struct_name);
         meth = new_impl->impl_trait.methods;
@@ -801,9 +803,9 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
             meth->func.name = new_name;
         }
 
-        register_func(ctx, ctx->global_scope, meth->func.name, meth->func.arg_count,
+        register_func(ctx, ctx->global_scope, meth->func.name, meth->func.count,
                       meth->func.defaults, meth->func.arg_types, meth->func.ret_type_info,
-                      meth->func.is_varargs, (meth->type == NODE_FUNCTION && meth->func.is_async),
+                      meth->func.is_varargs, (meth->kind == NODE_FUNCTION && meth->func.is_async),
                       meth->func.pure, meth->link_name, meth->token, meth->func.is_export);
 
         // Handle generic return types in methods (e.g., Option<T> -> Option_int)
@@ -815,6 +817,12 @@ void instantiate_methods(ParserContext *ctx, GenericImplTemplate *it,
             while (gt)
             {
                 size_t tlen = strlen(gt->name);
+                size_t rlen = strlen(meth->func.ret_type);
+                if (tlen > rlen)
+                {
+                    gt = gt->next;
+                    continue;
+                }
                 char delim = meth->func.ret_type[tlen];
                 if (strncmp(meth->func.ret_type, gt->name, (size_t)(tlen)) == 0 &&
                     (delim == '_' || delim == '<'))
@@ -961,7 +969,7 @@ void instantiate_generic(ParserContext *ctx, const char *tpl, const char *arg,
 
     ASTNode *struct_node_copy = NULL;
 
-    if (t->struct_node->type == NODE_STRUCT)
+    if (t->struct_node->kind == NODE_STRUCT)
     {
         ASTNode *i = ast_create(NODE_STRUCT);
         i->strct.name = xstrdup(m);
@@ -1002,7 +1010,7 @@ void instantiate_generic(ParserContext *ctx, const char *tpl, const char *arg,
             fld = fld->next;
         }
     }
-    else if (t->struct_node->type == NODE_ENUM)
+    else if (t->struct_node->kind == NODE_ENUM)
     {
         ASTNode *i = ast_create(NODE_ENUM);
         i->enm.name = xstrdup(m);
@@ -1051,11 +1059,11 @@ void instantiate_generic(ParserContext *ctx, const char *tpl, const char *arg,
     if (struct_node_copy)
     {
         // Cache in hash table for fast lookup.
-        if (struct_node_copy->type == NODE_STRUCT && struct_node_copy->strct.name)
+        if (struct_node_copy->kind == NODE_STRUCT && struct_node_copy->strct.name)
         {
             struct_hash_insert(ctx, struct_node_copy->strct.name, struct_node_copy);
         }
-        else if (struct_node_copy->type == NODE_ENUM && struct_node_copy->enm.name)
+        else if (struct_node_copy->kind == NODE_ENUM && struct_node_copy->enm.name)
         {
             struct_hash_insert(ctx, struct_node_copy->enm.name, struct_node_copy);
         }
@@ -1094,12 +1102,12 @@ static void free_field_list(ASTNode *fields)
     }
 }
 
-void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args, int arg_count,
+void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args, int count,
                                Token token)
 {
     // Build mangled name from all args
     size_t m_len = strlen(tpl) + 1;
-    for (int i = 0; i < arg_count; i++)
+    for (int i = 0; i < count; i++)
     {
         char *clean = sanitize_mangled_name(args[i]);
         m_len += 2 + strlen(clean);
@@ -1112,7 +1120,7 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
     {
         *(--m_end) = '\0';
     }
-    for (int i = 0; i < arg_count; i++)
+    for (int i = 0; i < count; i++)
     {
         char *clean = sanitize_mangled_name(args[i]);
         strcat(m, "__");
@@ -1152,17 +1160,17 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
     Instantiation *ni = xcalloc(1, sizeof(Instantiation));
     ni->name = xstrdup(m);
     ni->template_name = xstrdup(tpl);
-    ni->concrete_arg = (arg_count > 0) ? xstrdup(args[0]) : xstrdup("T");
+    ni->concrete_arg = (count > 0) ? xstrdup(args[0]) : xstrdup("T");
 
     // For multi-param, build a comma-separated string for unmangled_arg
     size_t u_len = 0;
-    for (int i = 0; i < arg_count; i++)
+    for (int i = 0; i < count; i++)
     {
         u_len += strlen(args[i]) + 1;
     }
     char *u_buf = xmalloc((size_t)(u_len + 1));
     u_buf[0] = 0;
-    for (int i = 0; i < arg_count; i++)
+    for (int i = 0; i < count; i++)
     {
         if (i > 0)
         {
@@ -1176,7 +1184,7 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
     ni->next = ctx->instantiations;
     ctx->instantiations = ni;
 
-    if (t->struct_node->type == NODE_STRUCT)
+    if (t->struct_node->kind == NODE_STRUCT)
     {
         ASTNode *i = ast_create(NODE_STRUCT);
         i->strct.name = xstrdup(m);
@@ -1196,14 +1204,14 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
         ASTNode *fields = t->struct_node->strct.fields;
         int param_count = t->struct_node->strct.generic_param_count;
 
-        if (param_count > 0 && arg_count > 0)
+        if (param_count > 0 && count > 0)
         {
             // First substitution
             i->strct.fields = copy_fields_replacing(
                 ctx, fields, t->struct_node->strct.generic_params[0], args[0]);
 
             // Subsequent substitutions (for params B, C, etc.)
-            for (int j = 1; j < param_count && j < arg_count; j++)
+            for (int j = 1; j < param_count && j < count; j++)
             {
                 ASTNode *prev_fields = i->strct.fields;
                 ASTNode *tmp = copy_fields_replacing(
@@ -1223,7 +1231,7 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
         i->next = ctx->instantiated_structs;
         ctx->instantiated_structs = i;
     }
-    else if (t->struct_node->type == NODE_ENUM)
+    else if (t->struct_node->kind == NODE_ENUM)
     {
         ASTNode *i = ast_create(NODE_ENUM);
         i->enm.name = xstrdup(m);
@@ -1243,13 +1251,13 @@ void instantiate_generic_multi(ParserContext *ctx, const char *tpl, char **args,
 
         // Construct comma-separated concrete args string
         size_t c_args_len = 1;
-        for (int j = 0; j < arg_count; j++)
+        for (int j = 0; j < count; j++)
         {
             c_args_len += strlen(args[j]) + 1;
         }
         char *c_args = xmalloc((size_t)(c_args_len));
         c_args[0] = 0;
-        for (int j = 0; j < arg_count; j++)
+        for (int j = 0; j < count; j++)
         {
             if (j > 0)
             {

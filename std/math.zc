@@ -6,87 +6,107 @@ struct Math {}
 
 impl Math {
     // Mathematical Constants
-    fn PI() -> double { return 3.14159265358979323846; }
-    fn E()  -> double { return 2.71828182845904523536; }
+    /// The constant pi.
+    fn PI() -> f64 { return 3.14159265358979323846; }
+    /// The constant e.
+    fn E()  -> f64 { return 2.71828182845904523536; }
 
     // Absolute Value
-    fn abs(x: double) -> double {
+    /// Returns the absolute value.
+    fn abs(x: f64) -> f64 {
         return c_math::fabs(x);
     }
     
     // Trigonometry
-    fn sin(x: double) -> double {
+    /// Returns the sine (radians).
+    fn sin(x: f64) -> f64 {
         return c_math::sin(x);
     }
 
-    fn cos(x: double) -> double {
+    /// Returns the cosine (radians).
+    fn cos(x: f64) -> f64 {
         return c_math::cos(x);
     }
 
-    fn tan(x: double) -> double {
+    /// Returns the tangent (radians).
+    fn tan(x: f64) -> f64 {
         return c_math::tan(x);
     }
 
-    fn asin(x: double) -> double {
+    /// Returns the arc sine.
+    fn asin(x: f64) -> f64 {
         return c_math::asin(x);
     }
 
-    fn acos(x: double) -> double {
+    /// Returns the arc cosine.
+    fn acos(x: f64) -> f64 {
         return c_math::acos(x);
     }
 
-    fn atan(x: double) -> double {
+    /// Returns the arc tangent.
+    fn atan(x: f64) -> f64 {
         return c_math::atan(x);
     }
 
-    fn atan2(y: double, x: double) -> double {
+    /// Returns the arc tangent of y/x.
+    fn atan2(y: f64, x: f64) -> f64 {
         return c_math::atan2(y, x);
     }
 
     // Exponentials and Logarithms
-    fn sqrt(x: double) -> double {
+    /// Returns the square root.
+    fn sqrt(x: f64) -> f64 {
         return c_math::sqrt(x);
     }
 
-    fn pow(base: double, exp: double) -> double {
+    /// Returns base raised to an exponent.
+    fn pow(base: f64, exp: f64) -> f64 {
         return c_math::pow(base, exp);
     }
 
-    fn exp(x: double) -> double {
+    /// Returns e raised to a power.
+    fn exp(x: f64) -> f64 {
         return c_math::exp(x);
     }
 
-    fn log(x: double) -> double {
+    /// Returns the natural logarithm.
+    fn log(x: f64) -> f64 {
         return c_math::log(x);
     }
 
-    fn log10(x: double) -> double {
+    /// Returns the base-10 logarithm.
+    fn log10(x: f64) -> f64 {
         return c_math::log10(x);
     }
 
     // Rounding and Remainder
-    fn ceil(x: double) -> double {
+    /// Rounds up to the nearest integer.
+    fn ceil(x: f64) -> f64 {
         return c_math::ceil(x);
     }
 
-    fn floor(x: double) -> double {
+    /// Rounds down to the nearest integer.
+    fn floor(x: f64) -> f64 {
         return c_math::floor(x);
     }
 
-    fn round(x: double) -> double {
+    /// Rounds to the nearest integer.
+    fn round(x: f64) -> f64 {
         return c_math::round(x);
     }
 
-    fn mod(x: double, y: double) -> double {
+    fn mod(x: f64, y: f64) -> f64 {
         return c_math::fmod(x, y);
     }
 
     // Min/Max
-    fn max(a: double, b: double) -> double {
+    /// Returns the larger of two values.
+    fn max(a: f64, b: f64) -> f64 {
         return c_math::fmax(a, b);
     }
 
-    fn min(a: double, b: double) -> double {
+    /// Returns the smaller of two values.
+    fn min(a: f64, b: f64) -> f64 {
         return c_math::fmin(a, b);
     }
 }

@@ -21,7 +21,7 @@ static void check_assignment_condition(ASTNode *cond)
     {
         return;
     }
-    if (cond->type == NODE_EXPR_BINARY)
+    if (cond->kind == NODE_EXPR_BINARY)
     {
         if (cond->binary.op && strcmp(cond->binary.op, "=") == 0)
         {
@@ -38,49 +38,11 @@ static void auto_import_std_slice(ParserContext *ctx)
     {
         if (strcmp(t->name, "Slice") == 0)
         {
-            return;
+            return; // slice module already loaded
         }
         t = t->next;
     }
-
-    char *resolved = z_resolve_path("std/slice.zc", ctx->current_filename, ctx->config);
-    if (!resolved)
-    {
-        return;
-    }
-
-    if (is_file_imported(ctx, resolved))
-    {
-        zfree(resolved);
-        return;
-    }
-    if (zmap_get(&ctx->imports.currently_parsing, resolved))
-    {
-        zfree(resolved);
-        return;
-    }
-    zmap_put(&ctx->imports.currently_parsing, resolved, resolved);
-
-    char *src = load_file(resolved, ctx->current_filename);
-    if (!src)
-    {
-        zmap_remove(&ctx->imports.currently_parsing, resolved);
-        zfree(resolved);
-        return;
-    }
-
-    Lexer i;
-    lexer_init(&i, src, ctx->config, ctx->current_filename);
-
-    const char *saved_fn = ctx->current_filename;
-    ctx->current_filename = resolved;
-
-    parse_program_nodes(ctx, &i);
-
-    ctx->current_filename = saved_fn;
-    zmap_remove(&ctx->imports.currently_parsing, resolved);
-    mark_file_imported(ctx, resolved);
-    zfree(resolved);
+    load_std_module(ctx, "std/slice.zc");
 }
 
 ASTNode *parse_loop(ParserContext *ctx, Lexer *l)
@@ -129,16 +91,15 @@ ASTNode *parse_guard(ParserContext *ctx, Lexer *l)
     ASTNode *cond = parse_expression(ctx, l);
 
     Token t = lexer_peek(l);
-    if (t.type != TOK_IDENT || strncmp(t.start, "else", 4) != 0)
+    if (t.kind != TOK_IDENT || strncmp(t.start, "else", 4) != 0)
     {
         zpanic_at(t, "Expected 'else' after guard condition");
-        return NULL;
         return NULL;
     }
     lexer_next(l);
 
     ASTNode *body;
-    if (lexer_peek(l).type == TOK_LBRACE)
+    if (lexer_peek(l).kind == TOK_LBRACE)
     {
         body = parse_block(ctx, l);
     }
@@ -161,7 +122,7 @@ ASTNode *parse_if(ParserContext *ctx, Lexer *l)
     check_assignment_condition(cond);
 
     ASTNode *then_b = NULL;
-    if (lexer_peek(l).type == TOK_LBRACE)
+    if (lexer_peek(l).kind == TOK_LBRACE)
     {
         then_b = parse_block(ctx, l);
     }
@@ -180,14 +141,14 @@ ASTNode *parse_if(ParserContext *ctx, Lexer *l)
 
     ASTNode *else_b = NULL;
     skip_comments(l);
-    if (lexer_peek(l).type == TOK_IDENT && strncmp(lexer_peek(l).start, "else", 4) == 0)
+    if (lexer_peek(l).kind == TOK_IDENT && strncmp(lexer_peek(l).start, "else", 4) == 0)
     {
         lexer_next(l);
-        if (lexer_peek(l).type == TOK_IDENT && strncmp(lexer_peek(l).start, "if", 2) == 0)
+        if (lexer_peek(l).kind == TOK_IDENT && strncmp(lexer_peek(l).start, "if", 2) == 0)
         {
             else_b = parse_if(ctx, l);
         }
-        else if (lexer_peek(l).type == TOK_LBRACE)
+        else if (lexer_peek(l).kind == TOK_LBRACE)
         {
             else_b = parse_block(ctx, l);
         }
@@ -220,13 +181,13 @@ ASTNode *parse_while(ParserContext *ctx, Lexer *l)
     check_assignment_condition(cond);
     if (!cond)
     {
-        zerror_at(lexer_peek(l), "Expected condition expression");
+        zpanic_at(lexer_peek(l), "Expected condition expression");
         return ast_create(NODE_BLOCK);
     }
 
-    if ((cond->type == NODE_EXPR_LITERAL && cond->literal.type_kind == LITERAL_INT &&
+    if ((cond->kind == NODE_EXPR_LITERAL && cond->literal.kind == LITERAL_INT &&
          cond->literal.int_val == 1) ||
-        (cond->type == NODE_EXPR_VAR && strcmp(cond->var_ref.name, "true") == 0))
+        (cond->kind == NODE_EXPR_VAR && strcmp(cond->var_ref.name, "true") == 0))
     {
         if (ctx->hook_zen_trigger)
         {
@@ -234,7 +195,7 @@ ASTNode *parse_while(ParserContext *ctx, Lexer *l)
         }
     }
     ASTNode *body;
-    if (lexer_peek(l).type == TOK_LBRACE)
+    if (lexer_peek(l).kind == TOK_LBRACE)
     {
         body = parse_block(ctx, l);
     }
@@ -259,14 +220,14 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
     Token for_token = lexer_next(l);
     ctx->cg.loop_depth++;
 
-    if (lexer_peek(l).type == TOK_IDENT)
+    if (lexer_peek(l).kind == TOK_IDENT)
     {
         int saved_pos = l->pos;
         Token var = lexer_next(l);
 
         char *enum_idx_name = NULL;
         Token val_tok = {0};
-        if (lexer_peek(l).type == TOK_COMMA)
+        if (lexer_peek(l).kind == TOK_COMMA)
         {
             lexer_next(l);
             val_tok = lexer_next(l);
@@ -278,11 +239,11 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
 
         Token in_tok = lexer_next(l);
 
-        if (in_tok.type == TOK_IDENT && strncmp(in_tok.start, "in", 2) == 0)
+        if (in_tok.kind == TOK_IDENT && strncmp(in_tok.start, "in", 2) == 0)
         {
             ASTNode *start_expr = parse_expression(ctx, l);
             Token tk = lexer_peek(l);
-            ZenTokenType next_tok = tk.type;
+            ZenTokenType next_tok = tk.kind;
             if (next_tok == TOK_DOTDOT || next_tok == TOK_DOTDOT_LT || next_tok == TOK_DOTDOT_EQ)
             {
                 int is_inclusive = 0;
@@ -309,13 +270,13 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                     n->for_range.end = end_expr;
                     n->for_range.is_inclusive = is_inclusive;
 
-                    if (lexer_peek(l).type == TOK_IDENT &&
+                    if (lexer_peek(l).kind == TOK_IDENT &&
                         strncmp(lexer_peek(l).start, "step", 4) == 0)
                     {
                         lexer_next(l);
                         Token s_tok = lexer_next(l);
 
-                        if (s_tok.type == TOK_OP && s_tok.len == 1 && s_tok.start[0] == '-')
+                        if (s_tok.kind == TOK_OP && s_tok.len == 1 && s_tok.start[0] == '-')
                         {
                             Token num_tok = lexer_next(l);
                             char *sval = xmalloc(s_tok.len + num_tok.len + 1);
@@ -345,7 +306,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                     }
 
                     ASTNode *user_body = NULL;
-                    if (lexer_peek(l).type == TOK_LBRACE)
+                    if (lexer_peek(l).kind == TOK_LBRACE)
                     {
                         user_body = parse_block(ctx, l);
                     }
@@ -367,7 +328,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                         idx_decl->var_decl.type_str = xstrdup("int");
                         idx_decl->var_decl.type_info = type_new(TYPE_INT);
                         ASTNode *zero_lit = ast_create(NODE_EXPR_LITERAL);
-                        zero_lit->literal.type_kind = LITERAL_INT;
+                        zero_lit->literal.kind = LITERAL_INT;
                         zero_lit->literal.int_val = 0;
                         zero_lit->literal.string_val = xstrdup("0");
                         idx_decl->var_decl.init_expr = zero_lit;
@@ -389,7 +350,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
 
                         ASTNode *new_body = ast_create(NODE_BLOCK);
                         idx_bind->next = user_body;
-                        if (user_body && user_body->type == NODE_BLOCK)
+                        if (user_body && user_body->kind == NODE_BLOCK)
                         {
                             ASTNode *last = user_body->block.statements;
                             if (last)
@@ -439,7 +400,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                 char *iter_method = "iterator";
                 ASTNode *slice_decl = NULL;
 
-                if (obj_expr->type == NODE_EXPR_UNARY && obj_expr->unary.op &&
+                if (obj_expr->kind == NODE_EXPR_UNARY && obj_expr->unary.op &&
                     strcmp(obj_expr->unary.op, "&") == 0)
                 {
                     obj_expr = obj_expr->unary.operand;
@@ -479,7 +440,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                     arr_cast->cast.expr = arr_addr;
 
                     ASTNode *size_arg = ast_create(NODE_EXPR_LITERAL);
-                    size_arg->literal.type_kind = LITERAL_INT;
+                    size_arg->literal.kind = LITERAL_INT;
                     size_arg->literal.int_val =
                         (unsigned long long)(obj_expr->type_info->array_size);
                     char size_buf[32];
@@ -488,7 +449,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
 
                     arr_cast->next = size_arg;
                     from_array_call->call.args = arr_cast;
-                    from_array_call->call.arg_count = 2;
+                    from_array_call->call.count = 2;
 
                     slice_decl->var_decl.init_expr = from_array_call;
 
@@ -497,12 +458,13 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                     instantiate_generic(ctx, "Slice", elem_type_str, elem_type_str, dummy_tok);
 
                     char iter_type[MAX_TYPE_NAME_LEN];
-                    sprintf(iter_type, "SliceIter<%s>",
-                            elem_type_str); /* TODO: check buffer size */
+                    snprintf(iter_type, sizeof(iter_type), "SliceIter<%s>",
+                             elem_type_str); /* TODO: check buffer size */
                     instantiate_generic(ctx, "SliceIter", elem_type_str, elem_type_str, dummy_tok);
 
                     char option_type[MAX_TYPE_NAME_LEN];
-                    sprintf(option_type, "Option<%s>", elem_type_str); /* TODO: check buffer size */
+                    snprintf(option_type, sizeof(option_type), "Option<%s>",
+                             elem_type_str); /* TODO: check buffer size */
                     instantiate_generic(ctx, "Option", elem_type_str, elem_type_str, dummy_tok);
 
                     ASTNode *slice_ref = ast_create(NODE_EXPR_VAR);
@@ -526,13 +488,13 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                 call_iter->token = tk;
                 call_iter->call.callee = memb_iter;
                 call_iter->call.args = NULL;
-                call_iter->call.arg_count = 0;
+                call_iter->call.count = 0;
 
                 it_decl->var_decl.init_expr = call_iter;
 
                 ASTNode *while_loop = ast_create(NODE_FOR);
                 ASTNode *true_lit = ast_create(NODE_EXPR_LITERAL);
-                true_lit->literal.type_kind = LITERAL_INT;
+                true_lit->literal.kind = LITERAL_INT;
                 true_lit->literal.int_val = 1;
                 true_lit->literal.string_val = xstrdup("1");
                 true_lit->token = tk;
@@ -707,7 +669,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                 call_is_none->token = tk;
                 call_is_none->call.callee = memb_is_none;
                 call_is_none->call.args = NULL;
-                call_is_none->call.arg_count = 0;
+                call_is_none->call.count = 0;
 
                 ASTNode *if_break = ast_create(NODE_IF);
                 if_break->token = tk;
@@ -740,7 +702,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                 call_unwrap->token = tk;
                 call_unwrap->call.callee = memb_unwrap;
                 call_unwrap->call.args = NULL;
-                call_unwrap->call.arg_count = 0;
+                call_unwrap->call.count = 0;
 
                 user_var_decl->var_decl.init_expr = call_unwrap;
 
@@ -768,7 +730,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
 
                 ASTNode *stmt = parse_statement(ctx, l);
                 ASTNode *user_body_node = stmt;
-                if (stmt && stmt->type != NODE_BLOCK)
+                if (stmt && stmt->kind != NODE_BLOCK)
                 {
                     ASTNode *blk = ast_create(NODE_BLOCK);
                     blk->block.statements = stmt;
@@ -802,7 +764,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
                     enum_idx_decl_node->var_decl.type_str = xstrdup("int");
                     enum_idx_decl_node->var_decl.type_info = type_new(TYPE_INT);
                     ASTNode *zero_lit = ast_create(NODE_EXPR_LITERAL);
-                    zero_lit->literal.type_kind = LITERAL_INT;
+                    zero_lit->literal.kind = LITERAL_INT;
                     zero_lit->literal.int_val = 0;
                     zero_lit->literal.string_val = xstrdup("0");
                     enum_idx_decl_node->var_decl.init_expr = zero_lit;
@@ -847,22 +809,22 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
     }
 
     enter_scope(ctx);
-    if (lexer_peek(l).type == TOK_LPAREN)
+    if (lexer_peek(l).kind == TOK_LPAREN)
     {
         lexer_next(l);
     }
 
     ASTNode *init = NULL;
-    if (lexer_peek(l).type != TOK_SEMICOLON)
+    if (lexer_peek(l).kind != TOK_SEMICOLON)
     {
-        if (lexer_peek(l).type == TOK_IDENT && strncmp(lexer_peek(l).start, "let", 3) == 0)
+        if (lexer_peek(l).kind == TOK_IDENT && strncmp(lexer_peek(l).start, "let", 3) == 0)
         {
             init = parse_var_decl(ctx, l, 0);
         }
         else
         {
             init = parse_expression(ctx, l);
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
@@ -874,7 +836,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
     }
 
     ASTNode *cond = NULL;
-    if (lexer_peek(l).type != TOK_SEMICOLON)
+    if (lexer_peek(l).kind != TOK_SEMICOLON)
     {
         cond = parse_expression(ctx, l);
     }
@@ -885,24 +847,24 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
         true_var->token = for_token;
         cond = true_var;
     }
-    if (lexer_peek(l).type == TOK_SEMICOLON)
+    if (lexer_peek(l).kind == TOK_SEMICOLON)
     {
         lexer_next(l);
     }
 
     ASTNode *step = NULL;
-    if (lexer_peek(l).type != TOK_RPAREN && lexer_peek(l).type != TOK_LBRACE)
+    if (lexer_peek(l).kind != TOK_RPAREN && lexer_peek(l).kind != TOK_LBRACE)
     {
         step = parse_expression(ctx, l);
     }
 
-    if (lexer_peek(l).type == TOK_RPAREN)
+    if (lexer_peek(l).kind == TOK_RPAREN)
     {
         lexer_next(l);
     }
 
     ASTNode *body;
-    if (lexer_peek(l).type == TOK_LBRACE)
+    if (lexer_peek(l).kind == TOK_LBRACE)
     {
         body = parse_block(ctx, l);
     }
@@ -910,7 +872,7 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
     {
         if (ctx->config->misra_mode)
         {
-            zerror_at(lexer_peek(l), "MISRA Rule 15.6compound-statement body");
+            zerror_at(lexer_peek(l), "MISRA Rule 15.6: compound-statement body");
         }
         body = parse_statement(ctx, l);
     }

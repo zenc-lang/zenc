@@ -1,8 +1,19 @@
 
 import "../../std/string.zc"
+import "../../std/result.zc"
+import "../../std/vec.zc"
 
 // Base64 Table
 // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/
+
+fn _b64_char_to_val(c: char) -> int {
+    if (c >= 'A' && c <= 'Z') return (int)(c - 'A');
+    if (c >= 'a' && c <= 'z') return (int)(c - 'a' + 26);
+    if (c >= '0' && c <= '9') return (int)(c - '0' + 52);
+    if (c == '+') return 62;
+    if (c == '/') return 63;
+    return -1;
+}
 
 struct Base64 {}
 
@@ -85,5 +96,47 @@ impl Base64 {
         }
         
         return out;
+    }
+
+    fn decode(data: char*) -> Result<Vec<u8>> {
+        let len = strlen(data);
+        if (len % 4 != 0) {
+            return Result<Vec<u8>>::Err("Invalid base64 length");
+        }
+
+        let pad = 0;
+        if (len > 0 && data[len - 1] == '=') pad = 1;
+        if (len > 1 && data[len - 2] == '=') pad = 2;
+
+        let out = Vec<u8>::new();
+        if (len > 0) {
+            out.grow_to_fit((len / 4) * 3 - pad);
+        }
+
+        for (let i: usize = 0; i < len; i = i + 4) {
+            let v0 = _b64_char_to_val(data[i]);
+            let v1 = _b64_char_to_val(data[i + 1]);
+            let has2 = data[i + 2] != '=';
+            let has3 = data[i + 3] != '=';
+            let v2 = has2 ? _b64_char_to_val(data[i + 2]) : 0;
+            let v3 = has3 ? _b64_char_to_val(data[i + 3]) : 0;
+
+            if (v0 < 0 || v1 < 0 || (has2 && v2 < 0) || (has3 && v3 < 0)) {
+                out.free();
+                return Result<Vec<u8>>::Err("Invalid base64 character");
+            }
+
+            let n = (u32)((v0 << 18) | (v1 << 12) | (v2 << 6) | v3);
+
+            out.push((u8)((n >> 16) & 0xFF));
+            if (has2) {
+                out.push((u8)((n >> 8) & 0xFF));
+            }
+            if (has3) {
+                out.push((u8)(n & 0xFF));
+            }
+        }
+
+        return Result<Vec<u8>>::Ok(out);
     }
 }

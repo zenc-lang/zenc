@@ -1,47 +1,66 @@
 
 import "std/core.zc"
 import "std/time.zc"
-import "stdlib.h" as c_stdlib;
+
+// Per-instance xorshift64* PRNG. Each Random owns its own 64-bit state, so
+// generators seeded the same way produce identical sequences independently of
+// one another (unlike a process-global srand/rand).
 
 struct Random {
+    state: u64;
+}
+
+fn _splitmix64(x: u64) -> u64 {
+    let z = x + 0x9E3779B97F4A7C15;
+    z = z ^ (z >> 30);
+    z = z * 0xBF58476D1CE4E5B9;
+    z = z ^ (z >> 27);
+    z = z * 0x94D049BB133111EB;
+    return z ^ (z >> 31);
 }
 
 impl Random {
     // Creates a new random generator initialized with the current time
     fn new() -> Random {
-        let seed = (U32)Time::now();
-        c_stdlib::srand(seed);
-        return Random {};
+        let seed = (u64)Time::now();
+        return Random { state: _splitmix64(seed) | 1 };
     }
 
     // Creates a new random generator with a specific seed
-    fn from_seed(seed: U32) -> Random {
-        c_stdlib::srand(seed);
-        return Random {};
+    fn from_seed(seed: u32) -> Random {
+        return Random { state: _splitmix64((u64)seed) | 1 };
     }
 
-    // Returns a pseudo-random integer in the range [0, RAND_MAX]
+    // Advances the generator and returns the next raw 64-bit value
+    fn next_raw(self) -> u64 {
+        let x = self.state;
+        x = x ^ (x << 13);
+        x = x ^ (x >> 7);
+        x = x ^ (x << 17);
+        self.state = x;
+        return x;
+    }
+
+    // Returns a pseudo-random non-negative int in the range [0, INT32_MAX]
     fn next_int(self) -> int {
-        return c_stdlib::rand();
+        return (int)(self.next_raw() & 0x7FFFFFFF);
     }
 
     // Returns a pseudo-random integer in the range [min, max] inclusive
     fn next_int_range(self, min: int, max: int) -> int {
         if (min > max) { panic("next_int_range: min > max"); }
-        let range = max - min + 1;
-        return min + (c_stdlib::rand() % range);
+        let range = (u64)(max - min + 1);
+        return min + (int)(self.next_raw() % range);
     }
 
-    // Returns a pseudo-random double in the range [0.0, 1.0)
-    fn next_double(self) -> double {
-        // Explicitly casting to double
-        let raw = (double)c_stdlib::rand();
-        let max = (double)2147483647; // RAND_MAX on most platforms
-        return raw / (max + 1.0);
+    // Returns a pseudo-random f64 in the range [0.0, 1.0)
+    fn next_double(self) -> f64 {
+        let raw = self.next_raw() >> 11;
+        return (f64)raw / 9007199254740992.0;
     }
 
     // Returns a pseudo-random boolean
     fn next_bool(self) -> bool {
-        return (c_stdlib::rand() % 2) == 1;
+        return (self.next_raw() & 1) == 1;
     }
 }

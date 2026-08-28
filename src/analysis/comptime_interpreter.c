@@ -24,7 +24,7 @@ typedef enum
 
 typedef struct CValue
 {
-    CValType type;
+    CValType kind;
     union
     {
         int64_t i;
@@ -79,7 +79,7 @@ static void scope_pop(CScope **head)
     }
     CScope *tmp = *head;
     *head = (*head)->next;
-    if (tmp->value.type == VAL_STRING)
+    if (tmp->value.kind == VAL_STRING)
     {
         zfree(tmp->value.as.s);
     }
@@ -120,12 +120,12 @@ static void val_free(CValue *v)
     {
         return;
     }
-    if (v->type == VAL_STRING)
+    if (v->kind == VAL_STRING)
     {
         zfree(v->as.s);
         v->as.s = NULL;
     }
-    else if (v->type == VAL_ARRAY)
+    else if (v->kind == VAL_ARRAY)
     {
         for (size_t k = 0; k < v->as.arr.len; k++)
         {
@@ -146,11 +146,11 @@ static CValue val_deep_copy(const CValue *v)
     {
         return val_null;
     }
-    if (v->type == VAL_STRING)
+    if (v->kind == VAL_STRING)
     {
         return val_string(v->as.s);
     }
-    if (v->type == VAL_ARRAY)
+    if (v->kind == VAL_ARRAY)
     {
         CValue out = {VAL_ARRAY, {0}};
         out.as.arr.len = v->as.arr.len;
@@ -211,14 +211,14 @@ static CValue eval_literal(CInterp *ci, ASTNode *node)
 {
     (void)ci;
     CValue v = {VAL_NULL, {0}};
-    switch (node->literal.type_kind)
+    switch (node->literal.kind)
     {
     case LITERAL_INT:
-        v.type = VAL_INT;
+        v.kind = VAL_INT;
         v.as.i = (int64_t)node->literal.int_val;
         break;
     case LITERAL_FLOAT:
-        v.type = VAL_INT;
+        v.kind = VAL_INT;
         v.as.i = (int64_t)node->literal.float_val;
         break;
     case LITERAL_STRING:
@@ -226,7 +226,7 @@ static CValue eval_literal(CInterp *ci, ASTNode *node)
         v = val_string(node->literal.string_val ? node->literal.string_val : "");
         break;
     case LITERAL_CHAR:
-        v.type = VAL_INT;
+        v.kind = VAL_INT;
         v.as.i = (int64_t)node->literal.int_val;
         break;
     default:
@@ -272,11 +272,11 @@ static CValue eval_var(CInterp *ci, ASTNode *node)
         return val_null;
     }
     CValue v;
-    if (found->type == VAL_STRING)
+    if (found->kind == VAL_STRING)
     {
         v = val_string(found->as.s);
     }
-    else if (found->type == VAL_ARRAY)
+    else if (found->kind == VAL_ARRAY)
     {
         // Deep copy so reads never alias the scope's array storage.
         v = val_deep_copy(found);
@@ -295,7 +295,7 @@ static int64_t eval_int(CInterp *ci, ASTNode *node)
     {
         return 0;
     }
-    if (v.type != VAL_INT)
+    if (v.kind != VAL_INT)
     {
         zerror_at(node->token, "comptime: expected integer expression");
         ci->error_happened = 1;
@@ -323,7 +323,7 @@ static CValue eval_binary(CInterp *ci, ASTNode *node)
     }
 
     // Handle string concat with +
-    if (left.type == VAL_STRING && strcmp(op, "+") == 0)
+    if (left.kind == VAL_STRING && strcmp(op, "+") == 0)
     {
         CValue right = eval_expr(ci, node->binary.right);
         if (ci->error_happened)
@@ -332,7 +332,7 @@ static CValue eval_binary(CInterp *ci, ASTNode *node)
             val_free(&right);
             return val_null;
         }
-        if (right.type != VAL_STRING)
+        if (right.kind != VAL_STRING)
         {
             zerror_at(node->token, "comptime: cannot concatenate string with non-string");
             ci->error_happened = 1;
@@ -366,19 +366,19 @@ static CValue eval_binary(CInterp *ci, ASTNode *node)
     if (is_logic)
     {
         int a = 0, b = 0;
-        if (left.type == VAL_BOOL)
+        if (left.kind == VAL_BOOL)
         {
             a = left.as.b;
         }
-        else if (left.type == VAL_INT)
+        else if (left.kind == VAL_INT)
         {
             a = left.as.i != 0;
         }
-        if (right.type == VAL_BOOL)
+        if (right.kind == VAL_BOOL)
         {
             b = right.as.b;
         }
-        else if (right.type == VAL_INT)
+        else if (right.kind == VAL_INT)
         {
             b = right.as.i != 0;
         }
@@ -388,7 +388,7 @@ static CValue eval_binary(CInterp *ci, ASTNode *node)
         return r;
     }
 
-    if (left.type != VAL_INT)
+    if (left.kind != VAL_INT)
     {
         zerror_at(node->token, "comptime: operator '%s' requires integer operands", op);
         ci->error_happened = 1;
@@ -396,7 +396,7 @@ static CValue eval_binary(CInterp *ci, ASTNode *node)
         val_free(&right);
         return val_null;
     }
-    if (right.type != VAL_INT)
+    if (right.kind != VAL_INT)
     {
         zerror_at(node->token, "comptime: operator '%s' requires integer operands", op);
         ci->error_happened = 1;
@@ -446,7 +446,7 @@ static CValue eval_binary(CInterp *ci, ASTNode *node)
     }
     else if (is_compare)
     {
-        r.type = VAL_BOOL;
+        r.kind = VAL_BOOL;
         if (strcmp(op, "==") == 0)
         {
             r.as.b = (a == b);
@@ -474,12 +474,12 @@ static CValue eval_binary(CInterp *ci, ASTNode *node)
     }
     else if (strcmp(op, "&&") == 0)
     {
-        r.type = VAL_BOOL;
+        r.kind = VAL_BOOL;
         r.as.b = (a && b);
     }
     else if (strcmp(op, "||") == 0)
     {
-        r.type = VAL_BOOL;
+        r.kind = VAL_BOOL;
         r.as.b = (a || b);
     }
     else
@@ -502,7 +502,7 @@ static CValue eval_unary(CInterp *ci, ASTNode *node)
     if (strcmp(node->unary.op, "-") == 0)
     {
         CValue v = eval_expr(ci, node->unary.operand);
-        if (ci->error_happened || v.type != VAL_INT)
+        if (ci->error_happened || v.kind != VAL_INT)
         {
             val_free(&v);
             return val_null;
@@ -517,12 +517,12 @@ static CValue eval_unary(CInterp *ci, ASTNode *node)
         {
             return val_null;
         }
-        if (v.type == VAL_INT)
+        if (v.kind == VAL_INT)
         {
             v.as.b = !v.as.i;
-            v.type = VAL_BOOL;
+            v.kind = VAL_BOOL;
         }
-        else if (v.type == VAL_BOOL)
+        else if (v.kind == VAL_BOOL)
         {
             v.as.b = !v.as.b;
         }
@@ -536,7 +536,7 @@ static CValue eval_unary(CInterp *ci, ASTNode *node)
 static CValue eval_call(CInterp *ci, ASTNode *node)
 {
     const char *name = NULL;
-    if (node->call.callee && node->call.callee->type == NODE_EXPR_VAR)
+    if (node->call.callee && node->call.callee->kind == NODE_EXPR_VAR)
     {
         name = node->call.callee->var_ref.name;
     }
@@ -557,7 +557,7 @@ static CValue eval_call(CInterp *ci, ASTNode *node)
     // Look for @comptime function
     for (StructRef *r = ci->pctx->parsed_funcs_list; r; r = r->next)
     {
-        if (r->node && r->node->type == NODE_FUNCTION && r->node->func.is_comptime &&
+        if (r->node && r->node->kind == NODE_FUNCTION && r->node->func.is_comptime &&
             strcmp(r->node->func.name, name) == 0)
         {
             return call_comptime_fn(ci, r->node, node->call.args);
@@ -576,15 +576,15 @@ static CValue call_builtin(CInterp *ci, const char *name, ASTNode *args)
     if (args && args->type_info && args->type_info->kind == TYPE_STRING)
     {
         // For string-typed args, we need the compile-time value
-        if (args->type == NODE_EXPR_LITERAL || args->type == NODE_EXPR_VAR)
+        if (args->kind == NODE_EXPR_LITERAL || args->kind == NODE_EXPR_VAR)
         {
             arg = eval_expr(ci, args);
         }
-        else if (args->type == NODE_EXPR_BINARY && strcmp(args->binary.op, "+") == 0)
+        else if (args->kind == NODE_EXPR_BINARY && strcmp(args->binary.op, "+") == 0)
         {
             arg = eval_expr(ci, args); // string concat
         }
-        else if (args->type == NODE_EXPR_CALL)
+        else if (args->kind == NODE_EXPR_CALL)
         {
             arg = eval_expr(ci, args); // function return value
         }
@@ -611,11 +611,11 @@ static CValue call_builtin(CInterp *ci, const char *name, ASTNode *args)
     {
         char int_buf[32];
         const char *s = "";
-        if (arg.type == VAL_STRING)
+        if (arg.kind == VAL_STRING)
         {
             s = arg.as.s ? arg.as.s : "";
         }
-        else if (arg.type == VAL_INT)
+        else if (arg.kind == VAL_INT)
         {
             snprintf(int_buf, sizeof(int_buf), "%lld", (long long)arg.as.i);
             s = int_buf;
@@ -627,7 +627,7 @@ static CValue call_builtin(CInterp *ci, const char *name, ASTNode *args)
 
     if (strcmp(name, "compile_error") == 0)
     {
-        const char *msg = (arg.type == VAL_STRING && arg.as.s) ? arg.as.s : "comptime error";
+        const char *msg = (arg.kind == VAL_STRING && arg.as.s) ? arg.as.s : "comptime error";
         zerror_at(TOKEN_UNKNOWN, "comptime error: %s", msg);
         ci->error_happened = 1;
         val_free(&arg);
@@ -636,7 +636,7 @@ static CValue call_builtin(CInterp *ci, const char *name, ASTNode *args)
 
     if (strcmp(name, "compile_warn") == 0)
     {
-        const char *msg = (arg.type == VAL_STRING && arg.as.s) ? arg.as.s : "comptime warning";
+        const char *msg = (arg.kind == VAL_STRING && arg.as.s) ? arg.as.s : "comptime warning";
         fprintf(stderr, "comptime warning: %s\n", msg);
         val_free(&arg);
         return val_null;
@@ -662,7 +662,7 @@ static CValue call_comptime_fn(CInterp *ci, ASTNode *fn_node, ASTNode *args)
 
     // Bind args to params
     ASTNode *arg = args;
-    for (int i = 0; i < fn_node->func.arg_count && arg; i++, arg = arg->next)
+    for (int i = 0; i < fn_node->func.count && arg; i++, arg = arg->next)
     {
         CValue val = eval_expr(ci, arg);
         if (ci->error_happened)
@@ -686,7 +686,7 @@ static CValue call_comptime_fn(CInterp *ci, ASTNode *fn_node, ASTNode *args)
         while (stmt && !ci->error_happened)
         {
             // Check for return
-            if (stmt->type == NODE_RETURN)
+            if (stmt->kind == NODE_RETURN)
             {
                 CValue ret = val_null;
                 if (stmt->ret.value)
@@ -720,7 +720,7 @@ static CValue eval_index(CInterp *ci, ASTNode *node)
     {
         return val_null;
     }
-    if (arr.type != VAL_ARRAY)
+    if (arr.kind != VAL_ARRAY)
     {
         val_free(&arr);
         zerror_at(node->token, "comptime: cannot index a non-array value");
@@ -760,7 +760,7 @@ static CValue eval_expr(CInterp *ci, ASTNode *node)
         return val_null;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_EXPR_LITERAL:
         return eval_literal(ci, node);
@@ -783,7 +783,7 @@ static CValue eval_expr(CInterp *ci, ASTNode *node)
         ci->error_happened = 1;
         return val_null;
     default:
-        zerror_at(node->token, "comptime: unsupported expression type %d", (int)node->type);
+        zerror_at(node->token, "comptime: unsupported expression type %d", (int)node->kind);
         ci->error_happened = 1;
         return val_null;
     }
@@ -822,12 +822,12 @@ static void exec_assign(CInterp *ci, ASTNode *node)
         ci->error_happened = 1;
         return;
     }
-    if (node->binary.left->type == NODE_EXPR_INDEX)
+    if (node->binary.left->kind == NODE_EXPR_INDEX)
     {
         exec_assign_index(ci, node);
         return;
     }
-    if (node->binary.left->type != NODE_EXPR_VAR)
+    if (node->binary.left->kind != NODE_EXPR_VAR)
     {
         zerror_at(node->token, "comptime: assignment target must be a variable");
         ci->error_happened = 1;
@@ -855,7 +855,7 @@ static void exec_assign(CInterp *ci, ASTNode *node)
 static void exec_assign_index(CInterp *ci, ASTNode *node)
 {
     ASTNode *lhs = node->binary.left;
-    if (!lhs->index.array || lhs->index.array->type != NODE_EXPR_VAR)
+    if (!lhs->index.array || lhs->index.array->kind != NODE_EXPR_VAR)
     {
         zerror_at(node->token, "comptime: can only assign to an element of an array variable");
         ci->error_happened = 1;
@@ -869,7 +869,7 @@ static void exec_assign_index(CInterp *ci, ASTNode *node)
         ci->error_happened = 1;
         return;
     }
-    if (existing->type != VAL_ARRAY)
+    if (existing->kind != VAL_ARRAY)
     {
         zerror_at(node->token, "comptime: cannot index a non-array value");
         ci->error_happened = 1;
@@ -905,12 +905,12 @@ static void exec_if(CInterp *ci, ASTNode *node)
         val_free(&cond);
         return;
     }
-    int truthy = (cond.type == VAL_INT && cond.as.i) || (cond.type == VAL_BOOL && cond.as.b);
+    int truthy = (cond.kind == VAL_INT && cond.as.i) || (cond.kind == VAL_BOOL && cond.as.b);
     val_free(&cond);
     if (truthy)
     {
         ASTNode *s = node->if_stmt.then_body;
-        if (s && s->type == NODE_BLOCK)
+        if (s && s->kind == NODE_BLOCK)
         {
             s = s->block.statements;
         }
@@ -923,7 +923,7 @@ static void exec_if(CInterp *ci, ASTNode *node)
     else if (node->if_stmt.else_body)
     {
         ASTNode *s = node->if_stmt.else_body;
-        if (s && s->type == NODE_BLOCK)
+        if (s && s->kind == NODE_BLOCK)
         {
             s = s->block.statements;
         }
@@ -957,13 +957,13 @@ static void exec_stmt(CInterp *ci, ASTNode *node)
         ci->error_happened = 1;
         return;
     }
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_ASSERT:
     case NODE_EXPECT:
     {
         CValue cv = eval_expr(ci, node->assert_stmt.condition);
-        int truthy = (cv.type == VAL_INT && cv.as.i) || (cv.type == VAL_BOOL && cv.as.b);
+        int truthy = (cv.kind == VAL_INT && cv.as.i) || (cv.kind == VAL_BOOL && cv.as.b);
         val_free(&cv);
         if (!truthy)
         {
@@ -1012,7 +1012,7 @@ static void exec_stmt(CInterp *ci, ASTNode *node)
             if (node->for_stmt.condition)
             {
                 cv = eval_expr(ci, node->for_stmt.condition);
-                int truthy = (cv.type == VAL_INT && cv.as.i) || (cv.type == VAL_BOOL && cv.as.b);
+                int truthy = (cv.kind == VAL_INT && cv.as.i) || (cv.kind == VAL_BOOL && cv.as.b);
                 val_free(&cv);
                 if (!truthy)
                 {
@@ -1077,7 +1077,7 @@ static void exec_stmt(CInterp *ci, ASTNode *node)
         while (!ci->error_happened)
         {
             CValue cv = eval_expr(ci, node->while_stmt.condition);
-            int truthy = (cv.type == VAL_INT && cv.as.i) || (cv.type == VAL_BOOL && cv.as.b);
+            int truthy = (cv.kind == VAL_INT && cv.as.i) || (cv.kind == VAL_BOOL && cv.as.b);
             val_free(&cv);
             if (!truthy)
             {

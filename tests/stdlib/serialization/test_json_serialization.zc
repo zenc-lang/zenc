@@ -1,80 +1,67 @@
 // stdlib: test_json_serialization
 import "std/json.zc"
+import "std/complex.zc"
 import "std/io.zc"
 
 test "primitives" {
     // Null
     let v = JsonValue::null();
     let s = v.to_string();
-    let expected = String::from("null");
-    if (!s.eq(&expected)) {
+    if (strcmp(s, "null") != 0) {
         panic("Null serialization failed");
     }
-    expected.free();
-    s.free();
+    free(s);
 
     // Bool True
     v = JsonValue::bool(true);
     s = v.to_string();
-    expected = String::from("true");
-    if (!s.eq(&expected)) {
+    if (strcmp(s, "true") != 0) {
         panic("Bool true serialization failed");
     }
-    expected.free();
-    s.free();
+    free(s);
 
     // Bool False
     v = JsonValue::bool(false);
     s = v.to_string();
-    expected = String::from("false");
-    if (!s.eq(&expected)) {
+    if (strcmp(s, "false") != 0) {
         panic("Bool false serialization failed");
     }
-    expected.free();
-    s.free();
+    free(s);
 
     // Number Int
     v = JsonValue::number(123.0);
     s = v.to_string();
-    expected = String::from("123");
-    if (!s.eq(&expected)) {
-         println "{s.c_str()}";
+    if (strcmp(s, "123") != 0) {
+         println "{s}";
          panic("Number 123 serialization failed");
     }
-    expected.free();
-    s.free();
+    free(s);
 
     // Number Float
     v = JsonValue::number(12.5);
     s = v.to_string();
-    expected = String::from("12.5");
-    if (!s.eq(&expected)) {
+    if (strcmp(s, "12.5") != 0) {
          panic("Number 12.5 serialization failed");
     }
-    expected.free();
-    s.free();
+    free(s);
 
     // String Simple
     v = JsonValue::string("hello");
     s = v.to_string();
-    expected = String::from("\"hello\"");
-    if (!s.eq(&expected)) {
-         println "{s.c_str()}";
+    if (strcmp(s, "\"hello\"") != 0) {
+         println "{s}";
          panic("String hello serialization failed");
     }
-    expected.free();
-    s.free();
+    free(s);
 
     // String Escaped
     v = JsonValue::string("hello \"world\"");
     s = v.to_string();
-    expected = String::from("\"hello \\\"world\\\"\"");
-    if (!s.eq(&expected)) {
-         println "Got: {s.c_str()}";
+    if (strcmp(s, "\"hello \\\"world\\\"\"") != 0) {
+         println "Got: {s}";
          panic("String escaped serialization failed");
     }
-    expected.free();
-    s.free();
+    free(s);
 }
 
 test "array" {
@@ -84,13 +71,11 @@ test "array" {
     v.push(JsonValue::string("a"));
     
     let s = v.to_string();
-    let expected = String::from("[1,true,\"a\"]");
-    if (!s.eq(&expected)) {
-         println "Got: {s.c_str()}";
+    if (strcmp(s, "[1,true,\"a\"]") != 0) {
+         println "Got: {s}";
          panic("Array serialization failed");
     }
-    expected.free();
-    s.free();
+    free(s);
 }
 
 test "object" {
@@ -99,7 +84,7 @@ test "object" {
     
     let s = v.to_string();
     // Round trip verification to avoid parser bug with literals
-    let parsed_res = JsonValue::parse(s.c_str());
+    let parsed_res = JsonValue::parse(s);
     if (parsed_res.is_err()) {
         panic("Object round trip parse failed");
     }
@@ -115,7 +100,7 @@ test "object" {
     // Cleanup
     (*parsed).free();
     free(parsed);
-    s.free();
+    free(s);
 }
 
 test "nested" {
@@ -129,7 +114,7 @@ test "nested" {
     let s = v.to_string();
     
     // Round trip
-    let parsed_res = JsonValue::parse(s.c_str());
+    let parsed_res = JsonValue::parse(s);
     if (parsed_res.is_err()) {
         panic("Round trip parse failed");
     }
@@ -146,5 +131,23 @@ test "nested" {
     // Cleanup
     (*parsed).free();
     free(parsed);
-    s.free();
+    free(s);
+}
+
+test "interpolation" {
+    // to_string returns char*, so values interpolate directly.
+    let obj = JsonValue::object();
+    obj.set("a", JsonValue::number(1.0));
+    let s = format("obj={obj}");
+    if (strcmp(s, "obj={{\"a\":1}}") != 0) {
+        println "Got: {s}";
+        panic("JsonValue interpolation failed");
+    }
+
+    let c = Complex::new(3.0, 4.0);
+    let cs = format("c={c}");
+    if (strcmp(cs, "c=3.000000 + 4.000000i") != 0) {
+        println "Got: {cs}";
+        panic("Complex interpolation failed");
+    }
 }

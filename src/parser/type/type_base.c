@@ -17,7 +17,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
     RECURSION_GUARD(ctx, l, type_new(TYPE_UNKNOWN));
     Token t = lexer_peek(l);
 
-    if (t.type == TOK_IDENT)
+    if (t.kind == TOK_IDENT)
     {
         int explicit_struct = 0;
         // Handle "struct Name" or "enum Name"
@@ -30,7 +30,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
             }
             lexer_next(l); // consume keyword
             t = lexer_peek(l);
-            if (t.type != TOK_IDENT)
+            if (t.kind != TOK_IDENT)
             {
                 zpanic_at(t, "Expected identifier after struct/enum");
                 return NULL;
@@ -83,11 +83,11 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
         }
 
         // Handle Namespace :: (A::B -> A_B)
-        while (lexer_peek(l).type == TOK_DCOLON)
+        while (lexer_peek(l).kind == TOK_DCOLON)
         {
             lexer_next(l); // eat ::
             Token next = lexer_next(l);
-            if (next.type != TOK_IDENT)
+            if (next.kind != TOK_IDENT)
             {
                 zpanic_at(t, "Expected identifier after ::");
                 return NULL;
@@ -301,8 +301,8 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
         ty->is_explicit_struct = explicit_struct;
 
         // Handle Generics <T> or <K, V>
-        if (lexer_peek(l).type == TOK_LANGLE ||
-            (lexer_peek(l).type == TOK_OP && strncmp(lexer_peek(l).start, "<", 1) == 0))
+        if (lexer_peek(l).kind == TOK_LANGLE ||
+            (lexer_peek(l).kind == TOK_OP && strncmp(lexer_peek(l).start, "<", 1) == 0))
         {
             lexer_next(l); // eat <
             Type *first_arg = parse_type_formal(ctx, l);
@@ -315,14 +315,14 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
 
             // Check for multi-arg: <K, V>
             Token next_tok = lexer_peek(l);
-            if (next_tok.type == TOK_COMMA)
+            if (next_tok.kind == TOK_COMMA)
             {
                 // Multi-arg case
                 char **args = xmalloc(sizeof(char *) * 8);
-                int arg_count = 0;
-                args[arg_count++] = xstrdup(first_arg_str);
+                int count = 0;
+                args[count++] = xstrdup(first_arg_str);
 
-                while (lexer_peek(l).type == TOK_COMMA)
+                while (lexer_peek(l).kind == TOK_COMMA)
                 {
                     lexer_next(l); // eat ,
                     Type *arg = parse_type_formal(ctx, l);
@@ -332,18 +332,18 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                         return NULL;
                     }
                     char *arg_str = type_to_string(arg);
-                    args = realloc(args, sizeof(char *) * (size_t)(arg_count + 1));
-                    args[arg_count++] = xstrdup(arg_str);
+                    args = realloc(args, sizeof(char *) * (size_t)(count + 1));
+                    args[count++] = xstrdup(arg_str);
                     zfree(arg_str);
                 }
 
                 // Consume >
                 next_tok = lexer_peek(l);
-                if (next_tok.type == TOK_RANGLE)
+                if (next_tok.kind == TOK_RANGLE)
                 {
                     lexer_next(l);
                 }
-                else if (next_tok.type == TOK_OP && next_tok.len == 2 &&
+                else if (next_tok.kind == TOK_OP && next_tok.len == 2 &&
                          strncmp(next_tok.start, ">>", 2) == 0)
                 {
                     l->pos += 1;
@@ -357,7 +357,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
 
                 // Call multi-arg instantiation
                 int is_generic_dep = 0;
-                for (int i = 0; i < arg_count; ++i)
+                for (int i = 0; i < count; ++i)
                 {
                     if (is_generic_dependent_str(ctx, args[i]))
                     {
@@ -368,12 +368,12 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
 
                 if (!is_generic_dep)
                 {
-                    instantiate_generic_multi(ctx, name, args, arg_count, t);
+                    instantiate_generic_multi(ctx, name, args, count, t);
                 }
 
                 // Build mangled name dynamically
                 size_t mangled_len = strlen(name) + 1;
-                for (int i = 0; i < arg_count; i++)
+                for (int i = 0; i < count; i++)
                 {
                     char *clean = sanitize_mangled_name(args[i]);
                     mangled_len += 2 + strlen(clean);
@@ -381,7 +381,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                 }
                 char *mangled = xmalloc(mangled_len);
                 strcpy(mangled, name);
-                for (int i = 0; i < arg_count; i++)
+                for (int i = 0; i < count; i++)
                 {
                     char *clean = sanitize_mangled_name(args[i]);
                     strcat(mangled, "__");
@@ -397,11 +397,11 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
             else
             {
                 // Single-arg case - PRESERVE ORIGINAL FLOW EXACTLY
-                if (next_tok.type == TOK_RANGLE)
+                if (next_tok.kind == TOK_RANGLE)
                 {
                     lexer_next(l); // Consume >
                 }
-                else if (next_tok.type == TOK_OP && next_tok.len == 2 &&
+                else if (next_tok.kind == TOK_OP && next_tok.len == 2 &&
                          strncmp(next_tok.start, ">>", 2) == 0)
                 {
                     // Split >> into two > tokens
@@ -437,13 +437,13 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
             zfree(first_arg_str);
             ty->kind = TYPE_STRUCT;
             ty->args = NULL;
-            ty->arg_count = 0;
+            ty->count = 0;
         }
         RECURSION_EXIT(ctx);
         return ty;
     }
 
-    if (t.type == TOK_LBRACKET)
+    if (t.kind == TOK_LBRACKET)
     {
         lexer_next(l);
         Type *inner = parse_type_formal(ctx, l);
@@ -454,7 +454,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
         }
 
         // Check for fixed-size array [T; N]
-        if (lexer_peek(l).type == TOK_SEMICOLON)
+        if (lexer_peek(l).kind == TOK_SEMICOLON)
         {
             lexer_next(l); // eat ;
             ASTNode *size_expr = parse_expression(ctx, l);
@@ -469,9 +469,8 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                 zpanic_at(size_expr->token,
                           "Array size must be a compile-time constant or integer literal");
                 return NULL;
-                return NULL;
             }
-            if (lexer_next(l).type != TOK_RBRACKET)
+            if (lexer_next(l).kind != TOK_RBRACKET)
             {
                 zpanic_at(lexer_peek(l), "Expected ] after array size");
                 return NULL;
@@ -485,7 +484,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
         }
 
         // Otherwise it's a slice [T]
-        if (lexer_next(l).type != TOK_RBRACKET)
+        if (lexer_next(l).kind != TOK_RBRACKET)
         {
             zpanic_at(lexer_peek(l), "Expected ] in type");
             return NULL;
@@ -504,7 +503,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
         return arr;
     }
 
-    if (t.type == TOK_LPAREN)
+    if (t.kind == TOK_LPAREN)
     {
         lexer_next(l);
         char sig[MAX_SHORT_MSG_LEN];
@@ -530,7 +529,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                 zfree(s);
             }
 
-            if (lexer_peek(l).type == TOK_COMMA)
+            if (lexer_peek(l).kind == TOK_COMMA)
             {
                 lexer_next(l);
                 strcat(sig, "__");
@@ -540,7 +539,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
                 break;
             }
         }
-        if (lexer_next(l).type != TOK_RPAREN)
+        if (lexer_next(l).kind != TOK_RPAREN)
         {
             zpanic_at(lexer_peek(l), "Expected ) in tuple");
             return NULL;
@@ -566,7 +565,7 @@ Type *parse_type_base(ParserContext *ctx, Lexer *l)
     // If we have an identifier that wasn't found,
     // assume it is a valid external C type
     // (for example, a struct defined in implementation).
-    if (t.type == TOK_IDENT)
+    if (t.kind == TOK_IDENT)
     {
         char *fallback = token_strdup(t);
         lexer_next(l);

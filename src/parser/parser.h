@@ -73,7 +73,7 @@ typedef struct DeclarationAttributes
     char **derived_traits;
     int derived_count;
     char *link_name;
-    char *crepr_c_type; // @crepr("C.type.name") attribute
+    char *crepr_c_type; // @crepr("C.kind.name") attribute
     char *link_path;    // @link("path/to/file.c")
 } DeclarationAttributes;
 
@@ -522,6 +522,7 @@ enum
     if (++((ctx)->recursion_depth) > MAX_RECURSION_DEPTH)                                          \
     {                                                                                              \
         zpanic_at(lexer_peek(l), "Recursion limit exceeded");                                      \
+        (ctx)->recursion_depth--;                                                                  \
         return ret;                                                                                \
     }
 
@@ -529,6 +530,7 @@ enum
     if (++((ctx)->recursion_depth) > MAX_RECURSION_DEPTH)                                          \
     {                                                                                              \
         zpanic_at(tok, "Recursion limit exceeded");                                                \
+        (ctx)->recursion_depth--;                                                                  \
         return ret;                                                                                \
     }
 
@@ -537,7 +539,7 @@ enum
 // Break out of a parsing loop when EOF is reached unexpectedly.
 // Place after the closing-delimiter checks in every while(1) token loop.
 #define TOK_EOF_GUARD(tok)                                                                         \
-    if ((tok).type == TOK_EOF)                                                                     \
+    if ((tok).kind == TOK_EOF)                                                                     \
     {                                                                                              \
         zpanic_at(tok, "Unexpected end of file");                                                  \
         break;                                                                                     \
@@ -795,7 +797,7 @@ int is_reserved_keyword(Token t);
 /**
  * @brief Checks if an identifier is valid (not a keyword).
  */
-void check_identifier(ParserContext *ctx, Token t);
+void check_identifier(Token t);
 
 /**
  * @brief Main loop to parse top-level nodes in a file.
@@ -803,7 +805,10 @@ void check_identifier(ParserContext *ctx, Token t);
 ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l);
 
 /**
- * @brief Collapses triple or more underscores into a double underscore.
+ * @brief Collapses runs of four or more underscores into a double underscore.
+ *        A run of exactly three is preserved: it encodes the "__" separator
+ *        plus an identifier that begins with "_" (e.g. `Struct::_method`), so
+ *        collapsing it would make distinct symbols collide.
  */
 char *merge_underscores(const char *name);
 
@@ -885,7 +890,7 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
                                     const char *arg2);
 void instantiate_generic(ParserContext *ctx, const char *name, const char *arg_str,
                          const char *arg_name, Token t);
-void instantiate_generic_multi(ParserContext *ctx, const char *name, char **args, int arg_count,
+void instantiate_generic_multi(ParserContext *ctx, const char *name, char **args, int count,
                                Token t);
 
 // stmt/ declarations
@@ -919,6 +924,7 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
 void replace_it_with_var(ASTNode *node, char *var_name);
 
 // struct/ declarations
+void load_std_module(ParserContext *ctx, const char *path);
 void auto_import_std_mem(ParserContext *ctx);
 char *mangle_method_symbol(const char *struct_name, const char *trait_name,
                            const char *method_name);

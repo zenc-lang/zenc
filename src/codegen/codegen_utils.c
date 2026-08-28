@@ -7,7 +7,6 @@
 #include "codegen.h"
 #include "../ast/primitives.h"
 #include <ctype.h>
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,15 +25,16 @@ void emit_pending_closure_frees(ParserContext *ctx)
 // Returns newly allocated string, caller must free.
 
 // Helper to emit a mangled name (Type__Method) with standardized underscores.
+// Uses the canonical mangle_method_symbol so call sites always emit the same
+// name the parser used for the definition (e.g. `_method` keeps its triple
+// underscore).
 void emit_mangled_name(ParserContext *ctx, const char *base, const char *method)
 {
     if (!base || !method)
     {
         return;
     }
-    char buf[MAX_ERROR_MSG_LEN];
-    snprintf(buf, sizeof(buf), "%s__%s", base, method);
-    char *merged = merge_underscores(buf);
+    char *merged = mangle_method_symbol(base, NULL, method);
 
     ZenSymbol *sym = ctx ? find_symbol_in_all(ctx, merged) : NULL;
     if (sym && sym->link_name)
@@ -60,7 +60,7 @@ int is_enum_type_name(ParserContext *ctx, const char *name)
         clean += 7;
     }
     ASTNode *def = find_struct_def(ctx, clean);
-    return (def && def->type == NODE_ENUM);
+    return (def && def->kind == NODE_ENUM);
 }
 
 // Helper to emit C declaration (handle arrays, function pointers correctly)
@@ -174,7 +174,7 @@ void emit_auto_type(ParserContext *ctx, ASTNode *init_expr, Token t)
 // Emit function signature using Type info for correct C codegen
 void emit_func_signature(ParserContext *ctx, ASTNode *func, const char *name_override)
 {
-    if (!func || func->type != NODE_FUNCTION)
+    if (!func || func->kind != NODE_FUNCTION)
     {
         return;
     }
@@ -263,13 +263,13 @@ void emit_func_signature(ParserContext *ctx, ASTNode *func, const char *name_ove
     }
 
     // Args
-    if (func->func.arg_count == 0 && !func->func.is_varargs)
+    if (func->func.count == 0 && !func->func.is_varargs)
     {
         EMIT(ctx, "void");
     }
     else
     {
-        for (int i = 0; i < func->func.arg_count; i++)
+        for (int i = 0; i < func->func.count; i++)
         {
             if (i > 0)
             {
@@ -304,7 +304,7 @@ void emit_func_signature(ParserContext *ctx, ASTNode *func, const char *name_ove
         }
         if (func->func.is_varargs)
         {
-            if (func->func.arg_count > 0)
+            if (func->func.count > 0)
             {
                 EMIT(ctx, ", ");
             }
@@ -328,7 +328,7 @@ int emit_move_invalidation(ParserContext *ctx, ASTNode *node)
     }
 
     // Check if it's a valid l-value we can memset
-    if (node->type != NODE_EXPR_VAR && node->type != NODE_EXPR_MEMBER)
+    if (node->kind != NODE_EXPR_VAR && node->kind != NODE_EXPR_MEMBER)
     {
         return 0;
     }
@@ -373,12 +373,12 @@ int emit_move_invalidation(ParserContext *ctx, ASTNode *node)
 
     if (has_drop)
     {
-        if (node->type == NODE_EXPR_VAR)
+        if (node->kind == NODE_EXPR_VAR)
         {
             char *df_prefix = "";
             if (ctx->cg.current_lambda)
             {
-                for (int i = 0; i < ctx->cg.current_lambda->lambda.num_captures; i++)
+                for (int i = 0; i < ctx->cg.current_lambda->lambda.capture_count; i++)
                 {
                     if (strcmp(node->var_ref.name,
                                ctx->cg.current_lambda->lambda.captured_vars[i]) == 0)
@@ -400,7 +400,7 @@ int emit_move_invalidation(ParserContext *ctx, ASTNode *node)
             }
             return 0;
         }
-        else if (node->type == NODE_EXPR_MEMBER)
+        else if (node->kind == NODE_EXPR_MEMBER)
         {
             // For members: memset(&foo.bar, 0, sizeof(foo.bar))
             EMIT(ctx, "memset(&");
@@ -422,7 +422,7 @@ void codegen_expression_with_move(ParserContext *ctx, ASTNode *node)
         return;
     }
 
-    if (node && (node->type == NODE_EXPR_VAR || node->type == NODE_EXPR_MEMBER))
+    if (node && (node->kind == NODE_EXPR_VAR || node->kind == NODE_EXPR_MEMBER))
     {
         // Re-use infer logic to see if we need invalidation
         char *type_name = infer_type(ctx, node);
@@ -464,7 +464,7 @@ void codegen_expression_with_move(ParserContext *ctx, ASTNode *node)
 
         if (has_drop)
         {
-            if (node->type == NODE_EXPR_VAR)
+            if (node->kind == NODE_EXPR_VAR)
             {
                 EMIT(ctx, "({ ");
                 emit_move_invalidation(ctx, node);
@@ -502,7 +502,7 @@ int is_simple_enum(ParserContext *ctx, const char *enum_name)
         clean += 7;
     }
     ASTNode *def = find_struct_def(ctx, clean);
-    if (!def || def->type != NODE_ENUM)
+    if (!def || def->kind != NODE_ENUM)
     {
         return 0;
     }
@@ -523,9 +523,9 @@ void handle_node_await_internal(ParserContext *ctx, ASTNode *node)
     // Determine the function name from the awaited expression
     ASTNode *operand = node->unary.operand;
     const char *fname = NULL;
-    if (operand && operand->type == NODE_EXPR_CALL && operand->call.callee)
+    if (operand && operand->kind == NODE_EXPR_CALL && operand->call.callee)
     {
-        if (operand->call.callee->type == NODE_EXPR_VAR)
+        if (operand->call.callee->kind == NODE_EXPR_VAR)
         {
             fname = operand->call.callee->var_ref.name;
         }
@@ -563,7 +563,7 @@ void handle_node_await_internal(ParserContext *ctx, ASTNode *node)
     EMIT(ctx, "%s_init(&_f", fname);
 
     // Extract arguments from the call expression
-    if (operand->type == NODE_EXPR_CALL)
+    if (operand->kind == NODE_EXPR_CALL)
     {
         ASTNode *arg = operand->call.args;
         while (arg)

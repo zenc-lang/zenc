@@ -24,6 +24,15 @@ void register_trait(const char *name)
     registered_traits_local = r;
 }
 
+void clear_registered_traits(void)
+{
+    // The TraitReg nodes are arena-allocated, so the arena reset/restore in the
+    // fuzz harness and the LSP reclaims them. The list head must be cleared
+    // there too, otherwise it dangles into reused arena memory and is_trait()
+    // walks a cyclic list forever.
+    registered_traits_local = NULL;
+}
+
 int is_trait(const char *name)
 {
     if (!name)
@@ -72,13 +81,13 @@ ASTNode *ast_create(NodeType type)
 {
     ASTNode *node = xmalloc(sizeof(ASTNode));
     memset(node, 0, sizeof(ASTNode));
-    node->type = type;
+    node->kind = type;
     return node;
 }
 
 void ast_free(ASTNode *node)
 {
-    if (node->type == NODE_AST_COMMENT)
+    if (node->kind == NODE_AST_COMMENT)
     {
         if (node->comment.content)
         {
@@ -101,7 +110,7 @@ Type *type_new(TypeKind kind)
     t->link_name = NULL;
     t->inner = NULL;
     t->args = NULL;
-    t->arg_count = 0;
+    t->count = 0;
     t->is_const = 0;
     t->is_explicit_struct = 0;
     t->is_raw = 0;
@@ -298,7 +307,7 @@ int is_composite_expression(ASTNode *node)
         return 0;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_EXPR_BINARY:
         return 1;
@@ -390,7 +399,7 @@ int type_eq(Type *a, Type *b)
         {
             return 0;
         }
-        if (a->arg_count != b->arg_count)
+        if (a->count != b->count)
         {
             return 0;
         }
@@ -398,7 +407,7 @@ int type_eq(Type *a, Type *b)
         {
             return 0;
         }
-        for (int i = 0; i < a->arg_count; i++)
+        for (int i = 0; i < a->count; i++)
         {
             if (!type_eq(a->args[i], b->args[i]))
             {
@@ -615,7 +624,7 @@ static char *type_to_string_impl(Type *t)
             char *res = xmalloc(strlen(ret) + 64);
             snprintf(res, strlen(ret) + 64, "fn*(");
 
-            for (int i = 0; i < t->arg_count; i++)
+            for (int i = 0; i < t->count; i++)
             {
                 if (i > 0)
                 {
@@ -651,7 +660,7 @@ static char *type_to_string_impl(Type *t)
         char *res = xmalloc(strlen(ret) + 64);
         snprintf(res, strlen(ret) + 64, "fn(");
 
-        for (int i = 0; i < t->arg_count; i++)
+        for (int i = 0; i < t->count; i++)
         {
             if (i > 0)
             {
@@ -678,14 +687,14 @@ static char *type_to_string_impl(Type *t)
     case TYPE_STRUCT:
     case TYPE_GENERIC:
     {
-        if (t->arg_count > 0 && t->name && strstr(t->name, "__") == NULL)
+        if (t->count > 0 && t->name && strstr(t->name, "__") == NULL)
         {
             char *base = t->name;
             size_t base_len = strlen(base);
             char *res = xmalloc((size_t)(base_len + 1));
             strcpy(res, base);
 
-            for (int i = 0; i < t->arg_count; i++)
+            for (int i = 0; i < t->count; i++)
             {
                 char *arg = type_to_string(t->args[i]);
                 char *clean_arg = sanitize_mangled_name(arg);
@@ -950,7 +959,7 @@ static char *type_to_c_string_impl(Type *t)
             char *res = xmalloc(strlen(ret) + 64); // heuristic start buffer
             snprintf(res, strlen(ret) + 64, "%s (*)(", ret);
 
-            for (int i = 0; i < t->arg_count; i++)
+            for (int i = 0; i < t->count; i++)
             {
                 if (i > 0)
                 {
@@ -968,7 +977,7 @@ static char *type_to_c_string_impl(Type *t)
             }
             if (t->is_varargs)
             {
-                if (t->arg_count > 0)
+                if (t->count > 0)
                 {
                     char *tmp = xmalloc(strlen(res) + 6);
                     sprintf(tmp, "%s, ...", res); /* safe */
@@ -1092,7 +1101,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         return node->resolved_type;
     }
 
-    if (node->type == NODE_EXPR_LITERAL)
+    if (node->kind == NODE_EXPR_LITERAL)
     {
         if (node->type_info)
         {
@@ -1101,7 +1110,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         return NULL;
     }
 
-    if (node->type == NODE_EXPR_VAR)
+    if (node->kind == NODE_EXPR_VAR)
     {
         ZenSymbol *sym = find_symbol_entry(ctx, node->var_ref.name);
         if (sym)
@@ -1117,9 +1126,9 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         }
     }
 
-    if (node->type == NODE_EXPR_CALL)
+    if (node->kind == NODE_EXPR_CALL)
     {
-        if (node->call.callee->type == NODE_EXPR_VAR)
+        if (node->call.callee->kind == NODE_EXPR_VAR)
         {
             FuncSig *sig = find_func(ctx, node->call.callee->var_ref.name);
             if (sig)
@@ -1162,7 +1171,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
             }
         }
         // Method call: target.method() - look up Type_method signature.
-        if (node->call.callee->type == NODE_EXPR_MEMBER)
+        if (node->call.callee->kind == NODE_EXPR_MEMBER)
         {
             char *target_type = infer_type(ctx, node->call.callee->member.target);
             if (target_type)
@@ -1200,7 +1209,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
             }
         }
 
-        if (node->call.callee->type == NODE_EXPR_VAR)
+        if (node->call.callee->kind == NODE_EXPR_VAR)
         {
             ZenSymbol *sym = find_symbol_entry(ctx, node->call.callee->var_ref.name);
             if (sym && sym->type_info && sym->type_info->kind == TYPE_FUNCTION &&
@@ -1211,7 +1220,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         }
     }
 
-    if (node->type == NODE_TRY)
+    if (node->kind == NODE_TRY)
     {
         char *inner_type = infer_type(ctx, node->try_stmt.expr);
         if (inner_type)
@@ -1246,7 +1255,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
                 StructRef *er = ctx->parsed_enums_list;
                 while (er)
                 {
-                    if (er->node && er->node->type == NODE_ENUM &&
+                    if (er->node && er->node->kind == NODE_ENUM &&
                         strcmp(er->node->enm.name, search_name) == 0)
                     {
                         def = er->node;
@@ -1258,7 +1267,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
 
             if (def)
             {
-                if (def->type == NODE_ENUM)
+                if (def->kind == NODE_ENUM)
                 {
                     // Look for "Ok" variant
                     ASTNode *var = def->enm.variants;
@@ -1276,7 +1285,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
                         var = var->next;
                     }
                 }
-                else if (def->type == NODE_STRUCT)
+                else if (def->kind == NODE_STRUCT)
                 {
                     // Look for "val" field
                     ASTNode *field = def->strct.fields;
@@ -1293,7 +1302,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         }
     }
 
-    if (node->type == NODE_EXPR_MEMBER)
+    if (node->kind == NODE_EXPR_MEMBER)
     {
         char *parent_type = infer_type(ctx, node->member.target);
         if (!parent_type)
@@ -1312,7 +1321,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         return get_field_type_str(ctx, clean_name, node->member.field);
     }
 
-    if (node->type == NODE_EXPR_BINARY)
+    if (node->kind == NODE_EXPR_BINARY)
     {
         if (strcmp(node->binary.op, "??") == 0)
         {
@@ -1348,7 +1357,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         return left_type ? left_type : right_type;
     }
 
-    if (node->type == NODE_MATCH)
+    if (node->kind == NODE_MATCH)
     {
         ASTNode *case_node = node->match_stmt.cases;
         while (case_node)
@@ -1363,7 +1372,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         return NULL;
     }
 
-    if (node->type == NODE_EXPR_INDEX)
+    if (node->kind == NODE_EXPR_INDEX)
     {
         char *array_type = infer_type(ctx, node->index.array);
         if (array_type)
@@ -1400,7 +1409,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         return "int";
     }
 
-    if (node->type == NODE_EXPR_UNARY)
+    if (node->kind == NODE_EXPR_UNARY)
     {
         if (strcmp(node->unary.op, "&") == 0)
         {
@@ -1436,7 +1445,7 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         return infer_type(ctx, node->unary.operand);
     }
 
-    if (node->type == NODE_AWAIT)
+    if (node->kind == NODE_AWAIT)
     {
         // Infer underlying type T from await Async<T>
         // Check operand type for Generics <T>
@@ -1461,8 +1470,8 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
 
         // Fallback: If it's a direct call await foo(), we can lookup signature even if generic
         // syntax wasn't used
-        if (node->unary.operand->type == NODE_EXPR_CALL &&
-            node->unary.operand->call.callee->type == NODE_EXPR_VAR)
+        if (node->unary.operand->kind == NODE_EXPR_CALL &&
+            node->unary.operand->call.callee->kind == NODE_EXPR_VAR)
         {
             FuncSig *sig = find_func(ctx, node->unary.operand->call.callee->var_ref.name);
             if (sig && sig->ret_type)
@@ -1474,17 +1483,17 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         return "void*";
     }
 
-    if (node->type == NODE_EXPR_CAST)
+    if (node->kind == NODE_EXPR_CAST)
     {
         return node->cast.target_type;
     }
 
-    if (node->type == NODE_EXPR_STRUCT_INIT)
+    if (node->kind == NODE_EXPR_STRUCT_INIT)
     {
         return node->struct_init.struct_name;
     }
 
-    if (node->type == NODE_EXPR_ARRAY_LITERAL)
+    if (node->kind == NODE_EXPR_ARRAY_LITERAL)
     {
         if (node->type_info)
         {
@@ -1493,17 +1502,17 @@ char *infer_type(ParserContext *ctx, ASTNode *node)
         return NULL;
     }
 
-    if (node->type == NODE_EXPR_LITERAL)
+    if (node->kind == NODE_EXPR_LITERAL)
     {
-        if (node->literal.type_kind == LITERAL_STRING)
+        if (node->literal.kind == LITERAL_STRING)
         {
             return xstrdup("string");
         }
-        if (node->literal.type_kind == LITERAL_CHAR)
+        if (node->literal.kind == LITERAL_CHAR)
         {
             return xstrdup("char");
         }
-        if (node->literal.type_kind == LITERAL_FLOAT)
+        if (node->literal.kind == LITERAL_FLOAT)
         {
             return "double";
         }

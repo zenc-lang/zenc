@@ -314,6 +314,15 @@ $(OBJ_DIR)/%.o: %.c
 	@$(MKDIR) $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Rebuild the version-printing objects (and thus relink every tool) whenever
+# GIT_VERSION changes. The stamp only rewrites when the version differs, so a
+# plain `make` does not recompile anything.
+$(OBJ_DIR)/version.stamp: FORCE
+	@$(MKDIR) $(OBJ_DIR)
+	@if [ -f $@ ] && [ "$$(cat $@)" = "$(GIT_VERSION)" ]; then :; else echo "$(GIT_VERSION)" > $@; fi
+
+$(OBJ_DIR)/src/utils/cmd.o $(OBJ_DIR)/src/repl/repl.o: $(OBJ_DIR)/version.stamp
+
 # APE targets
 $(ZC_ENTRY_O): ape/zc_entry.c
 	@$(MKDIR) $(@D)
@@ -706,4 +715,4 @@ fuzz-clean:
 	rm -f $(FUZZ_TARGET) $(FUZZ_CMPLOG_TARGET) $(FUZZ_HARNESS)
 	rm -rf obj-fuzz obj-fuzz-cmplog
 
-.PHONY: all clean install uninstall install-ape uninstall-ape install-tools format format-check lint bench test test-misra test-tcc test-filcc test-lsp test-asan test-plugins zig clang filcc ape windows asan tsan msan lsan analyzer coverage coverage-report core lite minimal fuzz-build fuzz-run fuzz-clean test-fuzz-regression zc-lsp zc-repl zc-doc zc-format
+.PHONY: all clean install uninstall install-ape uninstall-ape install-tools format format-check lint bench test test-misra test-tcc test-filcc test-lsp test-asan test-plugins zig clang filcc ape windows asan tsan msan lsan analyzer coverage coverage-report core lite minimal fuzz-build fuzz-run fuzz-clean test-fuzz-regression zc-lsp zc-repl zc-doc zc-format FORCE

@@ -170,13 +170,13 @@ static void lisp_get_struct_field_info(ParserContext *ctx, const char *type_str,
     StructRef *sr = ctx->parsed_structs_list;
     while (sr)
     {
-        if (sr->node && sr->node->type == NODE_STRUCT && sr->node->strct.name &&
+        if (sr->node && sr->node->kind == NODE_STRUCT && sr->node->strct.name &&
             strcmp(sr->node->strct.name, sname) == 0)
         {
             int idx = 0;
             for (ASTNode *fd = sr->node->strct.fields; fd; fd = fd->next)
             {
-                if (fd->type == NODE_FIELD && fd->var_decl.name &&
+                if (fd->kind == NODE_FIELD && fd->var_decl.name &&
                     strcmp(fd->var_decl.name, field_name) == 0)
                 {
                     *out_idx = idx;
@@ -191,12 +191,12 @@ static void lisp_get_struct_field_info(ParserContext *ctx, const char *type_str,
     // Also search instantiated structs
     for (ASTNode *s = ctx->instantiated_structs; s; s = s->next)
     {
-        if (s->type == NODE_STRUCT && s->strct.name && strcmp(s->strct.name, sname) == 0)
+        if (s->kind == NODE_STRUCT && s->strct.name && strcmp(s->strct.name, sname) == 0)
         {
             int idx = 0;
             for (ASTNode *fd = s->strct.fields; fd; fd = fd->next)
             {
-                if (fd->type == NODE_FIELD && fd->var_decl.name &&
+                if (fd->kind == NODE_FIELD && fd->var_decl.name &&
                     strcmp(fd->var_decl.name, field_name) == 0)
                 {
                     *out_idx = idx;
@@ -219,10 +219,10 @@ static void lemit_expr(ParserContext *ctx, ASTNode *node, int depth)
         emitter_printf(&ctx->cg.emitter, "nil");
         return;
     }
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_EXPR_LITERAL:
-        switch (node->literal.type_kind)
+        switch (node->literal.kind)
         {
         case LITERAL_INT:
             emitter_printf(&ctx->cg.emitter, "%llu", node->literal.int_val);
@@ -361,12 +361,12 @@ static void lemit_expr(ParserContext *ctx, ASTNode *node, int depth)
         ASTNode *callee = node->call.callee;
         const char *fname = NULL;
         int is_member_call = 0;
-        if (callee && callee->type == NODE_EXPR_MEMBER && callee->member.field)
+        if (callee && callee->kind == NODE_EXPR_MEMBER && callee->member.field)
         {
             fname = callee->member.field;
             is_member_call = 1;
         }
-        else if (callee && callee->type == NODE_EXPR_VAR && callee->var_ref.name)
+        else if (callee && callee->kind == NODE_EXPR_VAR && callee->var_ref.name)
         {
             fname = callee->var_ref.name;
         }
@@ -436,7 +436,7 @@ static void lemit_expr(ParserContext *ctx, ASTNode *node, int depth)
             fname = zname;
         }
         // Strip mangled prefix for VAR calls with __ in original name
-        if (!is_member_call && callee && callee->type == NODE_EXPR_VAR && callee->var_ref.name)
+        if (!is_member_call && callee && callee->kind == NODE_EXPR_VAR && callee->var_ref.name)
         {
             const char *orig = callee->var_ref.name;
             const char *last_du = NULL;
@@ -477,7 +477,7 @@ static void lemit_expr(ParserContext *ctx, ASTNode *node, int depth)
 
         // Detect lambda-in-variable calls: short names (f, f1, fn) need funcall
         int need_funcall = 0;
-        if (callee && callee->type == NODE_EXPR_VAR && fname && !is_member_call &&
+        if (callee && callee->kind == NODE_EXPR_VAR && fname && !is_member_call &&
             strlen(fname) <= 4 && strncmp(fname, "_z_", 3) != 0 && strcmp(fname, "nil") != 0 &&
             strcmp(fname, "t") != 0)
         {
@@ -581,15 +581,15 @@ static void lemit_expr(ParserContext *ctx, ASTNode *node, int depth)
         {
             emitter_printf(&ctx->cg.emitter, " ");
             ASTNode *fval = NULL;
-            if (f->type == NODE_EXPR_BINARY && f->binary.op && strcmp(f->binary.op, "=") == 0)
+            if (f->kind == NODE_EXPR_BINARY && f->binary.op && strcmp(f->binary.op, "=") == 0)
             {
                 fval = f->binary.right;
             }
-            else if (f->type == NODE_FIELD)
+            else if (f->kind == NODE_FIELD)
             {
                 fval = f->var_decl.init_expr;
             }
-            else if (f->type == NODE_RETURN)
+            else if (f->kind == NODE_RETURN)
             {
                 fval = f->ret.value;
             }
@@ -637,7 +637,7 @@ static void lemit_expr(ParserContext *ctx, ASTNode *node, int depth)
 
     case NODE_LAMBDA:
         emitter_printf(&ctx->cg.emitter, "(lambda (");
-        for (int i = 0; i < node->lambda.num_params; i++)
+        for (int i = 0; i < node->lambda.count; i++)
         {
             if (i > 0)
             {
@@ -652,7 +652,7 @@ static void lemit_expr(ParserContext *ctx, ASTNode *node, int depth)
         lemit_i(ctx, depth + 1);
         if (node->lambda.body)
         {
-            if (node->lambda.body->type == NODE_BLOCK && node->lambda.body->block.statements)
+            if (node->lambda.body->kind == NODE_BLOCK && node->lambda.body->block.statements)
             {
                 int bf = 1;
                 for (ASTNode *s = node->lambda.body->block.statements; s; s = s->next)
@@ -663,7 +663,7 @@ static void lemit_expr(ParserContext *ctx, ASTNode *node, int depth)
                         lemit_i(ctx, depth + 1);
                     }
                     bf = 0;
-                    if (s->type == NODE_RETURN && s->ret.value)
+                    if (s->kind == NODE_RETURN && s->ret.value)
                     {
                         lemit_expr(ctx, s->ret.value, depth + 1);
                     }
@@ -706,7 +706,7 @@ static void lemit_stmt(ParserContext *ctx, ASTNode *node, int depth, int *first)
     }
     *first = 0;
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_BLOCK:
         lemit_stmts(ctx, node->block.statements, depth);
@@ -817,7 +817,7 @@ static void lemit_stmt(ParserContext *ctx, ASTNode *node, int depth, int *first)
             emitter_printf(&ctx->cg.emitter, "\n");
             lemit_i(ctx, depth + 2);
             // Emit step: if it's =, emit setf directly
-            if (node->for_stmt.step->type == NODE_EXPR_BINARY && node->for_stmt.step->binary.op &&
+            if (node->for_stmt.step->kind == NODE_EXPR_BINARY && node->for_stmt.step->binary.op &&
                 strcmp(node->for_stmt.step->binary.op, "=") == 0)
             {
                 emitter_printf(&ctx->cg.emitter, "(setf ");
@@ -879,7 +879,7 @@ static void lemit_stmt(ParserContext *ctx, ASTNode *node, int depth, int *first)
     {
         emitter_printf(&ctx->cg.emitter, "(cond");
         const char *ev = "__mv";
-        int need_var = !(node->match_stmt.expr && node->match_stmt.expr->type == NODE_EXPR_VAR);
+        int need_var = !(node->match_stmt.expr && node->match_stmt.expr->kind == NODE_EXPR_VAR);
         if (!need_var)
         {
             ev = node->match_stmt.expr->var_ref.name ? node->match_stmt.expr->var_ref.name : "__mv";
@@ -1116,7 +1116,7 @@ static void lemit_stmt(ParserContext *ctx, ASTNode *node, int depth, int *first)
         break;
 
     default:
-        emitter_printf(&ctx->cg.emitter, "; unhandled stmt %d", (int)node->type);
+        emitter_printf(&ctx->cg.emitter, "; unhandled stmt %d", (int)node->kind);
         break;
     }
 }
@@ -1225,7 +1225,7 @@ static void lemit_func(ParserContext *ctx, ASTNode *node, int depth, int *first)
     current_func = fname;
 
     emitter_printf(&ctx->cg.emitter, "(defun %s (", fname);
-    for (int i = 0; i < node->func.arg_count; i++)
+    for (int i = 0; i < node->func.count; i++)
     {
         if (i > 0)
         {
@@ -1240,7 +1240,7 @@ static void lemit_func(ParserContext *ctx, ASTNode *node, int depth, int *first)
 
     if (node->func.body)
     {
-        if (node->func.body->type == NODE_BLOCK)
+        if (node->func.body->kind == NODE_BLOCK)
         {
             // Scan for var decls recursively (including inside for-init blocks)
             ASTNode *stmts = node->func.body->block.statements;
@@ -1257,7 +1257,7 @@ static void lemit_func(ParserContext *ctx, ASTNode *node, int depth, int *first)
                 while (walk_sp > 0)
                 {
                     ASTNode *cur = walk_stack[--walk_sp];
-                    if (cur->type == NODE_VAR_DECL && cur->var_decl.name && vcnt < MAX_VAR_NAMES)
+                    if (cur->kind == NODE_VAR_DECL && cur->var_decl.name && vcnt < MAX_VAR_NAMES)
                     {
                         int found = 0;
                         for (int i = 0; i < vcnt; i++)
@@ -1276,7 +1276,7 @@ static void lemit_func(ParserContext *ctx, ASTNode *node, int depth, int *first)
                         }
                     }
                     // Push children for nested blocks
-                    if (cur->type == NODE_BLOCK && cur->block.statements)
+                    if (cur->kind == NODE_BLOCK && cur->block.statements)
                     {
                         for (ASTNode *c = cur->block.statements; c && walk_sp < WALK_STACK_SIZE;
                              c = c->next)
@@ -1285,37 +1285,37 @@ static void lemit_func(ParserContext *ctx, ASTNode *node, int depth, int *first)
                         }
                     }
                     // Push for-loop init children
-                    if (cur->type == NODE_FOR && cur->for_stmt.init && walk_sp < WALK_STACK_SIZE)
+                    if (cur->kind == NODE_FOR && cur->for_stmt.init && walk_sp < WALK_STACK_SIZE)
                     {
                         walk_stack[walk_sp++] = cur->for_stmt.init;
                     }
-                    if (cur->type == NODE_FOR && cur->for_stmt.body && walk_sp < WALK_STACK_SIZE)
+                    if (cur->kind == NODE_FOR && cur->for_stmt.body && walk_sp < WALK_STACK_SIZE)
                     {
                         walk_stack[walk_sp++] = cur->for_stmt.body;
                     }
-                    if (cur->type == NODE_FOR_RANGE && cur->for_range.body &&
+                    if (cur->kind == NODE_FOR_RANGE && cur->for_range.body &&
                         walk_sp < WALK_STACK_SIZE)
                     {
                         walk_stack[walk_sp++] = cur->for_range.body;
                     }
-                    if (cur->type == NODE_IF && cur->if_stmt.then_body && walk_sp < WALK_STACK_SIZE)
+                    if (cur->kind == NODE_IF && cur->if_stmt.then_body && walk_sp < WALK_STACK_SIZE)
                     {
                         walk_stack[walk_sp++] = cur->if_stmt.then_body;
                     }
-                    if (cur->type == NODE_IF && cur->if_stmt.else_body && walk_sp < WALK_STACK_SIZE)
+                    if (cur->kind == NODE_IF && cur->if_stmt.else_body && walk_sp < WALK_STACK_SIZE)
                     {
                         walk_stack[walk_sp++] = cur->if_stmt.else_body;
                     }
-                    if (cur->type == NODE_WHILE && cur->while_stmt.body &&
+                    if (cur->kind == NODE_WHILE && cur->while_stmt.body &&
                         walk_sp < WALK_STACK_SIZE)
                     {
                         walk_stack[walk_sp++] = cur->while_stmt.body;
                     }
-                    if (cur->type == NODE_LOOP && cur->loop_stmt.body && walk_sp < WALK_STACK_SIZE)
+                    if (cur->kind == NODE_LOOP && cur->loop_stmt.body && walk_sp < WALK_STACK_SIZE)
                     {
                         walk_stack[walk_sp++] = cur->loop_stmt.body;
                     }
-                    if (cur->type == NODE_DO_WHILE && cur->do_while_stmt.body &&
+                    if (cur->kind == NODE_DO_WHILE && cur->do_while_stmt.body &&
                         walk_sp < WALK_STACK_SIZE)
                     {
                         walk_stack[walk_sp++] = cur->do_while_stmt.body;
@@ -1338,7 +1338,7 @@ static void lemit_func(ParserContext *ctx, ASTNode *node, int depth, int *first)
             }
             // Declare all vars as ignorable
             emitter_printf(&ctx->cg.emitter, "(declare (ignorable ");
-            for (int i = 0; i < node->func.arg_count; i++)
+            for (int i = 0; i < node->func.count; i++)
             {
                 if (i > 0)
                 {
@@ -1375,7 +1375,7 @@ static void lemit_func(ParserContext *ctx, ASTNode *node, int depth, int *first)
 static void lemit_struct(ParserContext *ctx, ASTNode *node, int depth)
 {
     (void)depth;
-    if (!node || node->type != NODE_STRUCT)
+    if (!node || node->kind != NODE_STRUCT)
     {
         return;
     }
@@ -1383,7 +1383,7 @@ static void lemit_struct(ParserContext *ctx, ASTNode *node, int depth)
     emitter_printf(&ctx->cg.emitter, "\n\n(defstruct %s", sname);
     for (ASTNode *f = node->strct.fields; f; f = f->next)
     {
-        if (f->type == NODE_FIELD && f->var_decl.name)
+        if (f->kind == NODE_FIELD && f->var_decl.name)
         {
             emitter_printf(&ctx->cg.emitter, "\n");
             lemit_i(ctx, 1);
@@ -1408,7 +1408,7 @@ static int lisp_func_emitted(ParserContext *ctx, const char *name, const char **
 
 static void lemit_root(ParserContext *ctx, ASTNode *root, int depth)
 {
-    if (!root || root->type != NODE_ROOT)
+    if (!root || root->kind != NODE_ROOT)
     {
         return;
     }
@@ -1422,7 +1422,7 @@ static void lemit_root(ParserContext *ctx, ASTNode *root, int depth)
     // User-defined functions from root
     for (ASTNode *c = root->root.children; c; c = c->next)
     {
-        if (c->type == NODE_FUNCTION && c->func.name && ecount < MAX_EMITTED_NAMES)
+        if (c->kind == NODE_FUNCTION && c->func.name && ecount < MAX_EMITTED_NAMES)
         {
             lemit_func(ctx, c, depth, &first);
             emitted_names[ecount++] = c->func.name;
@@ -1431,7 +1431,7 @@ static void lemit_root(ParserContext *ctx, ASTNode *root, int depth)
                 has_main = 1;
             }
         }
-        else if (c->type == NODE_TEST && c->test_stmt.name && ecount < MAX_EMITTED_NAMES)
+        else if (c->kind == NODE_TEST && c->test_stmt.name && ecount < MAX_EMITTED_NAMES)
         {
             // Skip test blocks without fn main (test-only files are no-ops)
         }
@@ -1440,13 +1440,13 @@ static void lemit_root(ParserContext *ctx, ASTNode *root, int depth)
     // Functions from imported files (via IMPORT nodes)
     for (ASTNode *c = root->root.children; c; c = c->next)
     {
-        if (c->type == NODE_IMPORT && c->import_stmt.module_root)
+        if (c->kind == NODE_IMPORT && c->import_stmt.module_root)
         {
             // module_root is a linked list of parsed nodes (not wrapped in NODE_ROOT)
             int inner_first = 1;
             for (ASTNode *ic = c->import_stmt.module_root; ic; ic = ic->next)
             {
-                if (ic->type == NODE_FUNCTION && ic->func.name && ecount < MAX_EMITTED_NAMES &&
+                if (ic->kind == NODE_FUNCTION && ic->func.name && ecount < MAX_EMITTED_NAMES &&
                     !lisp_func_emitted(ctx, ic->func.name, emitted_names, ecount))
                 {
                     lemit_func(ctx, ic, depth, &inner_first);
@@ -1463,7 +1463,7 @@ static void lemit_root(ParserContext *ctx, ASTNode *root, int depth)
     // Instantiated structs
     for (ASTNode *s = ctx->instantiated_structs; s; s = s->next)
     {
-        if (s->type == NODE_STRUCT)
+        if (s->kind == NODE_STRUCT)
         {
             lemit_struct(ctx, s, depth);
         }
@@ -1472,7 +1472,7 @@ static void lemit_root(ParserContext *ctx, ASTNode *root, int depth)
     // Instantiated functions (monomorphized)
     for (ASTNode *f = ctx->instantiated_funcs; f; f = f->next)
     {
-        if (f->type == NODE_FUNCTION && f->func.name && ecount < MAX_EMITTED_NAMES)
+        if (f->kind == NODE_FUNCTION && f->func.name && ecount < MAX_EMITTED_NAMES)
         {
             if (!lisp_func_emitted(ctx, f->func.name, emitted_names, ecount))
             {
@@ -1484,12 +1484,12 @@ static void lemit_root(ParserContext *ctx, ASTNode *root, int depth)
                 }
             }
         }
-        else if (f->type == NODE_IMPL || f->type == NODE_IMPL_TRAIT)
+        else if (f->kind == NODE_IMPL || f->kind == NODE_IMPL_TRAIT)
         {
-            ASTNode *m = (f->type == NODE_IMPL) ? f->impl.methods : f->impl_trait.methods;
+            ASTNode *m = (f->kind == NODE_IMPL) ? f->impl.methods : f->impl_trait.methods;
             while (m)
             {
-                if (m->type == NODE_FUNCTION && m->func.name && ecount < MAX_EMITTED_NAMES &&
+                if (m->kind == NODE_FUNCTION && m->func.name && ecount < MAX_EMITTED_NAMES &&
                     !lisp_func_emitted(ctx, m->func.name, emitted_names, ecount))
                 {
                     lemit_func(ctx, m, depth, &first);
@@ -1511,11 +1511,11 @@ static void lemit_program(ParserContext *ctx, ASTNode *root)
 {
     emitter_printf(&ctx->cg.emitter, "#!/usr/bin/env sbcl --script\n");
     // Check for stdlib imports and load native Lisp modules
-    if (root && root->type == NODE_ROOT)
+    if (root && root->kind == NODE_ROOT)
     {
         for (ASTNode *c = root->root.children; c; c = c->next)
         {
-            if (c->type == NODE_IMPORT && c->import_stmt.path)
+            if (c->kind == NODE_IMPORT && c->import_stmt.path)
             {
                 // Map Zen stdlib imports to native Lisp modules
                 const char *path = c->import_stmt.path;

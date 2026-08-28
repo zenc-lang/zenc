@@ -92,7 +92,7 @@ static int compare_tokens(const void *a, const void *b)
 // Keyword check: reuse parser's is_reserved_keyword() + primitives table.
 static int is_keyword(const char *w, size_t len)
 {
-    Token t = {.type = TOK_IDENT, .start = w, .len = len};
+    Token t = {.kind = TOK_IDENT, .start = w, .len = len};
     if (is_reserved_keyword(t))
     {
         return 1;
@@ -199,16 +199,16 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         return;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_FUNCTION:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_FUNCTION, 1);
         }
         // Parameters
-        for (int i = 0; i < node->func.arg_count; i++)
+        for (int i = 0; i < node->func.count; i++)
         {
             Attribute *attr = node->func.attributes;
             while (attr)
@@ -220,7 +220,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_VAR_DECL:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_VARIABLE, 0);
@@ -261,7 +261,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_CONST:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_VARIABLE, 2);
@@ -270,7 +270,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_TYPE_ALIAS:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_TYPE, 0);
@@ -278,7 +278,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_EXPR_VAR:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_VARIABLE, 0);
@@ -286,7 +286,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_STRUCT:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_STRUCT, 0);
@@ -295,7 +295,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_FIELD:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_MEMBER, 0);
@@ -304,7 +304,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
 
     case NODE_EXPR_MEMBER:
         traverse_node(b, node->member.target, depth + 1);
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_MEMBER, 0);
@@ -312,20 +312,19 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_EXPR_LITERAL:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
-            if (node->literal.type_kind == LITERAL_STRING)
+            if (node->literal.kind == LITERAL_STRING)
             {
                 builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                              TOKEN_TYPE_STRING, 0);
             }
-            else if (node->literal.type_kind == LITERAL_INT ||
-                     node->literal.type_kind == LITERAL_FLOAT)
+            else if (node->literal.kind == LITERAL_INT || node->literal.kind == LITERAL_FLOAT)
             {
                 builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                              TOKEN_TYPE_NUMBER, 0);
             }
-            else if (node->literal.type_kind == LITERAL_CHAR)
+            else if (node->literal.kind == LITERAL_CHAR)
             {
                 builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                              TOKEN_TYPE_STRING, 0);
@@ -334,7 +333,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_TRAIT:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_STRUCT, 0);
@@ -343,7 +342,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_IMPL:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_STRUCT, 0);
@@ -352,7 +351,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_IMPL_TRAIT:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_STRUCT, 0);
@@ -361,7 +360,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_ENUM:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_ENUM, 0);
@@ -370,7 +369,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     case NODE_ENUM_VARIANT:
-        if (node->token.type != TOK_EOF)
+        if (node->token.kind != TOK_EOF)
         {
             builder_push(b, node->token.line - 1, node->token.col - 1, (int)(node->token.len),
                          TOKEN_TYPE_ENUM, 0);
@@ -402,7 +401,7 @@ static void traverse_node(TokenBuilder *b, ASTNode *node, int depth)
         break;
 
     default:
-        if (node->type == NODE_ROOT)
+        if (node->kind == NODE_ROOT)
         {
             traverse_node(b, node->root.children, depth + 1);
         }

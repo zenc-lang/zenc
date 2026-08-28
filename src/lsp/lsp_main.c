@@ -98,6 +98,7 @@ int lsp_main(int argc, char **argv)
         if (g_lsp_request_is_readonly)
         {
             zarena_restore(&g_compiler.arena, arena_mark);
+            clear_registered_traits();
         }
 
         libc_free(body);

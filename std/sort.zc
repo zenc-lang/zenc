@@ -86,14 +86,14 @@ fn sort_int(arr: int*, len: usize) {
     sort(arr, len);
 }
 
-fn sort_long(arr: long*, len: usize) {
+fn sort_long(arr: i64*, len: usize) {
     sort(arr, len);
 }
 
-fn sort_float(arr: float*, len: usize) {
+fn sort_float(arr: f32*, len: usize) {
     sort(arr, len);
 }
 
-fn sort_double(arr: double*, len: usize) {
+fn sort_double(arr: f64*, len: usize) {
     sort(arr, len);
 }

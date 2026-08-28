@@ -1,0 +1,50 @@
+// language/features/match: test_match_std_result_binding
+//
+// Match bindings on the std `Result<T>` / `Option<T>` struct constructors must
+// be typed from the constructor's payload (with generics substituted), so the
+// bound value can call methods / access fields.
+import "std/result.zc"
+import "std/option.zc"
+import "std/string.zc"
+import "std/vec.zc"
+
+test "match Result<String> binding" {
+    let r = Result<String>::Ok(String::new("hello"));
+    match r {
+        Ok(s) => {
+            assert(s.length() == 5, "String binding method call");
+        },
+        Err(e) => assert(false, "should be Ok")
+    }
+}
+
+test "match Result<int> binding + Err char*" {
+    let ok = Result<int>::Ok(41);
+    match ok {
+        Ok(v) => assert(v + 1 == 42, "int binding arithmetic"),
+        Err(e) => assert(false, "should be Ok")
+    }
+    let bad = Result<int>::Err("boom");
+    match bad {
+        Ok(v) => assert(false, "should be Err"),
+        Err(e) => assert(e[0] == 'b', "Err char* binding indexing")
+    }
+}
+
+test "match Option<String> binding" {
+    let s = Option<String>::Some(String::new("world"));
+    match s {
+        Some(val) => assert(val.length() == 5, "Some String binding"),
+        None => assert(false, "should be Some")
+    }
+}
+
+test "match nested generic Result<Vec<int>> binding" {
+    let v = Vec<int>::new();
+    v.push(7);
+    let r = Result<Vec<int>>::Ok(v);
+    match r {
+        Ok(items) => assert(items.get(0) == 7, "nested Vec binding"),
+        Err(e) => assert(false, "should be Ok")
+    }
+}

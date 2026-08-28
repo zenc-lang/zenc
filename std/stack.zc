@@ -8,10 +8,12 @@ struct Stack<T> {
 }
 
 impl Stack<T> {
+    /// Creates a new, empty stack.
     fn new() -> Stack<T> {
         return Stack<T>{data: NULL, len: 0, cap: 0};
     }
 
+/// Frees the backing storage.
 fn free(self) {
     if (self.data) {
         dealloc<T>(self.data);
@@ -29,6 +31,7 @@ fn clone(self) -> Stack<T> {
     return new_stack;
 }
 
+/// Pushes a value onto the stack.
 fn push(self, value: T) {
     if (!self.data) {
         self.cap = 8;
@@ -43,6 +46,7 @@ self.data[self.len] = value;
 self.len = self.len + 1;
 }
 
+/// Pops and returns the top value (0 when empty).
 fn pop(self) -> Option<T> {
     if (self.len > 0) {
         let value = self.data[self.len - 1];
@@ -52,14 +56,17 @@ fn pop(self) -> Option<T> {
 return Option<T>::None();
 }
 
+/// Returns the number of items.
 fn length(self) -> usize {
     return self.len;
 }
 
+/// Removes all items.
 fn clear(self) {
     self.len = 0;
 }
 
+/// Returns whether the stack is empty.
 fn is_empty(self) -> bool {
     return self.len == 0;
 }

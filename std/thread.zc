@@ -76,6 +76,7 @@ struct Thread {
 }
 
 impl Thread {
+    /// Spawns a thread running the closure.
     fn spawn(func: fn()) -> Result<Thread> {
         let out_handle: usize = 0; 
         
@@ -84,7 +85,7 @@ impl Thread {
         
         memcpy(ctx, &func, sizeof(fn()));
         
-        // Zero out the drop field to prevent double-free by this function's cleanup
+        // Zero out the drop field to prevent f64-free by this function's cleanup
         raw {
             ((z_closure_T*)&func)->drop = NULL;
         }
@@ -99,6 +100,7 @@ impl Thread {
         return Result<Thread>::Ok(Thread { handle: (void*)out_handle });
     }
     
+    /// Waits for the thread to finish.
     fn join(self) -> Result<bool> {
         let err = _z_thread_join(self.handle);
         if err {
@@ -107,6 +109,7 @@ impl Thread {
         return Result<bool>::Ok(true);
     }
 
+    /// Detaches the thread (runs independently).
     fn detach(self) -> Result<bool> {
         let err = _z_thread_detach(self.handle);
         if err {

@@ -1,0 +1,23 @@
+// language/features/methods: test_underscore_method_mangling
+//
+// A leading-underscore method must keep its distinct mangled name so it does
+// not collide with the plain method (Struct___method vs Struct__method).
+struct Counter {
+    n: int;
+}
+
+impl Counter {
+    fn _hidden(self) -> int {
+        return self.n + 100;
+    }
+
+    fn shown(self) -> int {
+        return self.n + 200;
+    }
+}
+
+test "underscore method and plain method are distinct" {
+    let c = Counter { n: 1 };
+    assert(c._hidden() == 101, "_hidden resolves to its own mangled name");
+    assert(c.shown() == 201, "shown resolves to its own mangled name");
+}

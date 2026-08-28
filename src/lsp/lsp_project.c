@@ -298,38 +298,38 @@ DefinitionResult lsp_project_find_definition(const char *name)
             LSPRange *r = pf->index->head;
             while (r)
             {
-                if (r->type == RANGE_DEFINITION && r->node)
+                if (r->kind == RANGE_DEFINITION && r->node)
                 {
                     char *found_name = NULL;
-                    if (r->node->type == NODE_FUNCTION)
+                    if (r->node->kind == NODE_FUNCTION)
                     {
                         found_name = r->node->func.name;
                     }
-                    else if (r->node->type == NODE_VAR_DECL)
+                    else if (r->node->kind == NODE_VAR_DECL)
                     {
                         found_name = r->node->var_decl.name;
                     }
-                    else if (r->node->type == NODE_CONST)
+                    else if (r->node->kind == NODE_CONST)
                     {
                         found_name = r->node->var_decl.name;
                     }
-                    else if (r->node->type == NODE_STRUCT)
+                    else if (r->node->kind == NODE_STRUCT)
                     {
                         found_name = r->node->strct.name;
                     }
-                    else if (r->node->type == NODE_ENUM)
+                    else if (r->node->kind == NODE_ENUM)
                     {
                         found_name = r->node->enm.name;
                     }
-                    else if (r->node->type == NODE_ENUM_VARIANT)
+                    else if (r->node->kind == NODE_ENUM_VARIANT)
                     {
                         found_name = r->node->variant.name;
                     }
-                    else if (r->node->type == NODE_TRAIT)
+                    else if (r->node->kind == NODE_TRAIT)
                     {
                         found_name = r->node->trait.name;
                     }
-                    else if (r->node->type == NODE_TYPE_ALIAS)
+                    else if (r->node->kind == NODE_TYPE_ALIAS)
                     {
                         found_name = r->node->type_alias.alias;
                     }
@@ -375,44 +375,44 @@ ReferenceResult *lsp_project_find_references(const char *name)
 
                 if (r->node)
                 {
-                    if (r->node->type == NODE_FUNCTION)
+                    if (r->node->kind == NODE_FUNCTION)
                     {
                         scan_name = r->node->func.name;
                     }
-                    else if (r->node->type == NODE_VAR_DECL)
+                    else if (r->node->kind == NODE_VAR_DECL)
                     {
                         scan_name = r->node->var_decl.name;
                     }
-                    else if (r->node->type == NODE_CONST)
+                    else if (r->node->kind == NODE_CONST)
                     {
                         scan_name = r->node->var_decl.name;
                     }
-                    else if (r->node->type == NODE_STRUCT)
+                    else if (r->node->kind == NODE_STRUCT)
                     {
                         scan_name = r->node->strct.name;
                     }
-                    else if (r->node->type == NODE_ENUM)
+                    else if (r->node->kind == NODE_ENUM)
                     {
                         scan_name = r->node->enm.name;
                     }
-                    else if (r->node->type == NODE_ENUM_VARIANT)
+                    else if (r->node->kind == NODE_ENUM_VARIANT)
                     {
                         scan_name = r->node->variant.name;
                     }
-                    else if (r->node->type == NODE_TRAIT)
+                    else if (r->node->kind == NODE_TRAIT)
                     {
                         scan_name = r->node->trait.name;
                     }
-                    else if (r->node->type == NODE_TYPE_ALIAS)
+                    else if (r->node->kind == NODE_TYPE_ALIAS)
                     {
                         scan_name = r->node->type_alias.alias;
                     }
-                    else if (r->node->type == NODE_EXPR_VAR)
+                    else if (r->node->kind == NODE_EXPR_VAR)
                     {
                         scan_name = r->node->var_ref.name;
                     }
-                    else if (r->node->type == NODE_EXPR_CALL && r->node->call.callee &&
-                             r->node->call.callee->type == NODE_EXPR_VAR)
+                    else if (r->node->kind == NODE_EXPR_CALL && r->node->call.callee &&
+                             r->node->call.callee->kind == NODE_EXPR_VAR)
                     {
                         scan_name = r->node->call.callee->var_ref.name;
                     }

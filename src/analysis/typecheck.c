@@ -29,7 +29,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
         return;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_ROOT:
     {
@@ -141,7 +141,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
         misra_check_compound_body(tc->pctx, node->if_stmt.then_body, "if");
         if (node->if_stmt.else_body)
         {
-            if (node->if_stmt.else_body->type == NODE_IF)
+            if (node->if_stmt.else_body->kind == NODE_IF)
             {
                 misra_check_terminal_else(tc->pctx, node);
             }
@@ -215,7 +215,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
 
             while (mcase)
             {
-                if (mcase->type == NODE_MATCH_CASE)
+                if (mcase->kind == NODE_MATCH_CASE)
                 {
                     if (mcase->match_case.is_default)
                     {
@@ -257,7 +257,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
                     // MISRA Rule 16.3: An unconditional break or return shall terminate every
                     // switch-clause
                     if (tc->pctx->config->misra_mode && !tc->is_unreachable &&
-                        mcase->match_case.body && mcase->match_case.body->type == NODE_BLOCK &&
+                        mcase->match_case.body && mcase->match_case.body->kind == NODE_BLOCK &&
                         mcase->match_case.body->block.statements)
                     {
                         tc_error(tc, mcase->token,
@@ -315,7 +315,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
     case NODE_STRUCT:
     case NODE_ENUM:
     case NODE_TYPE_ALIAS:
-        if (node->type == NODE_STRUCT)
+        if (node->kind == NODE_STRUCT)
         {
             misra_check_reserved_identifier(tc->pctx, node->strct.name, node->token);
             misra_check_struct_decl(tc->pctx, node);
@@ -324,11 +324,11 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
                 misra_check_union(tc->pctx, node->token);
             }
         }
-        else if (node->type == NODE_ENUM)
+        else if (node->kind == NODE_ENUM)
         {
             misra_check_reserved_identifier(tc->pctx, node->enm.name, node->token);
         }
-        else if (node->type == NODE_TYPE_ALIAS)
+        else if (node->kind == NODE_TYPE_ALIAS)
         {
             misra_check_reserved_identifier(tc->pctx, node->type_alias.alias, node->token);
         }
@@ -393,7 +393,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
                     ASTNode *array = node->index.array;
                     ASTNode *idx = node->index.index;
 
-                    node->type = NODE_EXPR_CALL;
+                    node->kind = NODE_EXPR_CALL;
                     memset(&node->call, 0, sizeof(node->call));
 
                     ASTNode *callee = ast_create(NODE_EXPR_MEMBER);
@@ -418,7 +418,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
                 if (t->kind == TYPE_VECTOR && !t->inner && t->name)
                 {
                     ASTNode *def = find_struct_def(tc->pctx, t->name);
-                    if (def && def->type == NODE_STRUCT && def->strct.fields)
+                    if (def && def->kind == NODE_STRUCT && def->strct.fields)
                     {
                         t->inner = def->strct.fields->type_info;
                     }
@@ -476,7 +476,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
                     ASTNode *field = struct_def->strct.fields;
                     while (field)
                     {
-                        if (field->type == NODE_FIELD && field->field.name &&
+                        if (field->kind == NODE_FIELD && field->field.name &&
                             strcmp(field->field.name, node->member.field) == 0)
                         {
                             // Propagate lifetime from struct container to the member access result
@@ -755,7 +755,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
         }
         break;
     case NODE_ASM:
-        for (int i = 0; i < node->asm_stmt.num_outputs; i++)
+        for (int i = 0; i < node->asm_stmt.output_count; i++)
         {
             ZenSymbol *sym = tc_lookup(tc, node->asm_stmt.outputs[i]);
             if (!sym)
@@ -783,7 +783,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
                 }
             }
         }
-        for (int i = 0; i < node->asm_stmt.num_inputs; i++)
+        for (int i = 0; i < node->asm_stmt.input_count; i++)
         {
             ZenSymbol *sym = tc_lookup(tc, node->asm_stmt.inputs[i]);
             if (!sym)
@@ -960,7 +960,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
     default:
         // Generic recursion for lists and other nodes.
         // Special case for Return to trigger move?
-        if (node->type == NODE_RETURN && node->ret.value)
+        if (node->kind == NODE_RETURN && node->ret.value)
         {
             // If returning a value, check if it can be moved.
             check_move_for_rvalue(tc, node->ret.value);
@@ -972,7 +972,7 @@ void check_node(TypeChecker *tc, ASTNode *node, int depth)
 
 static void infer_node_lifetime(TypeChecker *tc, ASTNode *node)
 {
-    if (!node || node->type != NODE_FUNCTION)
+    if (!node || node->kind != NODE_FUNCTION)
     {
         return;
     }
@@ -1046,7 +1046,7 @@ static void infer_node_lifetime(TypeChecker *tc, ASTNode *node)
 
 static void check_program_prepass(TypeChecker *tc, ASTNode *root, int depth)
 {
-    if (!root || root->type != NODE_ROOT)
+    if (!root || root->kind != NODE_ROOT)
     {
         return;
     }
@@ -1061,39 +1061,39 @@ static void check_program_prepass(TypeChecker *tc, ASTNode *root, int depth)
     ASTNode *n = root->root.children;
     while (n)
     {
-        if (n->type == NODE_ROOT)
+        if (n->kind == NODE_ROOT)
         {
             check_program_prepass(tc, n, depth + 1);
         }
-        else if (n->type == NODE_FUNCTION)
+        else if (n->kind == NODE_FUNCTION)
         {
             infer_node_lifetime(tc, n);
         }
-        else if (n->type == NODE_IMPL)
+        else if (n->kind == NODE_IMPL)
         {
             ASTNode *method = n->impl.methods;
             while (method)
             {
-                if (method->type == NODE_FUNCTION)
+                if (method->kind == NODE_FUNCTION)
                 {
                     infer_node_lifetime(tc, method);
                 }
                 method = method->next;
             }
         }
-        else if (n->type == NODE_IMPL_TRAIT)
+        else if (n->kind == NODE_IMPL_TRAIT)
         {
             ASTNode *method = n->impl_trait.methods;
             while (method)
             {
-                if (method->type == NODE_FUNCTION)
+                if (method->kind == NODE_FUNCTION)
                 {
                     infer_node_lifetime(tc, method);
                 }
                 method = method->next;
             }
         }
-        else if (n->type == NODE_IMPORT)
+        else if (n->kind == NODE_IMPORT)
         {
             // Imports are conceptually ROOTs of their own module
             check_program_prepass(tc, n->import_stmt.module_root, depth + 1);

@@ -20,11 +20,11 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
     res.derived_traits = xmalloc(sizeof(char *) * 32);
 
     Token t = lexer_peek(l);
-    while (t.type == TOK_AT)
+    while (t.kind == TOK_AT)
     {
         lexer_next(l);
         Token attr = lexer_next(l);
-        if (attr.type != TOK_IDENT && attr.type != TOK_COMPTIME && attr.type != TOK_ALIAS)
+        if (attr.kind != TOK_IDENT && attr.kind != TOK_COMPTIME && attr.kind != TOK_ALIAS)
         {
             zpanic_at(attr, "Expected attribute name");
             return (DeclarationAttributes){0};
@@ -34,17 +34,17 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         if ((0 == strncmp(attr.start, "vector_size", 11) && 11 == attr.len) ||
             (0 == strncmp(attr.start, "vector", 6) && 6 == attr.len))
         {
-            if (lexer_peek(l).type == TOK_LPAREN)
+            if (lexer_peek(l).kind == TOK_LPAREN)
             {
                 lexer_next(l);
                 Token num = lexer_next(l);
-                if (num.type == TOK_INT)
+                if (num.kind == TOK_INT)
                 {
                     char *tmp = token_strdup(num);
                     res.vector_size = (int)strtol(tmp, NULL, 10);
                     zfree(tmp);
                 }
-                if (lexer_next(l).type != TOK_RPAREN)
+                if (lexer_next(l).kind != TOK_RPAREN)
                 {
                     zpanic_at(lexer_peek(l), "Expected ) after vector size");
                     return (DeclarationAttributes){0};
@@ -59,17 +59,17 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         else if (0 == strncmp(attr.start, "deprecated", 10) && 10 == attr.len)
         {
             res.is_deprecated = 1;
-            if (lexer_peek(l).type == TOK_LPAREN)
+            if (lexer_peek(l).kind == TOK_LPAREN)
             {
                 lexer_next(l);
                 Token msg = lexer_next(l);
-                if (msg.type == TOK_STRING)
+                if (msg.kind == TOK_STRING)
                 {
                     res.deprecated_msg = xmalloc(msg.len - 1);
                     strncpy(res.deprecated_msg, msg.start + 1, msg.len - 2);
                     res.deprecated_msg[msg.len - 2] = 0;
                 }
-                if (lexer_next(l).type != TOK_RPAREN)
+                if (lexer_next(l).kind != TOK_RPAREN)
                 {
                     zpanic_at(lexer_peek(l), "Expected ) after deprecated message");
                     return (DeclarationAttributes){0};
@@ -127,17 +127,17 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         }
         else if (0 == strncmp(attr.start, "section", 7) && 7 == attr.len)
         {
-            if (lexer_peek(l).type == TOK_LPAREN)
+            if (lexer_peek(l).kind == TOK_LPAREN)
             {
                 lexer_next(l);
                 Token sec = lexer_next(l);
-                if (sec.type == TOK_STRING)
+                if (sec.kind == TOK_STRING)
                 {
                     res.section = xmalloc(sec.len - 1);
                     strncpy(res.section, sec.start + 1, sec.len - 2);
                     res.section[sec.len - 2] = 0;
                 }
-                if (lexer_next(l).type != TOK_RPAREN)
+                if (lexer_next(l).kind != TOK_RPAREN)
                 {
                     zpanic_at(lexer_peek(l), "Expected ) after section name");
                     return (DeclarationAttributes){0};
@@ -153,17 +153,17 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         }
         else if (0 == strncmp(attr.start, "crepr", 5) && 5 == attr.len)
         {
-            if (lexer_peek(l).type == TOK_LPAREN)
+            if (lexer_peek(l).kind == TOK_LPAREN)
             {
                 lexer_next(l);
                 Token ct = lexer_next(l);
-                if (ct.type == TOK_STRING)
+                if (ct.kind == TOK_STRING)
                 {
                     res.crepr_c_type = xmalloc(ct.len - 1);
                     strncpy(res.crepr_c_type, ct.start + 1, ct.len - 2);
                     res.crepr_c_type[ct.len - 2] = 0;
                 }
-                if (lexer_next(l).type != TOK_RPAREN)
+                if (lexer_next(l).kind != TOK_RPAREN)
                 {
                     zpanic_at(lexer_peek(l), "Expected ) after crepr type name");
                     return (DeclarationAttributes){0};
@@ -172,7 +172,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
             }
             else
             {
-                zpanic_at(lexer_peek(l), "@crepr requires a value: @crepr(\"C.type\")");
+                zpanic_at(lexer_peek(l), "@crepr requires a value: @crepr(\"C.kind\")");
                 return (DeclarationAttributes){0};
                 return (DeclarationAttributes){0};
             }
@@ -183,15 +183,15 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         }
         else if (0 == strncmp(attr.start, "align", 5) && 5 == attr.len)
         {
-            if (lexer_peek(l).type == TOK_LPAREN)
+            if (lexer_peek(l).kind == TOK_LPAREN)
             {
                 lexer_next(l);
                 Token num = lexer_next(l);
-                if (num.type == TOK_INT)
+                if (num.kind == TOK_INT)
                 {
                     res.align = (int)strtol(num.start, NULL, 10);
                 }
-                if (lexer_next(l).type != TOK_RPAREN)
+                if (lexer_next(l).kind != TOK_RPAREN)
                 {
                     zpanic_at(lexer_peek(l), "Expected ) after align value");
                     return (DeclarationAttributes){0};
@@ -207,14 +207,14 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         }
         else if (0 == strncmp(attr.start, "cfg", 3) && 3 == attr.len)
         {
-            if (lexer_peek(l).type == TOK_LPAREN)
+            if (lexer_peek(l).kind == TOK_LPAREN)
             {
                 lexer_next(l);
                 Token cfg_tok = lexer_next(l);
-                if ((cfg_tok.type == TOK_NOT || (cfg_tok.type == TOK_IDENT && cfg_tok.len == 3 &&
+                if ((cfg_tok.kind == TOK_NOT || (cfg_tok.kind == TOK_IDENT && cfg_tok.len == 3 &&
                                                  strncmp(cfg_tok.start, "not", 3) == 0)))
                 {
-                    if (lexer_peek(l).type != TOK_LPAREN)
+                    if (lexer_peek(l).kind != TOK_LPAREN)
                     {
                         zpanic_at(lexer_peek(l), "Expected ( after not in @cfg(not(...))");
                         return (DeclarationAttributes){0};
@@ -222,7 +222,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                     }
                     lexer_next(l);
                     Token name_tok = lexer_next(l);
-                    if (name_tok.type != TOK_IDENT)
+                    if (name_tok.kind != TOK_IDENT)
                     {
                         zpanic_at(name_tok, "Expected define name in @cfg(not(NAME))");
                         return (DeclarationAttributes){0};
@@ -243,17 +243,17 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                         zfree(old);
                     }
                     zfree(cfg_name);
-                    if (lexer_next(l).type != TOK_RPAREN)
+                    if (lexer_next(l).kind != TOK_RPAREN)
                     {
                         zpanic_at(lexer_peek(l), "Expected ) after name in @cfg(not(NAME))");
                         return (DeclarationAttributes){0};
                         return (DeclarationAttributes){0};
                     }
                 }
-                else if (cfg_tok.type == TOK_IDENT && cfg_tok.len == 3 &&
+                else if (cfg_tok.kind == TOK_IDENT && cfg_tok.len == 3 &&
                          strncmp(cfg_tok.start, "any", 3) == 0)
                 {
-                    if (lexer_peek(l).type != TOK_LPAREN)
+                    if (lexer_peek(l).kind != TOK_LPAREN)
                     {
                         zpanic_at(lexer_peek(l), "Expected ( after any in @cfg(any(...))");
                         return (DeclarationAttributes){0};
@@ -264,22 +264,22 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                     while (1)
                     {
                         Token inner_t = lexer_next(l);
-                        if (inner_t.type == TOK_EOF)
+                        if (inner_t.kind == TOK_EOF)
                         {
                             break;
                         }
-                        if ((inner_t.type == TOK_NOT ||
-                             (inner_t.type == TOK_IDENT && inner_t.len == 3 &&
+                        if ((inner_t.kind == TOK_NOT ||
+                             (inner_t.kind == TOK_IDENT && inner_t.len == 3 &&
                               strncmp(inner_t.start, "not", 3) == 0)))
                         {
-                            if (lexer_next(l).type != TOK_LPAREN)
+                            if (lexer_next(l).kind != TOK_LPAREN)
                             {
                                 zpanic_at(lexer_peek(l), "Expected ( after not");
                                 return (DeclarationAttributes){0};
                                 return (DeclarationAttributes){0};
                             }
                             Token nt = lexer_next(l);
-                            if (nt.type != TOK_IDENT)
+                            if (nt.kind != TOK_IDENT)
                             {
                                 zpanic_at(nt, "Expected define name");
                                 return (DeclarationAttributes){0};
@@ -300,14 +300,14 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                                 zfree(old);
                             }
                             zfree(cfg_name);
-                            if (lexer_next(l).type != TOK_RPAREN)
+                            if (lexer_next(l).kind != TOK_RPAREN)
                             {
                                 zpanic_at(lexer_peek(l), "Expected )");
                                 return (DeclarationAttributes){0};
                                 return (DeclarationAttributes){0};
                             }
                         }
-                        else if (inner_t.type == TOK_IDENT)
+                        else if (inner_t.kind == TOK_IDENT)
                         {
                             char *cfg_name = token_strdup(inner_t);
                             if (!any_cond)
@@ -331,7 +331,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                             return (DeclarationAttributes){0};
                             return (DeclarationAttributes){0};
                         }
-                        if (lexer_peek(l).type == TOK_COMMA)
+                        if (lexer_peek(l).kind == TOK_COMMA)
                         {
                             lexer_next(l);
                         }
@@ -340,7 +340,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                             break;
                         }
                     }
-                    if (lexer_next(l).type != TOK_RPAREN)
+                    if (lexer_next(l).kind != TOK_RPAREN)
                     {
                         zpanic_at(lexer_peek(l), "Expected ) after any(...)");
                         return (DeclarationAttributes){0};
@@ -363,10 +363,10 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                         zfree(any_cond);
                     }
                 }
-                else if (cfg_tok.type == TOK_IDENT && cfg_tok.len == 3 &&
+                else if (cfg_tok.kind == TOK_IDENT && cfg_tok.len == 3 &&
                          strncmp(cfg_tok.start, "all", 3) == 0)
                 {
-                    if (lexer_peek(l).type != TOK_LPAREN)
+                    if (lexer_peek(l).kind != TOK_LPAREN)
                     {
                         zpanic_at(lexer_peek(l), "Expected ( after all in @cfg(all(...))");
                         return (DeclarationAttributes){0};
@@ -377,22 +377,22 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                     while (1)
                     {
                         Token inner_t = lexer_next(l);
-                        if (inner_t.type == TOK_EOF)
+                        if (inner_t.kind == TOK_EOF)
                         {
                             break;
                         }
-                        if ((inner_t.type == TOK_NOT ||
-                             (inner_t.type == TOK_IDENT && inner_t.len == 3 &&
+                        if ((inner_t.kind == TOK_NOT ||
+                             (inner_t.kind == TOK_IDENT && inner_t.len == 3 &&
                               strncmp(inner_t.start, "not", 3) == 0)))
                         {
-                            if (lexer_next(l).type != TOK_LPAREN)
+                            if (lexer_next(l).kind != TOK_LPAREN)
                             {
                                 zpanic_at(lexer_peek(l), "Expected ( after not");
                                 return (DeclarationAttributes){0};
                                 return (DeclarationAttributes){0};
                             }
                             Token nt = lexer_next(l);
-                            if (nt.type != TOK_IDENT)
+                            if (nt.kind != TOK_IDENT)
                             {
                                 zpanic_at(nt, "Expected define name");
                                 return (DeclarationAttributes){0};
@@ -413,14 +413,14 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                                 zfree(old);
                             }
                             zfree(cfg_name);
-                            if (lexer_next(l).type != TOK_RPAREN)
+                            if (lexer_next(l).kind != TOK_RPAREN)
                             {
                                 zpanic_at(lexer_peek(l), "Expected )");
                                 return (DeclarationAttributes){0};
                                 return (DeclarationAttributes){0};
                             }
                         }
-                        else if (inner_t.type == TOK_IDENT)
+                        else if (inner_t.kind == TOK_IDENT)
                         {
                             char *cfg_name = token_strdup(inner_t);
                             if (!all_cond)
@@ -444,7 +444,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                             return (DeclarationAttributes){0};
                             return (DeclarationAttributes){0};
                         }
-                        if (lexer_peek(l).type == TOK_COMMA)
+                        if (lexer_peek(l).kind == TOK_COMMA)
                         {
                             lexer_next(l);
                         }
@@ -453,7 +453,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                             break;
                         }
                     }
-                    if (lexer_next(l).type != TOK_RPAREN)
+                    if (lexer_next(l).kind != TOK_RPAREN)
                     {
                         zpanic_at(lexer_peek(l), "Expected ) after all(...)");
                         return (DeclarationAttributes){0};
@@ -476,7 +476,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                         zfree(all_cond);
                     }
                 }
-                else if (cfg_tok.type == TOK_IDENT)
+                else if (cfg_tok.kind == TOK_IDENT)
                 {
                     char *cfg_name = token_strdup(cfg_tok);
                     if (!res.cfg_condition)
@@ -500,7 +500,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                     return (DeclarationAttributes){0};
                     return (DeclarationAttributes){0};
                 }
-                if (lexer_next(l).type != TOK_RPAREN)
+                if (lexer_next(l).kind != TOK_RPAREN)
                 {
                     zpanic_at(lexer_peek(l), "Expected ) after @cfg(...)");
                     return (DeclarationAttributes){0};
@@ -516,11 +516,11 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         }
         else if (0 == strncmp(attr.start, "link_name", 9) && 9 == attr.len)
         {
-            if (lexer_peek(l).type == TOK_LPAREN)
+            if (lexer_peek(l).kind == TOK_LPAREN)
             {
                 lexer_next(l);
                 Token name_tok = lexer_next(l);
-                if (name_tok.type == TOK_STRING)
+                if (name_tok.kind == TOK_STRING)
                 {
                     res.link_name = xmalloc(name_tok.len - 1);
                     strncpy(res.link_name, name_tok.start + 1, name_tok.len - 2);
@@ -532,7 +532,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                     return (DeclarationAttributes){0};
                     return (DeclarationAttributes){0};
                 }
-                if (lexer_next(l).type != TOK_RPAREN)
+                if (lexer_next(l).kind != TOK_RPAREN)
                 {
                     zpanic_at(lexer_peek(l), "Expected ) after @link_name value");
                     return (DeclarationAttributes){0};
@@ -548,11 +548,11 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         }
         else if (0 == strncmp(attr.start, "link", 4) && 4 == attr.len)
         {
-            if (lexer_peek(l).type == TOK_LPAREN)
+            if (lexer_peek(l).kind == TOK_LPAREN)
             {
                 lexer_next(l);
                 Token path_tok = lexer_next(l);
-                if (path_tok.type == TOK_STRING)
+                if (path_tok.kind == TOK_STRING)
                 {
                     res.link_path = xmalloc(path_tok.len - 1);
                     strncpy(res.link_path, path_tok.start + 1, path_tok.len - 2);
@@ -564,7 +564,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                     return (DeclarationAttributes){0};
                     return (DeclarationAttributes){0};
                 }
-                if (lexer_next(l).type != TOK_RPAREN)
+                if (lexer_next(l).kind != TOK_RPAREN)
                 {
                     zpanic_at(lexer_peek(l), "Expected ) after @link path");
                     return (DeclarationAttributes){0};
@@ -580,13 +580,13 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
         }
         else if (0 == strncmp(attr.start, "derive", 6) && 6 == attr.len)
         {
-            if (lexer_peek(l).type == TOK_LPAREN)
+            if (lexer_peek(l).kind == TOK_LPAREN)
             {
                 lexer_next(l);
                 while (1)
                 {
                     Token inner_t = lexer_next(l);
-                    if (inner_t.type != TOK_IDENT)
+                    if (inner_t.kind != TOK_IDENT)
                     {
                         zpanic_at(inner_t, "Expected trait name in @derive");
                         return (DeclarationAttributes){0};
@@ -596,7 +596,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                     {
                         res.derived_traits[res.derived_count++] = token_strdup(inner_t);
                     }
-                    if (lexer_peek(l).type == TOK_COMMA)
+                    if (lexer_peek(l).kind == TOK_COMMA)
                     {
                         lexer_next(l);
                     }
@@ -605,7 +605,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                         break;
                     }
                 }
-                if (lexer_next(l).type != TOK_RPAREN)
+                if (lexer_next(l).kind != TOK_RPAREN)
                 {
                     zpanic_at(lexer_peek(l), "Expected ) after derive traits");
                     return (DeclarationAttributes){0};
@@ -643,38 +643,38 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                 Attribute *new_attr = xmalloc(sizeof(Attribute));
                 new_attr->name = token_strdup(attr);
                 new_attr->args = NULL;
-                new_attr->arg_count = 0;
+                new_attr->count = 0;
                 new_attr->next = res.custom_attributes; // Prepend
                 res.custom_attributes = new_attr;
 
-                if (lexer_peek(l).type == TOK_LPAREN)
+                if (lexer_peek(l).kind == TOK_LPAREN)
                 {
                     lexer_next(l);
                     while (1)
                     {
                         Token inner_t = lexer_next(l);
-                        new_attr->args = realloc(
-                            new_attr->args, sizeof(char *) * (size_t)(new_attr->arg_count + 1));
+                        new_attr->args =
+                            realloc(new_attr->args, sizeof(char *) * (size_t)(new_attr->count + 1));
 
-                        if (inner_t.type == TOK_STRING)
+                        if (inner_t.kind == TOK_STRING)
                         {
-                            new_attr->args[new_attr->arg_count++] = token_strdup(inner_t);
+                            new_attr->args[new_attr->count++] = token_strdup(inner_t);
                         }
                         else
                         {
-                            new_attr->args[new_attr->arg_count++] = token_strdup(inner_t);
+                            new_attr->args[new_attr->count++] = token_strdup(inner_t);
                         }
 
-                        if (lexer_peek(l).type == TOK_EOF)
+                        if (lexer_peek(l).kind == TOK_EOF)
                         {
                             zpanic_at(lexer_peek(l), "Unexpected end of file in attribute args");
                             break;
                         }
-                        if (lexer_peek(l).type == TOK_COMMA)
+                        if (lexer_peek(l).kind == TOK_COMMA)
                         {
                             lexer_next(l);
                         }
-                        else if (lexer_peek(l).type == TOK_RPAREN)
+                        else if (lexer_peek(l).kind == TOK_RPAREN)
                         {
                             break;
                         }
@@ -685,7 +685,7 @@ DeclarationAttributes parse_attributes(ParserContext *ctx, Lexer *l)
                             return (DeclarationAttributes){0};
                         }
                     }
-                    if (lexer_next(l).type != TOK_RPAREN)
+                    if (lexer_next(l).kind != TOK_RPAREN)
                     {
                         zpanic_at(lexer_peek(l), "Expected )");
                         return (DeclarationAttributes){0};

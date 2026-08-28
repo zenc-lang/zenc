@@ -12,11 +12,11 @@ ASTNode *parse_arrow_lambda_single(ParserContext *ctx, Lexer *l, char *param_nam
                                    int default_capture_mode)
 {
     ASTNode *lambda = ast_create(NODE_LAMBDA);
-    lambda->lambda.num_params = 1;
+    lambda->lambda.count = 1;
     lambda->lambda.default_capture_mode = default_capture_mode;
     lambda->lambda.param_names = xmalloc(sizeof(char *));
     lambda->lambda.param_names[0] = param_name;
-    lambda->lambda.num_params = 1;
+    lambda->lambda.count = 1;
 
     // Default param type: unknown (to be inferred)
     lambda->lambda.param_types = xmalloc(sizeof(char *));
@@ -27,7 +27,7 @@ ASTNode *parse_arrow_lambda_single(ParserContext *ctx, Lexer *l, char *param_nam
     t->inner = type_new(TYPE_INT);
     t->args = xmalloc(sizeof(Type *));
     t->args[0] = type_new(TYPE_UNKNOWN); // Arg
-    t->arg_count = 1;
+    t->count = 1;
     lambda->type_info = t;
 
     // Register parameter in scope for body parsing
@@ -36,7 +36,7 @@ ASTNode *parse_arrow_lambda_single(ParserContext *ctx, Lexer *l, char *param_nam
 
     // Body parsing...
     ASTNode *body_block = NULL;
-    if (lexer_peek(l).type == TOK_LBRACE)
+    if (lexer_peek(l).kind == TOK_LBRACE)
     {
         body_block = parse_block(ctx, l);
     }
@@ -52,7 +52,7 @@ ASTNode *parse_arrow_lambda_single(ParserContext *ctx, Lexer *l, char *param_nam
 
     // Attempt to infer return type from body if it's a simple return
     if (lambda->lambda.body->block.statements &&
-        lambda->lambda.body->block.statements->type == NODE_RETURN &&
+        lambda->lambda.body->block.statements->kind == NODE_RETURN &&
         !lambda->lambda.body->block.statements->next)
     {
         ASTNode *ret_val = lambda->lambda.body->block.statements->ret.value;
@@ -107,21 +107,21 @@ ASTNode *parse_arrow_lambda_single(ParserContext *ctx, Lexer *l, char *param_nam
 }
 
 ASTNode *parse_arrow_lambda_multi(ParserContext *ctx, Lexer *l, char **param_names,
-                                  Type **param_types, int num_params, int default_capture_mode)
+                                  Type **param_types, int count, int default_capture_mode)
 {
     ASTNode *lambda = ast_create(NODE_LAMBDA);
     lambda->lambda.param_names = param_names;
-    lambda->lambda.num_params = num_params;
+    lambda->lambda.count = count;
     lambda->lambda.default_capture_mode = default_capture_mode;
 
     // Type Info construction
     Type *t = type_new(TYPE_FUNCTION);
     t->inner = type_new(TYPE_INT);
-    t->args = xmalloc(sizeof(Type *) * (size_t)(num_params));
-    t->arg_count = num_params;
+    t->args = xmalloc(sizeof(Type *) * (size_t)(count));
+    t->count = count;
 
-    lambda->lambda.param_types = xmalloc(sizeof(char *) * (size_t)(num_params));
-    for (int i = 0; i < num_params; i++)
+    lambda->lambda.param_types = xmalloc(sizeof(char *) * (size_t)(count));
+    for (int i = 0; i < count; i++)
     {
         if (param_types && param_types[i])
         {
@@ -138,7 +138,7 @@ ASTNode *parse_arrow_lambda_multi(ParserContext *ctx, Lexer *l, char **param_nam
 
     // Register parameters in scope for body parsing
     enter_scope(ctx);
-    for (int i = 0; i < num_params; i++)
+    for (int i = 0; i < count; i++)
     {
         if (param_types && param_types[i])
         {
@@ -152,7 +152,7 @@ ASTNode *parse_arrow_lambda_multi(ParserContext *ctx, Lexer *l, char **param_nam
 
     // Body parsing...
     ASTNode *body_block = NULL;
-    if (lexer_peek(l).type == TOK_LBRACE)
+    if (lexer_peek(l).kind == TOK_LBRACE)
     {
         body_block = parse_block(ctx, l);
     }
@@ -194,12 +194,12 @@ ASTNode *parse_tuple_expression(ParserContext *ctx, Lexer *l, const char *type_n
     int count = (first_elem ? 1 : 0);
 
     // If first_elem was provided, we might be at a comma or the closing paren
-    if (first_elem && lexer_peek(l).type == TOK_COMMA)
+    if (first_elem && lexer_peek(l).kind == TOK_COMMA)
     {
         lexer_next(l); // eat comma
     }
 
-    while (lexer_peek(l).type != TOK_RPAREN)
+    while (lexer_peek(l).kind != TOK_RPAREN)
     {
         ASTNode *element = parse_expression(ctx, l);
         if (head == NULL)
@@ -213,7 +213,7 @@ ASTNode *parse_tuple_expression(ParserContext *ctx, Lexer *l, const char *type_n
         prev = element;
         count++;
 
-        if (lexer_peek(l).type == TOK_COMMA)
+        if (lexer_peek(l).kind == TOK_COMMA)
         {
             lexer_next(l);
         }
@@ -223,10 +223,9 @@ ASTNode *parse_tuple_expression(ParserContext *ctx, Lexer *l, const char *type_n
         }
     }
 
-    if (lexer_next(l).type != TOK_RPAREN)
+    if (lexer_next(l).kind != TOK_RPAREN)
     {
         zpanic_at(lexer_peek(l), "Expected ) after tuple literal");
-        return NULL;
         return NULL;
     }
 

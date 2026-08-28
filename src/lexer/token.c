@@ -15,12 +15,12 @@ void lexer_init(Lexer *l, const char *src, CompilerConfig *cfg, const char *file
 
 static int is_ident_start(char c)
 {
-    return isalpha(c) || c == '_';
+    return isalpha((unsigned char)(c)) || c == '_';
 }
 
 static int is_ident_char(char c)
 {
-    return isalnum(c) || c == '_';
+    return isalnum((unsigned char)(c)) || c == '_';
 }
 
 static int lexer_scan_string_internal(Lexer *l, const char *s, char quote, int is_raw,
@@ -85,7 +85,7 @@ Token lexer_next(Lexer *l)
     int start_line = l->line;
     int start_col = l->col;
 
-    while (isspace(*s))
+    while (isspace((unsigned char)(*s)))
     {
         if (*s == '\n')
         {
@@ -356,7 +356,7 @@ Token lexer_next(Lexer *l)
     }
 
     // Numbers
-    if (isdigit(*s))
+    if (isdigit((unsigned char)(*s)))
     {
         int len = 0;
         int is_hex = 0;
@@ -367,7 +367,7 @@ Token lexer_next(Lexer *l)
         {
             is_hex = 1;
             len = 2;
-            while (isxdigit(s[len]) || s[len] == '_')
+            while (isxdigit((unsigned char)(s[len])) || s[len] == '_')
             {
                 len++;
             }
@@ -392,13 +392,13 @@ Token lexer_next(Lexer *l)
         }
         else
         {
-            if (s[0] == '0' && isdigit(s[1]) && l->config->misra_mode)
+            if (s[0] == '0' && isdigit((unsigned char)(s[1])) && l->config->misra_mode)
             {
                 // Rule 7.1: Octal constants shall not be used (and leading zeros are disallowed).
                 zerror_at((Token){TOK_INT, s, 2, start_line, start_col, l->filename},
                           "MISRA Rule 7.1");
             }
-            while (isdigit(s[len]) || s[len] == '_')
+            while (isdigit((unsigned char)(s[len])) || s[len] == '_')
             {
                 len++;
             }
@@ -407,13 +407,13 @@ Token lexer_next(Lexer *l)
         if (!is_hex && !is_bin && !is_oct)
         {
             int is_float = 0;
-            if (s[len] == '.' && isdigit(s[len + 1]))
+            if (s[len] == '.' && isdigit((unsigned char)(s[len + 1])))
             {
                 if (s[len + 1] != '.')
                 {
                     is_float = 1;
                     len++;
-                    while (isdigit(s[len]) || s[len] == '_')
+                    while (isdigit((unsigned char)(s[len])) || s[len] == '_')
                     {
                         len++;
                     }
@@ -428,7 +428,7 @@ Token lexer_next(Lexer *l)
                 {
                     len++;
                 }
-                while (isdigit(s[len]) || s[len] == '_')
+                while (isdigit((unsigned char)(s[len])) || s[len] == '_')
                 {
                     len++;
                 }

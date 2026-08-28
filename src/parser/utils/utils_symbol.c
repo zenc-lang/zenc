@@ -187,7 +187,7 @@ void register_func(ParserContext *ctx, Scope *scope, const char *name, int count
     register_symbol_to_lsp(ctx, sym);
 
     Type *ft = type_new(TYPE_FUNCTION);
-    ft->arg_count = count;
+    ft->count = count;
     ft->args = arg_types;
     ft->inner = ret_type;
     ft->is_raw = 1;

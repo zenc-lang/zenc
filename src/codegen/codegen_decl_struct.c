@@ -22,7 +22,7 @@ static void emit_struct_defs_internal(ParserContext *ctx, ASTNode *node, Visited
     }
     while (node)
     {
-        if (node->type == NODE_IMPORT)
+        if (node->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, node->import_stmt.path))
             {
@@ -34,7 +34,7 @@ static void emit_struct_defs_internal(ParserContext *ctx, ASTNode *node, Visited
             continue;
         }
 
-        if (node->type == NODE_ROOT)
+        if (node->kind == NODE_ROOT)
         {
             if (node->root.children != node)
             { // Basic cycle check
@@ -45,27 +45,27 @@ static void emit_struct_defs_internal(ParserContext *ctx, ASTNode *node, Visited
             continue;
         }
         ASTNode *v;
-        if (node->type == NODE_STRUCT && node->strct.is_template)
+        if (node->kind == NODE_STRUCT && node->strct.is_template)
         {
             node = node->next;
             continue;
         }
-        if (node->type == NODE_ENUM && node->enm.is_template)
+        if (node->kind == NODE_ENUM && node->enm.is_template)
         {
             node = node->next;
             continue;
         }
-        if (filter_type == NODE_ENUM && node->type != NODE_ENUM)
+        if (filter_type == NODE_ENUM && node->kind != NODE_ENUM)
         {
             node = node->next;
             continue;
         }
-        if (filter_type == NODE_STRUCT && node->type != NODE_STRUCT)
+        if (filter_type == NODE_STRUCT && node->kind != NODE_STRUCT)
         {
             node = node->next;
             continue;
         }
-        if (node->type == NODE_STRUCT)
+        if (node->kind == NODE_STRUCT)
         {
             if (node->strct.is_incomplete)
             {
@@ -76,7 +76,7 @@ static void emit_struct_defs_internal(ParserContext *ctx, ASTNode *node, Visited
 
             if (node->strct.crepr_c_type)
             {
-                // @crepr("C.type.name") — use the C type directly via typedef.
+                // @crepr("C.kind.name") — use the C type directly via typedef.
                 // Fields are documentation only; the C compiler resolves field access
                 // against the actual C struct through the typedef.
                 if (node->cfg_condition)
@@ -159,10 +159,10 @@ static void emit_struct_defs_internal(ParserContext *ctx, ASTNode *node, Visited
                             EMIT(ctx, ", ");
                         }
                         EMIT(ctx, "%s", custom->name);
-                        if (custom->arg_count > 0)
+                        if (custom->count > 0)
                         {
                             EMIT(ctx, "(");
-                            for (int i = 0; i < custom->arg_count; i++)
+                            for (int i = 0; i < custom->count; i++)
                             {
                                 if (i > 0)
                                 {
@@ -205,7 +205,7 @@ static void emit_struct_defs_internal(ParserContext *ctx, ASTNode *node, Visited
                 EMIT(ctx, "#endif\n");
             }
         }
-        else if (node->type == NODE_ENUM)
+        else if (node->kind == NODE_ENUM)
         {
             const char *final_name = node->link_name ? node->link_name : node->enm.name;
             if (node->cfg_condition)
@@ -416,7 +416,7 @@ static void emit_trait_defs_internal(ParserContext *ctx, ASTNode *node, VisitedM
     }
     while (node)
     {
-        if (node->type == NODE_IMPORT)
+        if (node->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, node->import_stmt.path))
             {
@@ -426,7 +426,7 @@ static void emit_trait_defs_internal(ParserContext *ctx, ASTNode *node, VisitedM
             node = node->next;
             continue;
         }
-        if (node->type == NODE_TRAIT)
+        if (node->kind == NODE_TRAIT)
         {
             if (node->trait.generic_param_count > 0)
             {
@@ -514,7 +514,7 @@ static void emit_trait_wrappers_internal(ParserContext *ctx, ASTNode *node,
     }
     while (node)
     {
-        if (node->type == NODE_IMPORT)
+        if (node->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, node->import_stmt.path))
             {
@@ -525,7 +525,7 @@ static void emit_trait_wrappers_internal(ParserContext *ctx, ASTNode *node,
             node = node->next;
             continue;
         }
-        if (node->type == NODE_TRAIT)
+        if (node->kind == NODE_TRAIT)
         {
             if (node->trait.generic_param_count > 0)
             {
@@ -541,7 +541,7 @@ static void emit_trait_wrappers_internal(ParserContext *ctx, ASTNode *node,
             {
                 char *ret_sub = substitute_proto_self(m->func.ret_type, node->trait.name);
                 const char *orig = parse_original_method_name(m->func.name);
-                int is_const_self = (m->func.arg_count > 0 && m->func.arg_types &&
+                int is_const_self = (m->func.count > 0 && m->func.arg_types &&
                                      m->func.arg_types[0] && m->func.arg_types[0]->is_const);
                 EMIT(ctx, "%s %s__%s(%s%s* self", ret_sub, node->trait.name, orig,
                      is_const_self ? "const " : "", node->trait.name);

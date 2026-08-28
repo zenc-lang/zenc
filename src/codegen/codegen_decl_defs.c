@@ -51,7 +51,7 @@ static void emit_includes_and_aliases_internal(ParserContext *ctx, ASTNode *node
     }
     while (node)
     {
-        if (node->type == NODE_IMPORT)
+        if (node->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, node->import_stmt.path))
             {
@@ -62,7 +62,7 @@ static void emit_includes_and_aliases_internal(ParserContext *ctx, ASTNode *node
             node = node->next;
             continue;
         }
-        if (node->type == NODE_INCLUDE)
+        if (node->kind == NODE_INCLUDE)
         {
             if (node->include.path)
             {
@@ -76,7 +76,7 @@ static void emit_includes_and_aliases_internal(ParserContext *ctx, ASTNode *node
                 }
             }
         }
-        else if (node->type == NODE_AST_COMMENT)
+        else if (node->kind == NODE_AST_COMMENT)
         {
             EMIT(ctx, "%s\n", node->comment.content);
         }
@@ -107,7 +107,7 @@ static void emit_type_aliases_internal(ParserContext *ctx, ASTNode *node, Visite
     }
     while (node)
     {
-        if (node->type == NODE_IMPORT)
+        if (node->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, node->import_stmt.path))
             {
@@ -115,7 +115,7 @@ static void emit_type_aliases_internal(ParserContext *ctx, ASTNode *node, Visite
                 emit_type_aliases_internal(ctx, node->import_stmt.module_root, visited, depth + 1);
             }
         }
-        else if (node->type == NODE_TYPE_ALIAS)
+        else if (node->kind == NODE_TYPE_ALIAS)
         {
             if (node->cfg_condition)
             {
@@ -209,7 +209,7 @@ void emit_enum_protos(ParserContext *ctx, ASTNode *node)
 {
     while (node)
     {
-        if (node->type == NODE_ENUM && !node->enm.is_template)
+        if (node->kind == NODE_ENUM && !node->enm.is_template)
         {
             // Only emit prototypes for ADT-style enums (with payloads)
             int has_payload = 0;
@@ -291,7 +291,7 @@ static void collect_lambda_return_types(ParserContext *ctx, ASTNode *node, char 
         return;
     }
 
-    if (node->type == NODE_RETURN && node->ret.value)
+    if (node->kind == NODE_RETURN && node->ret.value)
     {
         ASTNode *val = node->ret.value;
         char *tstr = NULL;
@@ -333,7 +333,7 @@ static void collect_lambda_return_types(ParserContext *ctx, ASTNode *node, char 
         return;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_BLOCK:
         for (ASTNode *s = node->block.statements; s; s = s->next)
@@ -411,11 +411,11 @@ void emit_lambda_defs(ParserContext *ctx)
 
         infer_lambda_return_type(ctx, node);
 
-        if (node->lambda.num_captures > 0)
+        if (node->lambda.capture_count > 0)
         {
             EMIT(ctx, "struct Lambda_%d_Ctx {\n", node->lambda.lambda_id);
             emitter_indent(&ctx->cg.emitter);
-            for (int i = 0; i < node->lambda.num_captures; i++)
+            for (int i = 0; i < node->lambda.capture_count; i++)
             {
                 if (node->lambda.capture_modes && node->lambda.capture_modes[i] == 1)
                 {
@@ -468,7 +468,7 @@ void emit_lambda_defs(ParserContext *ctx)
             EMIT(ctx, "struct Lambda_%d_Ctx* ctx = (struct Lambda_%d_Ctx*)_ctx;\n",
                  node->lambda.lambda_id, node->lambda.lambda_id);
 
-            for (int i = 0; i < node->lambda.num_captures; i++)
+            for (int i = 0; i < node->lambda.capture_count; i++)
             {
                 if (node->lambda.capture_modes && node->lambda.capture_modes[i] == 0)
                 {
@@ -520,7 +520,7 @@ void emit_lambda_defs(ParserContext *ctx)
             zfree(ret_type_str);
         }
 
-        for (int i = 0; i < node->lambda.num_params; i++)
+        for (int i = 0; i < node->lambda.count; i++)
         {
             char *param_type_str = node->lambda.param_types[i];
             if (node->type_info && node->type_info->args && node->type_info->args[i] &&
@@ -551,14 +551,14 @@ void emit_lambda_defs(ParserContext *ctx)
         EMIT(ctx, ") {\n");
         emitter_indent(&ctx->cg.emitter);
 
-        if (node->lambda.num_captures > 0)
+        if (node->lambda.capture_count > 0)
         {
             EMIT(ctx, "struct Lambda_%d_Ctx* ctx = (struct Lambda_%d_Ctx*)_ctx;\n",
                  node->lambda.lambda_id, node->lambda.lambda_id);
         }
 
         ctx->cg.current_lambda = node;
-        if (node->lambda.body && node->lambda.body->type == NODE_BLOCK)
+        if (node->lambda.body && node->lambda.body->kind == NODE_BLOCK)
         {
             if (node->lambda.is_expression && node->type_info && node->type_info->inner &&
                 node->type_info->inner->kind != TYPE_VOID)
@@ -568,7 +568,7 @@ void emit_lambda_defs(ParserContext *ctx)
                 {
                     if (stmt->next == NULL)
                     {
-                        if (stmt->type != NODE_RETURN)
+                        if (stmt->kind != NODE_RETURN)
                         {
                             EMIT(ctx, "return ");
                         }
@@ -589,7 +589,7 @@ void emit_lambda_defs(ParserContext *ctx)
         else if (node->lambda.body)
         {
             if (node->type_info && node->type_info->inner &&
-                node->type_info->inner->kind != TYPE_VOID && node->lambda.body->type != NODE_RETURN)
+                node->type_info->inner->kind != TYPE_VOID && node->lambda.body->kind != NODE_RETURN)
             {
                 EMIT(ctx, "return ");
             }

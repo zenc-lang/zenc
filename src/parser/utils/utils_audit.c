@@ -9,9 +9,15 @@
 #include <ctype.h>
 #include "analysis/const_fold.h"
 
-static void sync_type_linkage(ParserContext *ctx, Type *t)
+static void sync_type_linkage_depth(ParserContext *ctx, Type *t, int depth)
 {
     if (!t)
+    {
+        return;
+    }
+    // Guard against cyclic / pathologically deep type graphs (fuzz inputs can
+    // construct self-referential or deeply nested generic types).
+    if (depth > 512)
     {
         return;
     }
@@ -25,17 +31,24 @@ static void sync_type_linkage(ParserContext *ctx, Type *t)
     }
     if (t->inner)
     {
-        sync_type_linkage(ctx, t->inner);
+        sync_type_linkage_depth(ctx, t->inner, depth + 1);
     }
-    for (int i = 0; i < t->arg_count; i++)
+    for (int i = 0; t->args && i < t->count; i++)
     {
-        sync_type_linkage(ctx, t->args[i]);
+        sync_type_linkage_depth(ctx, t->args[i], depth + 1);
     }
 }
 
-static void sync_link_names_recursive(ParserContext *ctx, ASTNode *node)
+static void sync_type_linkage(ParserContext *ctx, Type *t)
 {
-    if (!node)
+    sync_type_linkage_depth(ctx, t, 0);
+}
+
+static void sync_link_names_recursive(ParserContext *ctx, ASTNode *node);
+
+static void sync_link_names_recursive_depth(ParserContext *ctx, ASTNode *node, int depth)
+{
+    if (!node || depth > 4096)
     {
         return;
     }
@@ -45,7 +58,7 @@ static void sync_link_names_recursive(ParserContext *ctx, ASTNode *node)
         sync_type_linkage(ctx, node->type_info);
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_FUNCTION:
         if (node->func.ret_type_info)
@@ -54,32 +67,32 @@ static void sync_link_names_recursive(ParserContext *ctx, ASTNode *node)
         }
         if (node->func.arg_types)
         {
-            for (int i = 0; i < node->func.arg_count; i++)
+            for (int i = 0; i < node->func.count; i++)
             {
                 sync_type_linkage(ctx, node->func.arg_types[i]);
             }
         }
-        sync_link_names_recursive(ctx, node->func.body);
+        sync_link_names_recursive_depth(ctx, node->func.body, depth + 1);
         break;
     case NODE_STRUCT:
-        sync_link_names_recursive(ctx, node->strct.fields);
+        sync_link_names_recursive_depth(ctx, node->strct.fields, depth + 1);
         break;
     case NODE_VAR_DECL:
-        sync_link_names_recursive(ctx, node->var_decl.init_expr);
+        sync_link_names_recursive_depth(ctx, node->var_decl.init_expr, depth + 1);
         break;
     case NODE_BLOCK:
-        sync_link_names_recursive(ctx, node->block.statements);
+        sync_link_names_recursive_depth(ctx, node->block.statements, depth + 1);
         break;
     case NODE_IF:
-        sync_link_names_recursive(ctx, node->if_stmt.condition);
-        sync_link_names_recursive(ctx, node->if_stmt.then_body);
-        sync_link_names_recursive(ctx, node->if_stmt.else_body);
+        sync_link_names_recursive_depth(ctx, node->if_stmt.condition, depth + 1);
+        sync_link_names_recursive_depth(ctx, node->if_stmt.then_body, depth + 1);
+        sync_link_names_recursive_depth(ctx, node->if_stmt.else_body, depth + 1);
         break;
     case NODE_RETURN:
-        sync_link_names_recursive(ctx, node->ret.value);
+        sync_link_names_recursive_depth(ctx, node->ret.value, depth + 1);
         break;
     case NODE_EXPR_CALL:
-        sync_link_names_recursive(ctx, node->call.callee);
+        sync_link_names_recursive_depth(ctx, node->call.callee, depth + 1);
         sync_link_names_recursive(ctx, node->call.args);
         break;
     case NODE_EXPR_BINARY:
@@ -103,6 +116,11 @@ static void sync_link_names_recursive(ParserContext *ctx, ASTNode *node)
     }
 
     sync_link_names_recursive(ctx, node->next);
+}
+
+static void sync_link_names_recursive(ParserContext *ctx, ASTNode *node)
+{
+    sync_link_names_recursive_depth(ctx, node, 0);
 }
 
 void audit_section_5(ParserContext *ctx, Scope *scope, const char *name, const char *link_name,

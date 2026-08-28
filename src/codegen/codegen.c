@@ -49,6 +49,7 @@ void codegen_expression(ParserContext *ctx, ASTNode *node)
         [NODE_VA_END] = handle_va_end,
         [NODE_VA_COPY] = handle_va_copy,
         [NODE_AST_COMMENT] = handle_ast_comment,
+        [NODE_ERRONEOUS] = handle_erroneous,
         [NODE_VA_ARG] = handle_va_arg,
         [NODE_EXPR_CAST] = handle_expr_cast,
         [NODE_EXPR_SIZEOF] = handle_expr_sizeof,
@@ -61,9 +62,9 @@ void codegen_expression(ParserContext *ctx, ASTNode *node)
         [NODE_AWAIT] = handle_await,
     };
 
-    if (node->type < 256 && handlers[node->type])
+    if (node->kind < 256 && handlers[node->kind])
     {
-        handlers[node->type](ctx, node);
+        handlers[node->kind](ctx, node);
         RECURSION_EXIT(ctx);
         return;
     }
@@ -80,7 +81,7 @@ void codegen_expression_bare(ParserContext *ctx, ASTNode *node)
 
     RECURSION_GUARD_TOKEN(ctx, node->token, );
 
-    if (node->type == NODE_EXPR_BINARY)
+    if (node->kind == NODE_EXPR_BINARY)
     {
         const char *op = node->binary.op;
         int is_simple = (strcmp(op, "<") == 0 || strcmp(op, ">") == 0 || strcmp(op, "<=") == 0 ||
@@ -99,7 +100,7 @@ void codegen_expression_bare(ParserContext *ctx, ASTNode *node)
         }
     }
 
-    if (node->type == NODE_EXPR_UNARY && node->unary.op)
+    if (node->kind == NODE_EXPR_UNARY && node->unary.op)
     {
         if (strcmp(node->unary.op, "_post++") == 0)
         {

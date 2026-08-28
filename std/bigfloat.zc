@@ -1,5 +1,6 @@
 import "./bigint.zc"
 import "./string.zc"
+import "./result.zc"
 
 import "./mem.zc"
 
@@ -37,8 +38,13 @@ impl BigFloat {
         };
     }
 
+    fn free(self) {
+        self.magnitude.free();
+    }
+
+    // Deprecated alias; use `free`.
     fn free_mem(self) {
-        self.magnitude.free_mem();
+        self.free();
     }
 
     fn align_scale(self, target_scale: int) {
@@ -62,6 +68,108 @@ impl BigFloat {
         let res = BigFloat::from_bigint(s.magnitude.clone(), s.scale);
         
         return res;
+    }
+
+    // internal: multiply the magnitude by 10^n
+    fn _mul_pow10(self, n: int) {
+        for (let i: int = 0; i < n; i = i + 1) {
+            self.magnitude.digits.insert(0, 0);
+        }
+    }
+
+    // Returns 0 if equal, -1 if this < other, +1 if this > other.
+    fn compare(self, other: BigFloat*) -> int {
+        let a = self.clone();
+        let b = other.clone();
+        if (a.scale < b.scale) {
+            a.align_scale(b.scale);
+        } else if (b.scale < a.scale) {
+            b.align_scale(a.scale);
+        }
+        return a.magnitude.compare(&b.magnitude);
+    }
+
+    // Subtracts other from this (this must be >= other).
+    fn sub(self, other: BigFloat*) -> BigFloat {
+        let a = self.clone();
+        let b = other.clone();
+        if (a.scale < b.scale) {
+            a.align_scale(b.scale);
+        } else if (b.scale < a.scale) {
+            b.align_scale(a.scale);
+        }
+        let m = a.magnitude.sub(&b.magnitude);
+        return BigFloat::from_bigint(m, a.scale);
+    }
+
+    // Multiplies this by other.
+    fn mul(self, other: BigFloat*) -> BigFloat {
+        let m = self.magnitude.mul(&other.magnitude);
+        return BigFloat::from_bigint(m, self.scale + other.scale);
+    }
+
+    // Divides this by other, producing `precision` fractional digits.
+    fn div(self, other: BigFloat*, precision: int) -> BigFloat {
+        if (other.magnitude.is_zero()) {
+            panic("BigFloat::div: division by zero");
+        }
+        let a = self.clone();
+        let b = other.clone();
+        let shift = precision + b.scale - a.scale;
+        if (shift > 0) {
+            a._mul_pow10(shift);
+        } else if (shift < 0) {
+            b._mul_pow10(-shift);
+        }
+        let q = a.magnitude.div(&b.magnitude);
+        return BigFloat::from_bigint(q, precision);
+    }
+
+    // Parses a decimal string such as "12.5" into a BigFloat.
+    fn from_string(s: char*) -> Result<BigFloat> {
+        let len = strlen(s);
+        if (len == 0) {
+            return Result<BigFloat>::Err("BigFloat::from_string: empty string");
+        }
+        if (s[0] == '-') {
+            return Result<BigFloat>::Err("BigFloat::from_string: negative numbers not supported");
+        }
+
+        let dot: usize = len;
+        for (let i: usize = 0; i < len; i = i + 1) {
+            if (s[i] == '.') { dot = i; break; }
+        }
+
+        let int_buf: char* = alloc_n<char>(dot + 1);
+        for (let i: usize = 0; i < dot; i = i + 1) {
+            int_buf[i] = s[i];
+        }
+        int_buf[dot] = 0;
+        let ri = BigInt::from_string(int_buf);
+        dealloc<char>(int_buf);
+        if (ri.is_err()) {
+            return Result<BigFloat>::Err("BigFloat::from_string: invalid integer part");
+        }
+        let mag = ri.unwrap();
+
+        let scale = (int)(len - dot - 1);
+        if (scale > 0) {
+            let frac_buf: char* = alloc_n<char>(scale + 1);
+            for (let i: usize = 0; i < (usize)scale; i = i + 1) {
+                frac_buf[i] = s[dot + 1 + i];
+            }
+            frac_buf[scale] = 0;
+            let rf = BigInt::from_string(frac_buf);
+            dealloc<char>(frac_buf);
+            if (rf.is_err()) {
+                return Result<BigFloat>::Err("BigFloat::from_string: invalid fraction part");
+            }
+            let frac = rf.unwrap();
+            mag._mul_pow10_in_place(scale);
+            mag.add_in_place(&frac);
+        }
+
+        return Result<BigFloat>::Ok(BigFloat::from_bigint(mag, scale));
     }
 
     fn to_string(self) -> char* {

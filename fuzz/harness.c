@@ -3,6 +3,7 @@
 #include "analysis/typecheck.h"
 #include "ast/ast.h"
 #include "diagnostics/diagnostics.h"
+#include "plugins/plugin_manager.h"
 #include "zen/zen_facts.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -13,11 +14,13 @@
 #include <fcntl.h>
 
 extern ZenCompiler g_compiler;
+extern char *curr_func_ret;
 
 static int initialized = 0;
 
 static void free_everything(void)
 {
+    zptr_plugin_mgr_cleanup();
     zvec_free_Str(&g_compiler.config.include_paths);
     zvec_free_Str(&g_compiler.config.cfg_defines);
     zvec_free_Str(&g_compiler.config.c_files);
@@ -33,8 +36,6 @@ static void initialize(void)
 {
     if (initialized)
         return;
-
-    zen_init();
 
     memset(&g_compiler, 0, sizeof(g_compiler));
     g_compiler.config.mode_check = 1;
@@ -83,6 +84,10 @@ __attribute__((used)) int LLVMFuzzerTestOneInput(const uint8_t *data, size_t siz
     token_set_parser_ctx(&ctx);
     diag_set_parser_ctx(&ctx);
 
+    // Reset persistent parser globals that would otherwise dangle into the
+    // reset arena between inputs.
+    curr_func_ret = NULL;
+
     scan_build_directives(&ctx, src);
 
     // Enable fault tolerance so zpanic_at returns instead of exit()-ing
@@ -116,13 +121,15 @@ __attribute__((used)) int LLVMFuzzerTestOneInput(const uint8_t *data, size_t siz
     fclose(ctx.cg.hoist_out);
     zarena_reset(&g_compiler.arena);
 
+    // Reset parser globals that point into the reclaimed arena.
+    clear_registered_traits();
+
     // Reset config vectors (free system-heap buffers, clear pointers)
     zvec_free_Str(&g_compiler.config.include_paths);
     zvec_free_Str(&g_compiler.config.cfg_defines);
     zvec_free_Str(&g_compiler.config.c_files);
     zvec_free_Str(&g_compiler.config.extra_files);
     zvec_free_Str(&g_compiler.config.backend_opts);
-    clear_registered_traits();
 
     return 0;
 }

@@ -45,3 +45,57 @@ test "string replace" {
     assert(r3.eq(&e3));
     r3.free(); s3.free(); e3.free();
 }
+
+test "string to_int" {
+    let s1 = String::from("123");
+    assert(s1.to_int() == 123, "to_int positive");
+    let s2 = String::from("-42");
+    assert(s2.to_int() == -42, "to_int negative");
+    let s3 = String::from("007");
+    assert(s3.to_int() == 7, "to_int leading zeros");
+    let s4 = String::from("12x");
+    assert(s4.to_int() == 0, "to_int invalid");
+    let s5 = String::from("");
+    assert(s5.to_int() == 0, "to_int empty");
+    let s6 = String::from("+9");
+    assert(s6.to_int() == 9, "to_int plus sign");
+}
+
+test "string repeat" {
+    let s1 = String::from("ab");
+    let r1 = s1.repeated(3);
+    let e1 = String::from("ababab");
+    assert(r1.eq(&e1), "repeated basic");
+    let r2 = s1.repeated(0);
+    assert(r2.is_empty(), "repeated zero");
+    let s2 = String::from("");
+    let r3 = s2.repeated(5);
+    assert(r3.is_empty(), "repeated empty");
+}
+
+test "string reverse" {
+    let s1 = String::from("abc");
+    let r1 = s1.reverse();
+    let e1 = String::from("cba");
+    assert(r1.eq(&e1), "reverse basic");
+    let s2 = String::from("a");
+    let r2 = s2.reverse();
+    let e2 = String::from("a");
+    assert(r2.eq(&e2), "reverse single");
+    let s3 = String::from("");
+    let r3 = s3.reverse();
+    assert(r3.is_empty(), "reverse empty");
+}
+
+test "string trim_start_end" {
+    let s1 = String::from("  hi  ");
+    let t = s1.trim_start();
+    let e1 = String::from("hi  ");
+    assert(t.eq(&e1), "trim_start");
+    let u = s1.trim_end();
+    let e2 = String::from("  hi");
+    assert(u.eq(&e2), "trim_end");
+    let s2 = String::from("   ");
+    assert(s2.trim_start().is_empty(), "trim_start all ws");
+    assert(s2.trim_end().is_empty(), "trim_end all ws");
+}

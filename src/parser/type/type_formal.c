@@ -18,7 +18,7 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
     int is_restrict = 0;
     int is_const = 0;
 
-    if (lexer_peek(l).type == TOK_IDENT)
+    if (lexer_peek(l).kind == TOK_IDENT)
     {
         if (lexer_peek(l).len == 8 && strncmp(lexer_peek(l).start, "restrict", 8) == 0)
         {
@@ -32,7 +32,7 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
         }
     }
 
-    if (lexer_peek(l).type == TOK_OP && lexer_peek(l).start[0] == '*')
+    if (lexer_peek(l).kind == TOK_OP && lexer_peek(l).start[0] == '*')
     {
         zpanic_at(lexer_peek(l), "Zen C uses postfix pointers (e.g. 'Type*'). Prefix pointer "
                                  "syntax ('*Type') is not supported.");
@@ -42,13 +42,13 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
     Type *t = NULL;
 
     // Example: fn(int, int) -> int
-    if (lexer_peek(l).type == TOK_IDENT && strncmp(lexer_peek(l).start, "fn", 2) == 0 &&
+    if (lexer_peek(l).kind == TOK_IDENT && strncmp(lexer_peek(l).start, "fn", 2) == 0 &&
         lexer_peek(l).len == 2)
     {
         lexer_next(l); // eat 'fn'
 
         int star_count = 0;
-        while (lexer_peek(l).type == TOK_OP && lexer_peek(l).start[0] == '*')
+        while (lexer_peek(l).kind == TOK_OP && lexer_peek(l).start[0] == '*')
         {
             Token st = lexer_peek(l);
             int valid = 1;
@@ -84,12 +84,12 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
         z_parse_expect(l, TOK_LPAREN, "Expected '(' for function type");
 
         // Parse Arguments
-        fn_type->arg_count = 0;
+        fn_type->count = 0;
         fn_type->args = NULL;
 
-        while (lexer_peek(l).type != TOK_RPAREN)
+        while (lexer_peek(l).kind != TOK_RPAREN)
         {
-            if (lexer_peek(l).type == TOK_ELLIPSIS)
+            if (lexer_peek(l).kind == TOK_ELLIPSIS)
             {
                 lexer_next(l);
                 fn_type->is_varargs = 1;
@@ -101,11 +101,11 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
             {
                 break;
             }
-            fn_type->arg_count++;
-            fn_type->args = xrealloc(fn_type->args, sizeof(Type *) * (size_t)(fn_type->arg_count));
-            fn_type->args[fn_type->arg_count - 1] = arg;
+            fn_type->count++;
+            fn_type->args = xrealloc(fn_type->args, sizeof(Type *) * (size_t)(fn_type->count));
+            fn_type->args[fn_type->count - 1] = arg;
 
-            if (lexer_peek(l).type == TOK_COMMA)
+            if (lexer_peek(l).kind == TOK_COMMA)
             {
                 lexer_next(l);
             }
@@ -117,7 +117,7 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
         z_parse_expect(l, TOK_RPAREN, "Expected ')' after function args");
 
         // Parse Return Type (-> Type)
-        if (lexer_peek(l).type == TOK_ARROW)
+        if (lexer_peek(l).kind == TOK_ARROW)
         {
             lexer_next(l); // eat ->
             fn_type->inner = parse_type_formal(ctx, l);
@@ -138,10 +138,15 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
     {
         // Handles: int, Struct, Generic<T>, [Slice], (Tuple)
         t = parse_type_base(ctx, l);
+        if (!t)
+        {
+            RECURSION_EXIT(ctx);
+            return NULL;
+        }
     }
 
     // Handles: T*, T**, etc.
-    while (lexer_peek(l).type == TOK_OP && lexer_peek(l).start[0] == '*')
+    while (lexer_peek(l).kind == TOK_OP && lexer_peek(l).start[0] == '*')
     {
         Token st = lexer_peek(l);
         int valid = 1;
@@ -168,7 +173,7 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
     int dims_cap = 0;
     int dims_count = 0;
 
-    while (lexer_peek(l).type == TOK_LBRACKET)
+    while (lexer_peek(l).kind == TOK_LBRACKET)
     {
         lexer_next(l);
 
@@ -178,7 +183,7 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
             dims = xrealloc(dims, sizeof(int) * (size_t)(dims_cap));
         }
 
-        if (lexer_peek(l).type == TOK_RBRACKET)
+        if (lexer_peek(l).kind == TOK_RBRACKET)
         {
             lexer_next(l);
 
@@ -219,7 +224,7 @@ Type *parse_type_formal(ParserContext *ctx, Lexer *l)
             }
         }
 
-        if (lexer_next(l).type != TOK_RBRACKET)
+        if (lexer_next(l).kind != TOK_RBRACKET)
         {
             zpanic_at(lexer_peek(l), "Expected ']' in array type");
             return NULL;

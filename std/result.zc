@@ -1,6 +1,7 @@
 import "./core.zc"
 import "./option.zc"
 
+/// The standard error-handling type: either `Ok(v)` or `Err(message)`.
 struct Result<T> {
     is_ok: bool;
     val: T;
@@ -8,10 +9,12 @@ struct Result<T> {
 }
 
 impl Result<T> {
+    /// Wraps a value in an `Ok` result.
     fn Ok(v: T) -> Result<T> {
         return Result<T> { is_ok: true, val: v, err: NULL };
     }
 
+    /// Creates an `Err` result with an error message.
     fn Err(e: char*) -> Result<T> {
         let r: Result<T>;
         r.is_ok = false;
@@ -20,18 +23,22 @@ impl Result<T> {
         return r;
     }
 
+    /// Returns `true` when the result is `Ok`.
     fn is_ok(self) -> bool {
         return self.is_ok;
     }
     
+    /// Returns `true` when the result is `Err`.
     fn is_err(self) -> bool {
         return !self.is_ok;
     }
 
+    /// Zeroes out the internal value without freeing memory.
     fn forget(self) {
         memset(&self.val, 0, sizeof(T));
     }
 
+    /// Returns the `Ok` value. Panics with the error when `Err`.
     fn unwrap(self) -> T {
         if (!self.is_ok) {
             !"Panic: unwrap called on Err: {self.err}";
@@ -42,6 +49,7 @@ impl Result<T> {
         return v;
     }
 
+    /// Returns a pointer to the `Ok` value. Panics when `Err`.
     fn unwrap_ref(self) -> T* {
         if (!self.is_ok) {
             !"Panic: unwrap_ref called on Err: {self.err}";
@@ -50,6 +58,7 @@ impl Result<T> {
         return &self.val;
     }
 
+    /// Returns the value, or panics with `msg` and the error when `Err`.
     fn expect(self, msg: char*) -> T {
         if (!self.is_ok) {
             !"Panic: {msg}: {self.err}";
@@ -59,45 +68,59 @@ impl Result<T> {
     }
 
     // Returns the contained value, or `def_val` when Err.
+    /// Returns the contained value, or `def_val` when `Err`.
     fn unwrap_or(self, def_val: T) -> T {
         if (self.is_ok) { return self.val; }
         return def_val;
     }
 
     // Returns the contained value, or the result of `f` when Err.
+    /// Returns the contained value, or the result of `f` when `Err`.
     fn unwrap_or_else(self, f: fn() -> T) -> T {
         if (self.is_ok) { return self.val; }
         return f();
     }
 
     // Converts to an Option holding the error, when Err.
+    /// Converts to an `Option` holding the error message, when `Err`.
     fn err(self) -> Option<char*> {
         if (!self.is_ok) { return Option<char*>::Some(self.err); }
         return Option<char*>::None();
     }
 
     // Applies `f` to the error, leaving the value untouched.
+    /// Applies `f` to the error message, leaving the value untouched.
     fn map_err(self, f: fn(char*) -> char*) -> Result<T> {
         if (self.is_ok) { return self; }
         return Result<T>::Err(f(self.err));
     }
 
     // Returns true when Ok and `f` accepts the contained value.
+    /// Returns `true` when `Ok` and `f` accepts the contained value.
     fn is_ok_and(self, f: fn(T) -> bool) -> bool {
         return self.is_ok && f(self.val);
     }
 
     // Returns true when Err and `f` accepts the error message.
+    /// Returns `true` when `Err` and `f` accepts the error message.
     fn is_err_and(self, f: fn(char*) -> bool) -> bool {
         return !self.is_ok && f(self.err);
     }
 
     // Panics with `msg` and the value when Ok, otherwise returns the error.
+    /// Returns the error message, or panics with `msg` when `Ok`.
     fn expect_err(self, msg: char*) -> char* {
         if (self.is_ok) {
             !"Panic: {msg}: expected Err, got Ok";
             exit(1);
         }
         return self.err;
+    }
+
+    // Converts to an Option, mapping Ok to Some and discarding the error.
+    /// Converts to an `Option`, mapping `Ok` to `Some` and discarding the error.
+    fn ok(self) -> Option<T> {
+        if (self.is_ok) { return Option<T>::Some(self.val); }
+        return Option<T>::None();
     }
 }

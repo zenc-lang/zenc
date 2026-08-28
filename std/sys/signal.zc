@@ -1,0 +1,30 @@
+
+import "../core.zc"
+
+include <signal.h>
+
+// Common signal constants (Z_ prefix to avoid macro collisions)
+def Z_SIGINT  = 2;  // Interrupt from keyboard
+def Z_SIGILL  = 4;  // Illegal instruction
+def Z_SIGABRT = 6;  // Abort
+def Z_SIGFPE  = 8;  // Floating point exception
+def Z_SIGSEGV = 11; // Segmentation violation
+def Z_SIGTERM = 15; // Termination signal
+
+raw {
+    typedef void (*_z_sig_handler_t)(int);
+    
+    void* _z_signal(int sig, void* handler) {
+        return (void*)signal(sig, (_z_sig_handler_t)handler);
+    }
+}
+
+extern fn _z_signal(sig: int, handler: void*) -> void*;
+
+struct Signal {}
+    
+impl Signal {
+    fn set_handler(sig: int, handler: fn*(int)) -> fn*(int) {
+        return (void*)_z_signal(sig, (void*)handler);
+    }
+}

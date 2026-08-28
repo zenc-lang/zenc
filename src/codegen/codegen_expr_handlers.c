@@ -28,7 +28,7 @@ void handle_expr_struct_init(ParserContext *ctx, ASTNode *node)
     int is_vector = 0;
     while (sr)
     {
-        if (sr->node && sr->node->type == NODE_STRUCT &&
+        if (sr->node && sr->node->kind == NODE_STRUCT &&
             strcmp(sr->node->strct.name, struct_name) == 0)
         {
             is_zen_struct = 1;
@@ -53,7 +53,7 @@ void handle_expr_struct_init(ParserContext *ctx, ASTNode *node)
         StructRef *v_chk = ctx->parsed_structs_list;
         while (v_chk)
         {
-            if (v_chk->node && v_chk->node->type == NODE_STRUCT &&
+            if (v_chk->node && v_chk->node->kind == NODE_STRUCT &&
                 strcmp(v_chk->node->strct.name, struct_name) == 0)
             {
                 if (v_chk->node->type_info)
@@ -75,8 +75,8 @@ void handle_expr_struct_init(ParserContext *ctx, ASTNode *node)
             while (f)
             {
                 int skip = 0;
-                if (f->var_decl.init_expr && f->var_decl.init_expr->type == NODE_EXPR_LITERAL &&
-                    f->var_decl.init_expr->literal.type_kind == LITERAL_INT &&
+                if (f->var_decl.init_expr && f->var_decl.init_expr->kind == NODE_EXPR_LITERAL &&
+                    f->var_decl.init_expr->literal.kind == LITERAL_INT &&
                     f->var_decl.init_expr->literal.int_val == 0)
                 {
                     skip = 1;
@@ -84,7 +84,7 @@ void handle_expr_struct_init(ParserContext *ctx, ASTNode *node)
                 if (!skip)
                 {
                     if (f->var_decl.init_expr &&
-                        f->var_decl.init_expr->type == NODE_EXPR_ARRAY_LITERAL)
+                        f->var_decl.init_expr->kind == NODE_EXPR_ARRAY_LITERAL)
                     {
                         ASTNode *elem = f->var_decl.init_expr->array_literal.elements;
                         int idx = 0;
@@ -210,8 +210,8 @@ void handle_expr_struct_init(ParserContext *ctx, ASTNode *node)
             while (f)
             {
                 int skip = 0;
-                if (f->var_decl.init_expr && f->var_decl.init_expr->type == NODE_EXPR_LITERAL &&
-                    f->var_decl.init_expr->literal.type_kind == LITERAL_INT &&
+                if (f->var_decl.init_expr && f->var_decl.init_expr->kind == NODE_EXPR_LITERAL &&
+                    f->var_decl.init_expr->literal.kind == LITERAL_INT &&
                     f->var_decl.init_expr->literal.int_val == 0)
                 {
                     skip = 1;
@@ -321,7 +321,7 @@ void handle_expr_binary(ParserContext *ctx, ASTNode *node)
         ASTNode *def = t1 ? find_struct_def(ctx, t1) : NULL;
 
         int is_simple_enum = 0;
-        if (def && def->type == NODE_ENUM)
+        if (def && def->kind == NODE_ENUM)
         {
             is_simple_enum = 1;
             ASTNode *v = def->enm.variants;
@@ -368,9 +368,9 @@ void handle_expr_binary(ParserContext *ctx, ASTNode *node)
 
             EMIT(ctx, "%s(", (sig && sig->link_name) ? sig->link_name : call_name);
 
-            if (node->binary.left->type == NODE_EXPR_VAR ||
-                node->binary.left->type == NODE_EXPR_INDEX ||
-                node->binary.left->type == NODE_EXPR_MEMBER)
+            if (node->binary.left->kind == NODE_EXPR_VAR ||
+                node->binary.left->kind == NODE_EXPR_INDEX ||
+                node->binary.left->kind == NODE_EXPR_MEMBER)
             {
                 EMIT(ctx, "&");
                 codegen_expression(ctx, node->binary.left);
@@ -400,9 +400,9 @@ void handle_expr_binary(ParserContext *ctx, ASTNode *node)
                 needs_ptr = (sig->total_args > 1 && sig->arg_types[1]->kind == TYPE_POINTER);
             }
 
-            if (needs_ptr && (node->binary.right->type == NODE_EXPR_VAR ||
-                              node->binary.right->type == NODE_EXPR_INDEX ||
-                              node->binary.right->type == NODE_EXPR_MEMBER))
+            if (needs_ptr && (node->binary.right->kind == NODE_EXPR_VAR ||
+                              node->binary.right->kind == NODE_EXPR_INDEX ||
+                              node->binary.right->kind == NODE_EXPR_MEMBER))
             {
                 EMIT(ctx, "&");
                 codegen_expression(ctx, node->binary.right);
@@ -504,7 +504,7 @@ void handle_expr_binary(ParserContext *ctx, ASTNode *node)
         int is_drop_assignment = 0;
         char *clean_type = NULL;
         if (is_assignment && strcmp(node->binary.op, "=") == 0 && ctx->config->use_cpp &&
-            node->binary.left->type == NODE_EXPR_VAR)
+            node->binary.left->kind == NODE_EXPR_VAR)
         {
             char *type_name = infer_type(ctx, node->binary.left);
             if (type_name)
@@ -541,7 +541,7 @@ void handle_expr_binary(ParserContext *ctx, ASTNode *node)
             codegen_expression(ctx, node->binary.left);
             EMIT(ctx, "); ");
 
-            if (node->binary.left->type == NODE_EXPR_VAR)
+            if (node->binary.left->kind == NODE_EXPR_VAR)
             {
                 EMIT(ctx, "if (__z_drop_flag_%s) %s__Drop__glue(_z_dest); ",
                      node->binary.left->var_ref.name, clean_type);
@@ -553,7 +553,7 @@ void handle_expr_binary(ParserContext *ctx, ASTNode *node)
 
             EMIT(ctx, "*_z_dest = _z_tmp; ");
 
-            if (node->binary.left->type == NODE_EXPR_VAR)
+            if (node->binary.left->kind == NODE_EXPR_VAR)
             {
                 EMIT(ctx, "__z_drop_flag_%s = 1; ", node->binary.left->var_ref.name);
             }
@@ -637,7 +637,7 @@ void handle_expr_call(ParserContext *ctx, ASTNode *node)
 {
     emit_source_mapping(ctx, node);
 
-    if (node->call.callee->type == NODE_EXPR_MEMBER)
+    if (node->call.callee->kind == NODE_EXPR_MEMBER)
     {
         Type *callee_ti = get_inner_type(node->call.callee->type_info);
         if (callee_ti && callee_ti->kind == TYPE_FUNCTION)
@@ -665,7 +665,7 @@ void handle_expr_call(ParserContext *ctx, ASTNode *node)
             }
         }
 
-        if (target->type == NODE_EXPR_VAR)
+        if (target->kind == NODE_EXPR_VAR)
         {
             char type_name[MAX_TYPE_NAME_LEN];
             strncpy(type_name, target->var_ref.name, sizeof(type_name));
@@ -674,7 +674,7 @@ void handle_expr_call(ParserContext *ctx, ASTNode *node)
             char *mangled_type = type_name;
 
             ASTNode *def = find_struct_def(ctx, mangled_type);
-            if (def && def->type == NODE_ENUM)
+            if (def && def->kind == NODE_ENUM)
             {
                 char mangled[MAX_MANGLED_NAME_LEN];
                 const char *ename_for_mangling = (def->link_name) ? def->link_name : mangled_type;
@@ -698,7 +698,7 @@ void handle_expr_call(ParserContext *ctx, ASTNode *node)
 
                         if (param_t && param_t->kind == TYPE_STRUCT &&
                             strncmp(param_t->name, "Tuple__", 7) == 0 && sig->total_args == 1 &&
-                            node->call.arg_count > 1)
+                            node->call.count > 1)
                         {
                             EMIT(ctx, "(%s){", param_t->name);
                             int first = 1;
@@ -794,9 +794,9 @@ void handle_expr_call(ParserContext *ctx, ASTNode *node)
             }
 
             if (!strchr(type, '*') &&
-                (target->type == NODE_EXPR_CALL || target->type == NODE_EXPR_LITERAL ||
-                 target->type == NODE_EXPR_BINARY || target->type == NODE_EXPR_UNARY ||
-                 target->type == NODE_EXPR_CAST || target->type == NODE_EXPR_STRUCT_INIT))
+                (target->kind == NODE_EXPR_CALL || target->kind == NODE_EXPR_LITERAL ||
+                 target->kind == NODE_EXPR_BINARY || target->kind == NODE_EXPR_UNARY ||
+                 target->kind == NODE_EXPR_CAST || target->kind == NODE_EXPR_STRUCT_INIT))
             {
                 char *type_mangled = (char *)normalize_type_name(type);
                 if (type_mangled != type)
@@ -906,7 +906,7 @@ void handle_expr_call(ParserContext *ctx, ASTNode *node)
                     StructRef *ref = ctx->parsed_impls_list;
                     while (ref)
                     {
-                        if (ref->node && ref->node->type == NODE_IMPL_TRAIT &&
+                        if (ref->node && ref->node->kind == NODE_IMPL_TRAIT &&
                             strcmp(ref->node->impl_trait.target_type, base) == 0)
                         {
                             char trait_base[MAX_MANGLED_NAME_LEN];
@@ -933,7 +933,7 @@ void handle_expr_call(ParserContext *ctx, ASTNode *node)
                         while (it)
                         {
                             char *tname = NULL;
-                            if (it->impl_node && it->impl_node->type == NODE_IMPL_TRAIT)
+                            if (it->impl_node && it->impl_node->kind == NODE_IMPL_TRAIT)
                             {
                                 tname = it->impl_node->impl_trait.trait_name;
                                 char trait_base[MAX_ERROR_MSG_LEN];
@@ -962,7 +962,7 @@ void handle_expr_call(ParserContext *ctx, ASTNode *node)
                     else
                     {
                         ASTNode *def = find_struct_def(ctx, base);
-                        if (def && def->type == NODE_STRUCT && def->strct.used_structs)
+                        if (def && def->kind == NODE_STRUCT && def->strct.used_structs)
                         {
                             for (int k = 0; k < def->strct.used_struct_count; k++)
                             {
@@ -1020,10 +1020,10 @@ void handle_expr_call(ParserContext *ctx, ASTNode *node)
 
 skip_method_mangling:
 
-    if (node->call.callee->type == NODE_EXPR_VAR)
+    if (node->call.callee->kind == NODE_EXPR_VAR)
     {
         ASTNode *def = find_struct_def(ctx, node->call.callee->var_ref.name);
-        if (def && def->type == NODE_STRUCT)
+        if (def && def->kind == NODE_STRUCT)
         {
             EMIT(ctx, "(struct %s){0}", node->call.callee->var_ref.name);
             return;
@@ -1051,7 +1051,7 @@ skip_method_mangling:
         }
 
         EMIT(ctx, "((%s (*)(void*", ret);
-        for (int i = 0; i < ft->arg_count; i++)
+        for (int i = 0; i < ft->count; i++)
         {
             char *as = type_to_c_string(ft->args[i]);
             if (strcmp(as, "unknown") == 0)
@@ -1080,13 +1080,13 @@ skip_method_mangling:
         return;
     }
 
-    if (node->call.callee->type == NODE_EXPR_VAR &&
+    if (node->call.callee->kind == NODE_EXPR_VAR &&
         strcmp(node->call.callee->var_ref.name, "panic") == 0)
     {
         EMIT(ctx, "__zenc_panic");
         goto skip_callee_gen;
     }
-    else if (node->call.callee->type == NODE_EXPR_VAR)
+    else if (node->call.callee->kind == NODE_EXPR_VAR)
     {
         char *name = node->call.callee->var_ref.name;
         char *underscore = (char *)strchr(name, '_');
@@ -1103,7 +1103,7 @@ skip_method_mangling:
                 int is_common_enum =
                     (strncmp(base, "Result", 6) == 0 || strncmp(base, "Option", 6) == 0 ||
                      strncmp(base, "JsonType", 8) == 0);
-                if (is_common_enum || (def && def->type == NODE_ENUM))
+                if (is_common_enum || (def && def->kind == NODE_ENUM))
                 {
                     emit_mangled_name(ctx, base, underscore + 1);
                     goto skip_callee_gen;
@@ -1118,7 +1118,7 @@ skip_method_mangling:
 skip_callee_gen:
     EMIT(ctx, "(");
 
-    if (node->call.arg_names && node->call.callee->type == NODE_EXPR_VAR)
+    if (node->call.arg_names && node->call.callee->kind == NODE_EXPR_VAR)
     {
         ASTNode *arg = node->call.args;
         int first = 1;
@@ -1136,7 +1136,7 @@ skip_callee_gen:
     else
     {
         FuncSig *sig = NULL;
-        if (node->call.callee->type == NODE_EXPR_VAR)
+        if (node->call.callee->kind == NODE_EXPR_VAR)
         {
             sig = find_func(ctx, node->call.callee->var_ref.name);
             if (!sig && !find_struct_def(ctx, node->call.callee->var_ref.name))
@@ -1227,7 +1227,7 @@ skip_callee_gen:
                 }
                 else if (param_t && param_t->kind == TYPE_STRUCT &&
                          strncmp(param_t->name, "Tuple__", 7) == 0 && sig->total_args == 1 &&
-                         node->call.arg_count > 1)
+                         node->call.count > 1)
                 {
                     EMIT(ctx, "(%s){", param_t->name);
                     ASTNode *curr = arg;
@@ -1257,14 +1257,14 @@ skip_callee_gen:
             }
             else
             {
-                if (arg->type == NODE_RAW_STMT)
+                if (arg->kind == NODE_RAW_STMT)
                 {
                     int is_fmt_arg = 0;
                     if (sig && sig->is_varargs && arg_idx == sig->total_args - 1)
                     {
                         is_fmt_arg = 1;
                     }
-                    else if (node->call.callee->type == NODE_EXPR_VAR)
+                    else if (node->call.callee->kind == NODE_EXPR_VAR)
                     {
                         const char *callee_name = node->call.callee->var_ref.name;
                         is_fmt_arg = (strcmp(callee_name, "printf") == 0 && arg_idx == 0) ||

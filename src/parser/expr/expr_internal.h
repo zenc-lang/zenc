@@ -7,7 +7,7 @@ typedef struct
     ASTNode *head;
     ASTNode *tail;
     char **arg_names;
-    int arg_count;
+    int count;
     int has_named;
 } CallArgs;
 

@@ -9,16 +9,19 @@ struct Mutex {
 }
 
 impl Mutex {
+    /// Creates a new Mutex.
     fn new() -> Mutex {
         let ptr = alloc_bytes(64); 
         pthread_mutex_init((pthread_mutex_t*)ptr, NULL);
         return Mutex { handle: ptr };
     }
     
+    /// Locks the mutex.
     fn lock(self) {
         pthread_mutex_lock((pthread_mutex_t*)self.handle);
     }
     
+    /// Unlocks the mutex.
     fn unlock(self) {
         pthread_mutex_unlock((pthread_mutex_t*)self.handle);
     }
@@ -41,6 +44,7 @@ struct CondVar {
 }
 
 impl CondVar {
+    /// Creates a new Mutex.
     fn new() -> CondVar {
         let ptr = alloc_bytes(64); 
         pthread_cond_init((pthread_cond_t*)ptr, NULL);
@@ -73,6 +77,7 @@ struct RwLock {
 }
 
 impl RwLock {
+    /// Creates a new Mutex.
     fn new() -> RwLock {
         let ptr = alloc_bytes(64); 
         pthread_rwlock_init((pthread_rwlock_t*)ptr, NULL);
@@ -87,6 +92,7 @@ impl RwLock {
         pthread_rwlock_wrlock((pthread_rwlock_t*)self.handle);
     }
     
+    /// Unlocks the mutex.
     fn unlock(self) {
         pthread_rwlock_unlock((pthread_rwlock_t*)self.handle);
     }
@@ -132,10 +138,12 @@ struct Once {
 }
 
 impl Once {
+    /// Creates a new Mutex.
     fn new() -> Once {
         return Once { mutex: Mutex::new(), done: false };
     }
     
+    /// Runs the closure while holding the lock.
     fn call(self, func: fn()) {
         if (self.done) return;
         
@@ -167,6 +175,7 @@ struct BarrierData {
 
 impl Barrier {
     @cfg(apple)
+    /// Creates a new Mutex.
     fn new(count: int) -> Barrier {
         let data = (BarrierData*)alloc_bytes(sizeof(BarrierData));
         data.mutex = Mutex::new();
@@ -178,6 +187,7 @@ impl Barrier {
     }
 
     @cfg(not(apple))
+    /// Creates a new Mutex.
     fn new(count: int) -> Barrier {
         let ptr = alloc_bytes(64); 
         pthread_barrier_init((pthread_barrier_t*)ptr, NULL, count);
@@ -255,6 +265,7 @@ struct SemData {
 
 impl Semaphore {
     @cfg(apple)
+    /// Creates a new Mutex.
     fn new(value: int) -> Semaphore {
         let data = (SemData*)zalloc_bytes(sizeof(SemData));
         data.mutex = Mutex::new();
@@ -264,6 +275,7 @@ impl Semaphore {
     }
 
     @cfg(not(apple))
+    /// Creates a new Mutex.
     fn new(value: int) -> Semaphore {
         let ptr = alloc_bytes(32);
         sem_init((sem_t*)ptr, 0, value);

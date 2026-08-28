@@ -1,0 +1,26 @@
+// stdlib: test_format
+import "std/io.zc"
+import "std/string.zc"
+
+test "format basic" {
+    let s1 = format("%d", 42);
+    assert(s1[0] == '4' && s1[1] == '2', "format int");
+
+    let s2 = format("%s-%d", "abc", 7);
+    assert(s2[0] == 'a' && s2[1] == 'b' && s2[2] == 'c' && s2[3] == '-', "format str-int");
+}
+
+test "format nested" {
+    // The inner format() must not clobber the outer buffer.
+    let s = format("[%s]", format("x=%d", 7));
+    assert(s[0] == '[' && s[1] == 'x' && s[2] == '=' && s[3] == '7' && s[4] == ']', "nested format");
+}
+
+test "format ring reentrancy" {
+    let a = format("%d", 1);
+    let b = format("%d", 2);
+    let c = format("%d", 3);
+    // All three must remain valid simultaneously.
+    assert(a[0] == '1' && b[0] == '2' && c[0] == '3', "ring holds 3 simultaneous");
+    assert(a[1] == 0 && b[1] == 0 && c[1] == 0, "ring strings NUL-terminated");
+}

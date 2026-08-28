@@ -10,8 +10,8 @@ fn _map_hash_str(str: const char*) -> usize {
     let i: usize = 0;
     
     while (str[i] != 0) {
-        // Cast char to U8 for unsigned byte value
-        let b: U8 = (U8)str[i];
+        // Cast char to u8 for unsigned byte value
+        let b: u8 = (u8)str[i];
         hash = hash_combine(hash, (usize)b);
         i = i + 1;
     }
@@ -62,6 +62,7 @@ impl MapIterResult<V> {
 }
 
 impl MapIter<V> {
+    /// Yields the next entry.
     fn next(self) -> MapIterResult<V> {
         while self.idx < self.cap {
             let i = self.idx;
@@ -86,6 +87,7 @@ impl MapIter<V> {
 }
 
 impl Map<V> {
+    /// Creates a new, empty Map.
     fn new() -> Map<V> {
         return Map<V> { keys: 0, vals: 0, occupied: 0, deleted: 0, len: 0, cap: 0 };
     }
@@ -122,6 +124,7 @@ impl Map<V> {
         if (old_deleted != NULL) { dealloc<bool>(old_deleted); }
     }
 
+    /// Inserts or overwrites the value for `key`.
     fn put(self, key: char*, val: V) {
         if (self.len >= self.cap * 0.75) {
             let new_cap = self.cap * 2;
@@ -154,6 +157,7 @@ impl Map<V> {
         }
     }
 
+    /// Returns the value for `key`, or `None`.
     fn get(self, key: char*) -> Option<V> {
         if (self.cap == 0) {
             return Option<V>::None();
@@ -180,11 +184,13 @@ impl Map<V> {
         return Option<V>::None();
     }
     
+    /// Returns whether `key` exists.
     fn contains(self, key: char*) -> bool {
         let opt: Option<V> = self.get(key);
         return opt.is_some();
     }
     
+    /// Removes `key`; returns whether it was present.
     fn remove(self, key: char*) {
         if (self.cap == 0) {
             return;
@@ -209,14 +215,17 @@ impl Map<V> {
         }
     }
     
+    /// Returns the number of entries.
     fn length(self) -> usize {
         return self.len;
     }
     
+    /// Returns whether the Map is empty.
     fn is_empty(self) -> bool {
         return self.len == 0;
     }
     
+    /// Frees all entries and the backing storage.
     fn free(self) {
         if (self.keys) {
             for (let i: usize = 0; i < self.cap; i = i + 1) {
@@ -237,10 +246,12 @@ impl Map<V> {
         self.cap = 0;
     }
     
+    /// Returns the current table capacity.
     fn capacity(self) -> usize {
         return self.cap;
     }
     
+    /// Returns whether slot `idx` holds an entry.
     fn is_slot_occupied(self, idx: usize) -> bool {
         if (idx >= self.cap) {
             return false;
@@ -248,6 +259,7 @@ impl Map<V> {
         return self.occupied[idx] && !self.deleted[idx];
     }
     
+    /// Returns the key at slot `idx`.
     fn key_at(self, idx: usize) -> char* {
         if (idx >= self.cap || !self.occupied[idx] || self.deleted[idx]) {
             return NULL;
@@ -255,10 +267,12 @@ impl Map<V> {
         return self.keys[idx];
     }
     
+    /// Returns the value at slot `idx`.
     fn val_at(self, idx: usize) -> V {
         return self.vals[idx];
     }
 
+    /// Returns an iterator over the entries.
     fn iterator(self) -> MapIter<V> {
         return MapIter<V> {
             keys: self.keys,

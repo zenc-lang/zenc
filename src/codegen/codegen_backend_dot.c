@@ -198,11 +198,11 @@ static int dot_emit_node(ParserContext *ctx, ASTNode *node)
     }
 
     int id = node_id++;
-    emitter_printf(&ctx->cg.emitter, "  %d [label=\"%s", id, dot_type_name((int)(node->type)));
+    emitter_printf(&ctx->cg.emitter, "  %d [label=\"%s", id, dot_type_name((int)(node->kind)));
 
     // Name
     const char *name = NULL;
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_FUNCTION:
     case NODE_VAR_DECL:
@@ -236,10 +236,10 @@ static int dot_emit_node(ParserContext *ctx, ASTNode *node)
     }
 
     // Literal value
-    if (node->type == NODE_EXPR_LITERAL)
+    if (node->kind == NODE_EXPR_LITERAL)
     {
         emitter_printf(&ctx->cg.emitter, "|");
-        switch (node->literal.type_kind)
+        switch (node->literal.kind)
         {
         case LITERAL_INT:
             emitter_printf(&ctx->cg.emitter, "%llu", node->literal.int_val);
@@ -278,7 +278,7 @@ static int dot_emit_node(ParserContext *ctx, ASTNode *node)
     emitter_printf(&ctx->cg.emitter, "\"];\n");
 
     // Children
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_ROOT:
         if (node->root.children)

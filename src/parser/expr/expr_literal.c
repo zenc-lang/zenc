@@ -15,23 +15,23 @@ ASTNode *parse_lambda(ParserContext *ctx, Lexer *l)
     int default_capture_mode = 0; // 0=Value, 1=Reference
     char **explicit_captures = xmalloc(sizeof(char *) * 32);
     int *explicit_capture_modes = xmalloc(sizeof(int) * 32);
-    int num_explicit_captures = 0;
+    int explicit_capture_count = 0;
 
-    if (lexer_peek(l).type == TOK_LBRACKET)
+    if (lexer_peek(l).kind == TOK_LBRACKET)
     {
         lexer_next(l);
 
-        while (lexer_peek(l).type != TOK_RBRACKET && lexer_peek(l).type != TOK_EOF)
+        while (lexer_peek(l).kind != TOK_RBRACKET && lexer_peek(l).kind != TOK_EOF)
         {
-            if (lexer_peek(l).type == TOK_OP && lexer_peek(l).len == 1 &&
+            if (lexer_peek(l).kind == TOK_OP && lexer_peek(l).len == 1 &&
                 lexer_peek(l).start[0] == '&')
             {
                 lexer_next(l);
-                if (lexer_peek(l).type == TOK_IDENT)
+                if (lexer_peek(l).kind == TOK_IDENT)
                 {
-                    explicit_captures[num_explicit_captures] = token_strdup(lexer_peek(l));
-                    explicit_capture_modes[num_explicit_captures] = 1; // By-Reference
-                    num_explicit_captures++;
+                    explicit_captures[explicit_capture_count] = token_strdup(lexer_peek(l));
+                    explicit_capture_modes[explicit_capture_count] = 1; // By-Reference
+                    explicit_capture_count++;
                     lexer_next(l);
                 }
                 else
@@ -39,17 +39,17 @@ ASTNode *parse_lambda(ParserContext *ctx, Lexer *l)
                     default_capture_mode = 1;
                 }
             }
-            else if (lexer_peek(l).type == TOK_OP && lexer_peek(l).len == 1 &&
+            else if (lexer_peek(l).kind == TOK_OP && lexer_peek(l).len == 1 &&
                      lexer_peek(l).start[0] == '=')
             {
                 default_capture_mode = 0;
                 lexer_next(l);
             }
-            else if (lexer_peek(l).type == TOK_IDENT)
+            else if (lexer_peek(l).kind == TOK_IDENT)
             {
-                explicit_captures[num_explicit_captures] = token_strdup(lexer_peek(l));
-                explicit_capture_modes[num_explicit_captures] = 0; // By-Value
-                num_explicit_captures++;
+                explicit_captures[explicit_capture_count] = token_strdup(lexer_peek(l));
+                explicit_capture_modes[explicit_capture_count] = 0; // By-Value
+                explicit_capture_count++;
                 lexer_next(l);
             }
             else
@@ -57,7 +57,7 @@ ASTNode *parse_lambda(ParserContext *ctx, Lexer *l)
                 zpanic_at(lexer_peek(l), "Invalid capture list item");
             }
 
-            if (lexer_peek(l).type == TOK_COMMA)
+            if (lexer_peek(l).kind == TOK_COMMA)
             {
                 lexer_next(l);
             }
@@ -67,14 +67,14 @@ ASTNode *parse_lambda(ParserContext *ctx, Lexer *l)
             }
         }
 
-        if (lexer_peek(l).type != TOK_RBRACKET)
+        if (lexer_peek(l).kind != TOK_RBRACKET)
         {
             zpanic_at(lexer_peek(l), "Expected ']' after capture list");
         }
         lexer_next(l); // eat ]
     }
 
-    if (lexer_peek(l).type != TOK_LPAREN)
+    if (lexer_peek(l).kind != TOK_LPAREN)
     {
         zpanic_at(lexer_peek(l), "Expected '(' after 'fn' in lambda");
     }
@@ -85,19 +85,19 @@ ASTNode *parse_lambda(ParserContext *ctx, Lexer *l)
     t->args = xmalloc(sizeof(Type *) * 16);
     char **param_names = xmalloc(sizeof(char *) * 16);
     char **param_types = xmalloc(sizeof(char *) * 16);
-    int num_params = 0;
+    int count = 0;
 
-    while (lexer_peek(l).type != TOK_RPAREN)
+    while (lexer_peek(l).kind != TOK_RPAREN)
     {
-        if (num_params >= 16)
+        if (count >= 16)
         {
             zpanic_at(lexer_peek(l), "Too many function parameters (max 16)");
             break;
         }
 
-        if (num_params > 0)
+        if (count > 0)
         {
-            if (lexer_peek(l).type != TOK_COMMA)
+            if (lexer_peek(l).kind != TOK_COMMA)
             {
                 zpanic_at(lexer_peek(l), "Expected ',' between parameters");
                 break;
@@ -107,15 +107,15 @@ ASTNode *parse_lambda(ParserContext *ctx, Lexer *l)
         }
 
         Token name_tok = lexer_next(l);
-        if (name_tok.type != TOK_IDENT)
+        if (name_tok.kind != TOK_IDENT)
         {
             zpanic_at(name_tok, "Expected parameter name");
             break;
         }
 
-        param_names[num_params] = token_strdup(name_tok);
+        param_names[count] = token_strdup(name_tok);
 
-        if (lexer_peek(l).type != TOK_COLON)
+        if (lexer_peek(l).kind != TOK_COLON)
         {
             zpanic_at(lexer_peek(l), "Expected ':' after parameter name");
             break;
@@ -128,15 +128,15 @@ ASTNode *parse_lambda(ParserContext *ctx, Lexer *l)
         {
             return NULL;
         }
-        t->args[t->arg_count] = typef;
-        param_types[num_params] = type_to_string(typef);
-        num_params++;
-        t->arg_count = num_params;
+        t->args[t->count] = typef;
+        param_types[count] = type_to_string(typef);
+        count++;
+        t->count = count;
     }
     lexer_next(l);
 
     char *return_type = xstrdup("void");
-    if (lexer_peek(l).type == TOK_ARROW)
+    if (lexer_peek(l).kind == TOK_ARROW)
     {
         lexer_next(l);
 
@@ -150,13 +150,13 @@ ASTNode *parse_lambda(ParserContext *ctx, Lexer *l)
 
     enter_scope(ctx);
 
-    for (int i = 0; i < num_params; i++)
+    for (int i = 0; i < count; i++)
     {
         add_symbol(ctx, param_names[i], param_types[i], t->args[i], 0);
     }
 
     ASTNode *body = NULL;
-    if (lexer_peek(l).type == TOK_LBRACE)
+    if (lexer_peek(l).kind == TOK_LBRACE)
     {
         body = parse_block(ctx, l);
     }
@@ -173,11 +173,11 @@ ASTNode *parse_lambda(ParserContext *ctx, Lexer *l)
     lambda->lambda.return_type = return_type;
     lambda->lambda.body = body;
     lambda->lambda.body = body;
-    lambda->lambda.num_params = num_params;
+    lambda->lambda.count = count;
     lambda->lambda.default_capture_mode = default_capture_mode;
     lambda->lambda.explicit_captures = explicit_captures;
     lambda->lambda.explicit_capture_modes = explicit_capture_modes;
-    lambda->lambda.num_explicit_captures = num_explicit_captures;
+    lambda->lambda.explicit_capture_count = explicit_capture_count;
     lambda->lambda.capture_modes = NULL; // Will be allocated in analysis
     lambda->lambda.lambda_id = ctx->lambda_counter++;
     lambda->lambda.is_expression = 0;
@@ -365,7 +365,7 @@ ASTNode *parse_int_literal(ParserContext *ctx, Token t)
 {
     ASTNode *node = ast_create(NODE_EXPR_LITERAL);
     node->token = t;
-    node->literal.type_kind = LITERAL_INT;
+    node->literal.kind = LITERAL_INT;
     node->type_info = type_new(TYPE_INT);
     char *s = token_strdup(t);
     int write_idx = 0;
@@ -526,7 +526,7 @@ ASTNode *parse_float_literal(Token t)
 {
     ASTNode *node = ast_create(NODE_EXPR_LITERAL);
     node->token = t;
-    node->literal.type_kind = LITERAL_FLOAT;
+    node->literal.kind = LITERAL_FLOAT;
     char *s = token_strdup(t);
     int write_idx = 0;
     for (int read_idx = 0; s[read_idx]; read_idx++)
@@ -686,7 +686,7 @@ ASTNode *parse_string_literal(ParserContext *ctx, Token t)
 
     ASTNode *node = ast_create(NODE_EXPR_LITERAL);
     node->token = t;
-    node->literal.type_kind = LITERAL_STRING;
+    node->literal.kind = LITERAL_STRING;
 
     node->literal.string_val = escape_c_string(content);
     zfree(content);
@@ -717,7 +717,7 @@ ASTNode *parse_char_literal(Token t)
 {
     ASTNode *node = ast_create(NODE_EXPR_LITERAL);
     node->token = t;
-    node->literal.type_kind = LITERAL_CHAR;
+    node->literal.kind = LITERAL_CHAR;
     node->literal.string_val = token_strdup(t);
 
     // Decode character value
@@ -822,7 +822,7 @@ ASTNode *parse_char_literal(Token t)
 
 ASTNode *parse_size_or_typeof(ParserContext *ctx, Lexer *l, Token tk, int is_typeof)
 {
-    if (lexer_peek(l).type != TOK_LPAREN)
+    if (lexer_peek(l).kind != TOK_LPAREN)
     {
         zpanic_at(lexer_peek(l), is_typeof ? "Expected ( after typeof" : "Expected ( after sizeof");
     }
@@ -860,7 +860,7 @@ ASTNode *parse_size_or_typeof(ParserContext *ctx, Lexer *l, Token tk, int is_typ
     }
 
     ASTNode *node;
-    if (ty->kind != TYPE_UNKNOWN && !is_actually_var && lexer_peek(l).type == TOK_RPAREN)
+    if (ty->kind != TYPE_UNKNOWN && !is_actually_var && lexer_peek(l).kind == TOK_RPAREN)
     {
         lexer_next(l);
         char *ts = type_to_string(ty);
@@ -885,7 +885,7 @@ ASTNode *parse_size_or_typeof(ParserContext *ctx, Lexer *l, Token tk, int is_typ
         l->col = col;
         l->line = line;
         ASTNode *ex = parse_expression(ctx, l);
-        if (lexer_next(l).type != TOK_RPAREN)
+        if (lexer_next(l).kind != TOK_RPAREN)
         {
             zpanic_at(lexer_peek(l), is_typeof ? "Expected ) after typeof expression"
                                                : "Expected ) after sizeof expression");
@@ -921,7 +921,7 @@ ASTNode *parse_typeof_expr(ParserContext *ctx, Lexer *l)
 ASTNode *parse_intrinsic(ParserContext *ctx, Lexer *l)
 {
     Token ident = lexer_next(l);
-    if (ident.type != TOK_IDENT)
+    if (ident.kind != TOK_IDENT)
     {
         zpanic_at(ident, "Expected intrinsic name after @");
     }
@@ -941,7 +941,7 @@ ASTNode *parse_intrinsic(ParserContext *ctx, Lexer *l)
     }
 
     Token lparen = lexer_next(l);
-    if (lparen.type != TOK_LPAREN)
+    if (lparen.kind != TOK_LPAREN)
     {
         zpanic_at(lparen, "Expected ( after intrinsic");
     }
@@ -953,7 +953,7 @@ ASTNode *parse_intrinsic(ParserContext *ctx, Lexer *l)
     }
 
     Token rparen = lexer_next(l);
-    if (rparen.type != TOK_RPAREN)
+    if (rparen.kind != TOK_RPAREN)
     {
         zpanic_at(rparen, "Expected ) after intrinsic type");
     }

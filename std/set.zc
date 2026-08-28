@@ -13,6 +13,7 @@ struct Set<T> {
 }
 
 impl Set<T> {
+    /// Creates a new, empty Set.
     fn new() -> Set<T> {
         return Set<T> { data: 0, occupied: 0, deleted: 0, len: 0, cap: 0 };
     }
@@ -43,6 +44,7 @@ impl Set<T> {
         if (old_deleted != NULL) { dealloc<bool>(old_deleted); }
     }
 
+    /// Inserts a value; returns whether it was new.
     fn add(self, val: T) -> bool {
         if (self.contains(val)) {
             return false;
@@ -68,6 +70,7 @@ impl Set<T> {
         return true;
     }
 
+    /// Returns whether the value is present.
     fn contains(self, val: T) -> bool {
         if (self.cap == 0) {
             return false;
@@ -90,6 +93,7 @@ impl Set<T> {
         return false;
     }
 
+    /// Removes a value; returns whether it was present.
     fn remove(self, val: T) -> bool {
         if (self.cap == 0) return false;
 
@@ -110,14 +114,17 @@ impl Set<T> {
         return false;
     }
 
+    /// Returns the number of items.
     fn length(self) -> usize {
         return self.len;
     }
 
+    /// Returns whether the set is empty.
     fn is_empty(self) -> bool {
         return self.len == 0;
     }
 
+    /// Frees the backing storage.
     fn free(self) {
         if (self.data) {
             dealloc<T>(self.data);
@@ -146,6 +153,7 @@ impl Set<T> {
         }
         return Option<T>::Some(self.data[idx]);
     }
+    /// Removes all items.
     fn clear(self) {
         for (let i: usize = 0; i < self.cap; i = i + 1) {
             self.occupied[i] = false;

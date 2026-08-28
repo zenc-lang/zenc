@@ -18,7 +18,7 @@ void replace_it_with_var(ASTNode *node, char *var_name)
     {
         return;
     }
-    if (node->type == NODE_EXPR_VAR)
+    if (node->kind == NODE_EXPR_VAR)
     {
         if (strcmp(node->var_ref.name, "it") == 0)
         {
@@ -26,7 +26,7 @@ void replace_it_with_var(ASTNode *node, char *var_name)
             node->var_ref.name = xstrdup(var_name);
         }
     }
-    else if (node->type == NODE_EXPR_CALL)
+    else if (node->kind == NODE_EXPR_CALL)
     {
         replace_it_with_var(node->call.callee, var_name);
         ASTNode *arg = node->call.args;
@@ -36,20 +36,20 @@ void replace_it_with_var(ASTNode *node, char *var_name)
             arg = arg->next;
         }
     }
-    else if (node->type == NODE_EXPR_MEMBER)
+    else if (node->kind == NODE_EXPR_MEMBER)
     {
         replace_it_with_var(node->member.target, var_name);
     }
-    else if (node->type == NODE_EXPR_BINARY)
+    else if (node->kind == NODE_EXPR_BINARY)
     {
         replace_it_with_var(node->binary.left, var_name);
         replace_it_with_var(node->binary.right, var_name);
     }
-    else if (node->type == NODE_EXPR_UNARY)
+    else if (node->kind == NODE_EXPR_UNARY)
     {
         replace_it_with_var(node->unary.operand, var_name);
     }
-    else if (node->type == NODE_BLOCK)
+    else if (node->kind == NODE_BLOCK)
     {
         ASTNode *s = node->block.statements;
         while (s)
@@ -65,9 +65,9 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
     Token tk = lexer_next(l); // eat 'let'
 
     // Destructuring: let {x, y} = ... OR let (a: type, b: type) = ...
-    if (lexer_peek(l).type == TOK_LBRACE || lexer_peek(l).type == TOK_LPAREN)
+    if (lexer_peek(l).kind == TOK_LBRACE || lexer_peek(l).kind == TOK_LPAREN)
     {
-        int is_struct = (lexer_peek(l).type == TOK_LBRACE);
+        int is_struct = (lexer_peek(l).kind == TOK_LBRACE);
         lexer_next(l);
         int cap = 16;
         char **names = xmalloc((size_t)cap * sizeof(char *));
@@ -84,14 +84,14 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
                 type_infos = xrealloc(type_infos, (size_t)cap * sizeof(Type *));
             }
             Token t = lexer_next(l);
-            check_identifier(ctx, t);
+            check_identifier(t);
             char *nm = token_strdup(t);
             names[count] = nm;
             types[count] = NULL;
             type_infos[count] = NULL;
 
             // Check for optional type annotation: name: type
-            if (!is_struct && lexer_peek(l).type == TOK_COLON)
+            if (!is_struct && lexer_peek(l).kind == TOK_COLON)
             {
                 lexer_next(l); // eat :
                 Type *type_obj = parse_type_formal(ctx, l);
@@ -106,28 +106,28 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
             count++;
 
             Token next = lexer_next(l);
-            if (next.type == TOK_EOF)
+            if (next.kind == TOK_EOF)
             {
                 zpanic_at(next, "Unexpected end of file in destructuring pattern");
                 break;
             }
-            if (next.type == (is_struct ? TOK_RBRACE : TOK_RPAREN))
+            if (next.kind == (is_struct ? TOK_RBRACE : TOK_RPAREN))
             {
                 break;
             }
-            if (next.type != TOK_COMMA)
+            if (next.kind != TOK_COMMA)
             {
                 zpanic_at(next, "Expected comma in destructuring list");
                 return NULL;
             }
         }
-        if (lexer_next(l).type != TOK_OP)
+        if (lexer_next(l).kind != TOK_OP)
         {
             zpanic_at(lexer_peek(l), "Expected =");
             return NULL;
         }
         ASTNode *init = parse_expression(ctx, l);
-        if (lexer_peek(l).type == TOK_SEMICOLON)
+        if (lexer_peek(l).kind == TOK_SEMICOLON)
         {
             lexer_next(l);
         }
@@ -144,11 +144,11 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
 
     // Normal Declaration OR Named Struct Destructuring
     Token name_tok = lexer_next(l);
-    check_identifier(ctx, name_tok);
+    check_identifier(name_tok);
     char *name = token_strdup(name_tok);
 
     // Check for Struct Destructuring: var Point { x, y }
-    if (lexer_peek(l).type == TOK_LBRACE)
+    if (lexer_peek(l).kind == TOK_LBRACE)
     {
         lexer_next(l);
         char **names = xmalloc(16 * sizeof(char *));
@@ -159,15 +159,15 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
         {
             // Parse field:name or just name
             Token t = lexer_next(l);
-            check_identifier(ctx, t);
+            check_identifier(t);
             char *ident = token_strdup(t);
 
-            if (lexer_peek(l).type == TOK_COLON)
+            if (lexer_peek(l).kind == TOK_COLON)
             {
                 // field: var_name
                 lexer_next(l); // eat :
                 Token v = lexer_next(l);
-                check_identifier(ctx, v);
+                check_identifier(v);
                 fields[count] = ident;
                 names[count] = token_strdup(v);
             }
@@ -183,29 +183,29 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
             count++;
 
             Token next = lexer_next(l);
-            if (next.type == TOK_EOF)
+            if (next.kind == TOK_EOF)
             {
                 zpanic_at(next, "Unexpected end of file in struct destructuring");
                 break;
             }
-            if (next.type == TOK_RBRACE)
+            if (next.kind == TOK_RBRACE)
             {
                 break;
             }
-            if (next.type != TOK_COMMA)
+            if (next.kind != TOK_COMMA)
             {
                 zpanic_at(next, "Expected comma in struct pattern");
                 return NULL;
             }
         }
 
-        if (lexer_next(l).type != TOK_OP)
+        if (lexer_next(l).kind != TOK_OP)
         {
             zpanic_at(lexer_peek(l), "Expected =");
             return NULL;
         }
         ASTNode *init = parse_expression(ctx, l);
-        if (lexer_peek(l).type == TOK_SEMICOLON)
+        if (lexer_peek(l).kind == TOK_SEMICOLON)
         {
             lexer_next(l);
         }
@@ -222,20 +222,20 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
     }
 
     // Check for Guard Pattern: var Some(val) = opt else { ... }
-    if (lexer_peek(l).type == TOK_LPAREN)
+    if (lexer_peek(l).kind == TOK_LPAREN)
     {
         lexer_next(l);
         Token val_tok = lexer_next(l);
-        check_identifier(ctx, val_tok);
+        check_identifier(val_tok);
         char *val_name = token_strdup(val_tok);
 
-        if (lexer_next(l).type != TOK_RPAREN)
+        if (lexer_next(l).kind != TOK_RPAREN)
         {
             zpanic_at(lexer_peek(l), "Expected ')' in guard pattern");
             return NULL;
         }
 
-        if (lexer_next(l).type != TOK_OP)
+        if (lexer_next(l).kind != TOK_OP)
         {
             zpanic_at(lexer_peek(l), "Expected '=' after guard pattern");
             return NULL;
@@ -244,14 +244,14 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
         ASTNode *init = parse_expression(ctx, l);
 
         Token t = lexer_next(l);
-        if (t.type != TOK_IDENT || strncmp(t.start, "else", 4) != 0)
+        if (t.kind != TOK_IDENT || strncmp(t.start, "else", 4) != 0)
         {
             zpanic_at(t, "Expected 'else' in guard statement");
             return NULL;
         }
 
         ASTNode *else_blk;
-        if (lexer_peek(l).type == TOK_LBRACE)
+        if (lexer_peek(l).kind == TOK_LBRACE)
         {
             else_blk = parse_block(ctx, l);
         }
@@ -261,7 +261,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
             else_blk->block.statements = parse_statement(ctx, l);
         }
 
-        if (lexer_peek(l).type == TOK_SEMICOLON)
+        if (lexer_peek(l).kind == TOK_SEMICOLON)
         {
             lexer_next(l);
         }
@@ -284,7 +284,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
     char *type = NULL;
     Type *type_obj = NULL; // --- NEW: Formal Type Object ---
 
-    if (lexer_peek(l).type == TOK_COLON)
+    if (lexer_peek(l).kind == TOK_COLON)
     {
         lexer_next(l);
         // Hybrid Parse: Get Object AND String
@@ -297,13 +297,13 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
     }
 
     ASTNode *init = NULL;
-    if (lexer_peek(l).type == TOK_OP && is_token(lexer_peek(l), "="))
+    if (lexer_peek(l).kind == TOK_OP && is_token(lexer_peek(l), "="))
     {
         lexer_next(l);
 
         // Peek for special initializers
         Token next = lexer_peek(l);
-        if (next.type == TOK_IDENT && strncmp(next.start, "embed", 5) == 0)
+        if (next.kind == TOK_IDENT && strncmp(next.start, "embed", 5) == 0)
         {
             init = parse_embed(ctx, l);
 
@@ -329,29 +329,29 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
                 register_slice(ctx, "char");
                 type = xstrdup("Slice__char");
             }
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
         }
-        else if (next.type == TOK_LBRACKET && type && strncmp(type, "Slice__", 7) == 0)
+        else if (next.kind == TOK_LBRACKET && type && strncmp(type, "Slice__", 7) == 0)
         {
             char *code = parse_array_literal(ctx, l, type);
             init = ast_create(NODE_RAW_STMT);
             init->token = next;
             init->raw_stmt.content = code;
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
         }
-        else if (next.type == TOK_LPAREN && type && strncmp(type, "Tuple__", 7) == 0)
+        else if (next.kind == TOK_LPAREN && type && strncmp(type, "Tuple__", 7) == 0)
         {
             char *code = parse_tuple_literal(ctx, l, type);
             init = ast_create(NODE_RAW_STMT);
             init->token = next;
             init->raw_stmt.content = code;
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
@@ -360,11 +360,11 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
         {
             if (type_obj && type_obj->name)
             {
-                if (type_obj->arg_count > 0 && type_obj->args)
+                if (type_obj->count > 0 && type_obj->args)
                 {
                     size_t len = strlen(type_obj->name) + 1;
-                    char **clean_args = xmalloc(sizeof(char *) * (size_t)type_obj->arg_count);
-                    for (int ai = 0; ai < type_obj->arg_count; ai++)
+                    char **clean_args = xmalloc(sizeof(char *) * (size_t)type_obj->count);
+                    for (int ai = 0; ai < type_obj->count; ai++)
                     {
                         const char *an = type_obj->args[ai] ? type_obj->args[ai]->name : "int";
                         clean_args[ai] = sanitize_mangled_name(an);
@@ -372,7 +372,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
                     }
                     char *mangled = xmalloc(len);
                     strcpy(mangled, type_obj->name);
-                    for (int ai = 0; ai < type_obj->arg_count; ai++)
+                    for (int ai = 0; ai < type_obj->count; ai++)
                     {
                         strcat(mangled, "__");
                         strcat(mangled, clean_args[ai]);
@@ -392,7 +392,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
         }
 
         // Multi-let check: if this is the first of let a = 0, b = 1, handle it now
-        if (lexer_peek(l).type == TOK_COMMA)
+        if (lexer_peek(l).kind == TOK_COMMA)
         {
             // Save first decl info, jump to multi-let handling
             ASTNode *first = ast_create(NODE_VAR_DECL);
@@ -409,15 +409,15 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
 
             // Parse remaining variables after comma
             ASTNode *prev = first;
-            while (lexer_peek(l).type == TOK_COMMA)
+            while (lexer_peek(l).kind == TOK_COMMA)
             {
                 lexer_next(l); // eat comma
                 Token ntok = lexer_next(l);
-                check_identifier(ctx, ntok);
+                check_identifier(ntok);
                 char *nname = token_strdup(ntok);
                 char *ntype = NULL;
                 Type *ntype_obj = NULL;
-                if (lexer_peek(l).type == TOK_COLON)
+                if (lexer_peek(l).kind == TOK_COLON)
                 {
                     lexer_next(l);
                     ntype_obj = parse_type_formal(ctx, l);
@@ -428,7 +428,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
                     ntype = type_to_string(ntype_obj);
                 }
                 ASTNode *ninit = NULL;
-                if (lexer_peek(l).type == TOK_OP && is_token(lexer_peek(l), "="))
+                if (lexer_peek(l).kind == TOK_OP && is_token(lexer_peek(l), "="))
                 {
                     lexer_next(l);
                     ninit = parse_expression(ctx, l);
@@ -449,19 +449,19 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
                         ntype_obj->array_size = ninit->type_info->array_size;
                         ntype = type_to_string(ntype_obj);
                     }
-                    else if (ninit->type == NODE_EXPR_LITERAL)
+                    else if (ninit->kind == NODE_EXPR_LITERAL)
                     {
-                        if (ninit->literal.type_kind == LITERAL_INT)
+                        if (ninit->literal.kind == LITERAL_INT)
                         {
                             ntype = xstrdup("int");
                             ntype_obj = type_new(TYPE_INT);
                         }
-                        else if (ninit->literal.type_kind == LITERAL_FLOAT)
+                        else if (ninit->literal.kind == LITERAL_FLOAT)
                         {
                             ntype = xstrdup("float");
                             ntype_obj = type_new(TYPE_FLOAT);
                         }
-                        else if (ninit->literal.type_kind == LITERAL_STRING)
+                        else if (ninit->literal.kind == LITERAL_STRING)
                         {
                             ntype = xstrdup("string");
                             ntype_obj = type_new(TYPE_STRING);
@@ -484,7 +484,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
                 prev->next = nn;
                 prev = nn;
             }
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
@@ -544,10 +544,10 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
                     type_obj->alias = init->type_info->alias;
                 }
                 // Copy function type args for lambda/closure support
-                if (init->type_info->args && init->type_info->arg_count > 0)
+                if (init->type_info->args && init->type_info->count > 0)
                 {
                     type_obj->args = init->type_info->args;
-                    type_obj->arg_count = init->type_info->arg_count;
+                    type_obj->count = init->type_info->count;
                     type_obj->is_varargs = init->type_info->is_varargs;
                 }
                 type_obj->array_size = init->type_info->array_size;
@@ -555,31 +555,31 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
                 type_obj->is_explicit_struct = init->type_info->is_explicit_struct;
                 type = type_to_string(type_obj);
             }
-            else if (init->type == NODE_EXPR_SLICE)
+            else if (init->kind == NODE_EXPR_SLICE)
             {
                 zpanic_at(init->token, "Slice Node has NO Type Info!");
                 return NULL;
             }
             // Fallbacks for literals
-            else if (init->type == NODE_EXPR_LITERAL)
+            else if (init->kind == NODE_EXPR_LITERAL)
             {
-                if (init->literal.type_kind == LITERAL_INT)
+                if (init->literal.kind == LITERAL_INT)
                 {
                     type = xstrdup("int");
                     type_obj = type_new(TYPE_INT);
                 }
-                else if (init->literal.type_kind == LITERAL_FLOAT)
+                else if (init->literal.kind == LITERAL_FLOAT)
                 {
                     type = xstrdup("float");
                     type_obj = type_new(TYPE_FLOAT);
                 }
-                else if (init->literal.type_kind == LITERAL_STRING)
+                else if (init->literal.kind == LITERAL_STRING)
                 {
                     type = xstrdup("string");
                     type_obj = type_new(TYPE_STRING);
                 }
             }
-            else if (init->type == NODE_EXPR_STRUCT_INIT)
+            else if (init->kind == NODE_EXPR_STRUCT_INIT)
             {
                 type = xstrdup(init->struct_init.struct_name);
                 type_obj = type_new(TYPE_STRUCT);
@@ -600,28 +600,28 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
     if (init && type_obj)
     {
         Type *t = init->type_info;
-        if (!t && init->type == NODE_EXPR_VAR)
+        if (!t && init->kind == NODE_EXPR_VAR)
         {
             t = find_symbol_type_info(ctx, init->var_ref.name);
         }
 
         // Literal type construction for validation
         Type *temp_literal_type = NULL;
-        if (!t && init->type == NODE_EXPR_LITERAL)
+        if (!t && init->kind == NODE_EXPR_LITERAL)
         {
-            if (init->literal.type_kind == LITERAL_INT)
+            if (init->literal.kind == LITERAL_INT)
             {
                 temp_literal_type = type_new(TYPE_INT);
             }
-            else if (init->literal.type_kind == LITERAL_FLOAT)
+            else if (init->literal.kind == LITERAL_FLOAT)
             {
                 temp_literal_type = type_new(TYPE_FLOAT);
             }
-            else if (init->literal.type_kind == LITERAL_STRING)
+            else if (init->literal.kind == LITERAL_STRING)
             {
                 temp_literal_type = type_new(TYPE_STRING);
             }
-            else if (init->literal.type_kind == LITERAL_CHAR)
+            else if (init->literal.kind == LITERAL_CHAR)
             {
                 temp_literal_type = type_new(TYPE_CHAR);
             }
@@ -663,7 +663,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
     }
 
     // NEW: Capture Const Integer Values
-    if (init && init->type == NODE_EXPR_LITERAL && init->literal.type_kind == LITERAL_INT)
+    if (init && init->kind == NODE_EXPR_LITERAL && init->literal.kind == LITERAL_INT)
     {
         ZenSymbol *s = find_symbol_entry(ctx, name); // Helper to find the struct
         if (s)
@@ -673,7 +673,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
         }
     }
 
-    if (lexer_peek(l).type == TOK_SEMICOLON)
+    if (lexer_peek(l).kind == TOK_SEMICOLON)
     {
         lexer_next(l);
     }
@@ -694,7 +694,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
     n->var_decl.init_expr = init;
 
     // Move Semantics Logic for Initialization
-    if (init && init->type == NODE_EXPR_VAR)
+    if (init && init->kind == NODE_EXPR_VAR)
     {
         // Move semantics placeholder: find_symbol_entry(ctx, init->var_ref.name);
     }
@@ -708,11 +708,11 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
     // Check for 'defer' (Value-Returning Defer)
     // Only capture if it is NOT a block defer (defer { ... })
     // If it is a block defer, we leave it for the next parse_statement call.
-    if (lexer_peek(l).type == TOK_DEFER)
+    if (lexer_peek(l).kind == TOK_DEFER)
     {
         Lexer lookahead = *l;
         lexer_next(&lookahead); // Eat defer
-        if (lexer_peek(&lookahead).type != TOK_LBRACE)
+        if (lexer_peek(&lookahead).kind != TOK_LBRACE)
         {
             // Proceed to consume
             lexer_next(l); // Eat defer
@@ -724,7 +724,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
             // Handle "it" substitution
             replace_it_with_var(expr, name);
 
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
@@ -739,7 +739,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
     }
 
     // Multiple declarations: let a = 0, b = 1
-    if (lexer_peek(l).type == TOK_COMMA)
+    if (lexer_peek(l).kind == TOK_COMMA)
     {
         ASTNode *head = NULL;
         ASTNode *prev = NULL;
@@ -747,18 +747,18 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
         head = n;
         prev = n;
 
-        while (lexer_peek(l).type == TOK_COMMA)
+        while (lexer_peek(l).kind == TOK_COMMA)
         {
             lexer_next(l); // eat comma
 
             // Parse next variable: name [:type] [= expr]
             Token next_name_tok = lexer_next(l);
-            check_identifier(ctx, next_name_tok);
+            check_identifier(next_name_tok);
             char *next_name = token_strdup(next_name_tok);
 
             char *next_type = NULL;
             Type *next_type_obj = NULL;
-            if (lexer_peek(l).type == TOK_COLON)
+            if (lexer_peek(l).kind == TOK_COLON)
             {
                 lexer_next(l);
                 next_type_obj = parse_type_formal(ctx, l);
@@ -770,7 +770,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
             }
 
             ASTNode *next_init = NULL;
-            if (lexer_peek(l).type == TOK_OP && is_token(lexer_peek(l), "="))
+            if (lexer_peek(l).kind == TOK_OP && is_token(lexer_peek(l), "="))
             {
                 lexer_next(l);
                 next_init = parse_expression(ctx, l);
@@ -799,19 +799,19 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
                     next_type_obj->array_size = next_init->type_info->array_size;
                     next_type = type_to_string(next_type_obj);
                 }
-                else if (next_init->type == NODE_EXPR_LITERAL)
+                else if (next_init->kind == NODE_EXPR_LITERAL)
                 {
-                    if (next_init->literal.type_kind == LITERAL_INT)
+                    if (next_init->literal.kind == LITERAL_INT)
                     {
                         next_type = xstrdup("int");
                         next_type_obj = type_new(TYPE_INT);
                     }
-                    else if (next_init->literal.type_kind == LITERAL_FLOAT)
+                    else if (next_init->literal.kind == LITERAL_FLOAT)
                     {
                         next_type = xstrdup("float");
                         next_type_obj = type_new(TYPE_FLOAT);
                     }
-                    else if (next_init->literal.type_kind == LITERAL_STRING)
+                    else if (next_init->literal.kind == LITERAL_STRING)
                     {
                         next_type = xstrdup("string");
                         next_type_obj = type_new(TYPE_STRING);
@@ -839,7 +839,7 @@ ASTNode *parse_var_decl(ParserContext *ctx, Lexer *l, int is_export)
             prev = next_node;
         }
 
-        if (lexer_peek(l).type == TOK_SEMICOLON)
+        if (lexer_peek(l).kind == TOK_SEMICOLON)
         {
             lexer_next(l);
         }

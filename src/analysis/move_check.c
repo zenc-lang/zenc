@@ -69,11 +69,11 @@ char *get_node_path(ASTNode *node, int depth, ParserContext *ctx)
 
     char *path = NULL;
 
-    if (node->type == NODE_EXPR_VAR)
+    if (node->kind == NODE_EXPR_VAR)
     {
         path = xstrdup(node->var_ref.name);
     }
-    else if (node->type == NODE_EXPR_MEMBER)
+    else if (node->kind == NODE_EXPR_MEMBER)
     {
         char *target_path = get_node_path(node->member.target, depth + 1, ctx);
         if (target_path)
@@ -354,7 +354,7 @@ void check_use_validity(TypeChecker *tc, ASTNode *use_node)
     }
 
     char *path = get_node_path(use_node, 0, tc->pctx);
-    if (!path && use_node->type == NODE_EXPR_VAR)
+    if (!path && use_node->kind == NODE_EXPR_VAR)
     {
         path = xstrdup(use_node->var_ref.name);
     }

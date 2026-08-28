@@ -30,7 +30,7 @@ void handle_expr_cast(ParserContext *ctx, ASTNode *node)
             clean_name += 7;
         }
         ASTNode *def = find_struct_def(ctx, clean_name);
-        if (def && def->type == NODE_ENUM)
+        if (def && def->kind == NODE_ENUM)
         {
             ASTNode *v = def->enm.variants;
             while (v)
@@ -88,7 +88,7 @@ void handle_reflection(ParserContext *ctx, ASTNode *node)
         ASTNode *f = def->strct.fields;
         while (f)
         {
-            if (f->type == NODE_FIELD)
+            if (f->kind == NODE_FIELD)
             {
                 EMIT(ctx, "{ \"%s\", \"%s\", __builtin_offsetof(struct %s, %s) }, ", f->field.name,
                      f->field.type, sname, f->field.name);

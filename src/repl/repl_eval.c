@@ -117,11 +117,11 @@ int is_definition_of(const char *code, const char *name)
     lexer_init(&l, code, &g_compiler.config, "<repl>");
     Token t = lexer_next(&l);
     int is_header = 0;
-    if (t.type == TOK_UNION)
+    if (t.kind == TOK_UNION)
     {
         is_header = 1;
     }
-    else if (t.type == TOK_IDENT)
+    else if (t.kind == TOK_IDENT)
     {
         if ((t.len == 2 && strncmp(t.start, "fn", 2) == 0) ||
             (t.len == 6 && strncmp(t.start, "struct", 6) == 0) ||
@@ -135,7 +135,7 @@ int is_definition_of(const char *code, const char *name)
     if (is_header)
     {
         Token name_tok = lexer_next(&l);
-        if (name_tok.type == TOK_IDENT && strlen(name) == (size_t)name_tok.len &&
+        if (name_tok.kind == TOK_IDENT && strlen(name) == (size_t)name_tok.len &&
             strncmp(name, name_tok.start, name_tok.len) == 0)
         {
             return 1;
@@ -242,7 +242,7 @@ void repl_load_docs(ReplState *state)
         size_t nread = fread(data, 1, (size_t)(len), f);
         if (nread != (size_t)(len))
         {
-            free(data);
+            zfree(data);
             data = NULL;
         }
         else
@@ -362,14 +362,14 @@ void repl_update_symbols(ReplState *state)
     Lexer lex;
     lexer_init(&lex, code, &g_compiler.config, ctx.current_filename);
     ASTNode *nodes = parse_program(&ctx, &lex);
-    ASTNode *search = (nodes && nodes->type == NODE_ROOT) ? nodes->root.children : nodes;
+    ASTNode *search = (nodes && nodes->kind == NODE_ROOT) ? nodes->root.children : nodes;
     for (ASTNode *n = search; n; n = n->next)
     {
-        if (n->type == NODE_FUNCTION)
+        if (n->kind == NODE_FUNCTION)
         {
             repl_add_symbol(state, n->func.name);
         }
-        else if (n->type == NODE_STRUCT)
+        else if (n->kind == NODE_STRUCT)
         {
             repl_add_symbol(state, n->strct.name);
         }

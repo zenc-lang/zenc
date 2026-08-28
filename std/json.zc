@@ -20,7 +20,7 @@ enum JsonType {
 struct JsonValue {
     kind: JsonType;
     string_val: char*;
-    number_val: double;
+    number_val: f64;
     bool_val: bool;
     array_val: Vec<JsonValue*>*;
     object_val: Map<JsonValue*>*;
@@ -88,7 +88,7 @@ fn _json_make_string(s: char*) -> JsonValue* {
     return v;
 }
 
-fn _json_make_number(n: double) -> JsonValue* {
+fn _json_make_number(n: f64) -> JsonValue* {
     let v: JsonValue* = alloc<JsonValue>();
     *v = JsonValue { kind: JsonType::JSON_NUMBER(), string_val: NULL, number_val: n, bool_val: false, array_val: NULL, object_val: NULL };
     return v;
@@ -216,18 +216,22 @@ fn _json_do_parse(json: char*) -> JsonValue* {
 }
 
 impl JsonValue {
+    /// Creates a JSON null value.
     fn null() -> JsonValue {
         return JsonValue { kind: JsonType::JSON_NULL(), string_val: NULL, number_val: 0.0, bool_val: false, array_val: NULL, object_val: NULL };
     }
     
+    /// Creates a JSON boolean.
     fn bool(b: bool) -> JsonValue {
         return JsonValue { kind: JsonType::JSON_BOOL(), string_val: NULL, number_val: 0.0, bool_val: b, array_val: NULL, object_val: NULL };
     }
     
-    fn number(n: double) -> JsonValue {
+    /// Creates a JSON number.
+    fn number(n: f64) -> JsonValue {
         return JsonValue { kind: JsonType::JSON_NUMBER(), string_val: NULL, number_val: n, bool_val: false, array_val: NULL, object_val: NULL };
     }
     
+    /// Creates a JSON string.
     fn string(s: char*) -> JsonValue {
         let len = strlen(s);
         let dup: char* = alloc_n<char>(len + 1);
@@ -237,12 +241,14 @@ impl JsonValue {
         return JsonValue { kind: JsonType::JSON_STRING(), string_val: dup, number_val: 0.0, bool_val: false, array_val: NULL, object_val: NULL };
     }
     
+    /// Creates a JSON array.
     fn array() -> JsonValue {
         let v: Vec<JsonValue*>* = alloc<Vec<JsonValue*>>();
         *v = Vec__JsonValuePtr::new();
         return JsonValue { kind: JsonType::JSON_ARRAY(), string_val: NULL, number_val: 0.0, bool_val: false, array_val: v, object_val: NULL };
     }
     
+    /// Creates a JSON object.
     fn object() -> JsonValue {
         let m: Map<JsonValue*>* = alloc<Map<JsonValue*>>();
         *m = Map__JsonValuePtr::new();
@@ -251,42 +257,49 @@ impl JsonValue {
 
     // Heap-allocated factory methods (returns pointers)
 
+    /// Creates a heap-allocated JSON null value.
     fn null_ptr() -> JsonValue* {
         let p: JsonValue* = alloc<JsonValue>();
         *p = JsonValue::null();
         return p;
     }
 
+    /// Creates a heap-allocated JSON boolean.
     fn bool_ptr(b: bool) -> JsonValue* {
         let p: JsonValue* = alloc<JsonValue>();
         *p = JsonValue::bool(b);
         return p;
     }
 
-    fn number_ptr(n: double) -> JsonValue* {
+    /// Creates a heap-allocated JSON number.
+    fn number_ptr(n: f64) -> JsonValue* {
         let p: JsonValue* = alloc<JsonValue>();
         *p = JsonValue::number(n);
         return p;
     }
 
+    /// Creates a heap-allocated JSON string.
     fn string_ptr(s: char*) -> JsonValue* {
         let p: JsonValue* = alloc<JsonValue>();
         *p = JsonValue::string(s);
         return p;
     }
 
+    /// Creates a heap-allocated JSON array.
     fn array_ptr() -> JsonValue* {
         let p: JsonValue* = alloc<JsonValue>();
         *p = JsonValue::array();
         return p;
     }
 
+    /// Creates a heap-allocated JSON object.
     fn object_ptr() -> JsonValue* {
         let p: JsonValue* = alloc<JsonValue>();
         *p = JsonValue::object();
         return p;
     }
 
+    /// Appends a value to the array.
     fn push(self, val: JsonValue) {
         if (self.kind.tag != JsonType::JSON_ARRAY().tag) return;
         let p: JsonValue* = alloc<JsonValue>();
@@ -294,6 +307,7 @@ impl JsonValue {
         self.array_val.push(p);
     }
     
+    /// Sets an object field.
     fn set(self, key: char*, val: JsonValue) {
         if (self.kind.tag != JsonType::JSON_OBJECT().tag) return;
         let p: JsonValue* = alloc<JsonValue>();
@@ -301,6 +315,7 @@ impl JsonValue {
         self.object_val.put(key, p);
     }
     
+    /// Parses a JSON string into a JsonValue.
     fn parse(json: char*) -> Result<JsonValue*> {
         let result: JsonValue* = _json_do_parse(json);
         if (result != NULL) {
@@ -309,6 +324,7 @@ impl JsonValue {
         return Result<JsonValue*>::Err("JSON parse error");
     }
 
+    /// Parses a JSON string into an owned JsonValue.
     fn parse_val(json: char*) -> Result<JsonValue> {
         let result: JsonValue* = _json_do_parse(json);
         if (result != NULL) {
@@ -321,32 +337,39 @@ impl JsonValue {
 
     // Type checking helpers
 
+    /// Returns whether the value is null.
     fn is_null(self) -> bool {
         return self.kind.tag == JsonType::JSON_NULL().tag;
     }
 
+    /// Returns whether the value is a boolean.
     fn is_bool(self) -> bool {
         return self.kind.tag == JsonType::JSON_BOOL().tag;
     }
 
+    /// Returns whether the value is a number.
     fn is_number(self) -> bool {
         return self.kind.tag == JsonType::JSON_NUMBER().tag;
     }
 
+    /// Returns whether the value is a string.
     fn is_string(self) -> bool {
         return self.kind.tag == JsonType::JSON_STRING().tag;
     }
 
+    /// Returns whether the value is an array.
     fn is_array(self) -> bool {
         return self.kind.tag == JsonType::JSON_ARRAY().tag;
     }
 
+    /// Returns whether the value is an object.
     fn is_object(self) -> bool {
         return self.kind.tag == JsonType::JSON_OBJECT().tag;
     }
 
     // Direct value extractors
 
+    /// Returns the string value when it is a string.
     fn as_string(self) -> Option<char*> {
         if self.kind.tag == JsonType::JSON_STRING().tag {
             return Option<char*>::Some(self.string_val);
@@ -354,6 +377,7 @@ impl JsonValue {
         return Option<char*>::None();
     }
 
+    /// Returns the integer value when it is a number.
     fn as_int(self) -> Option<int> {
         if self.kind.tag == JsonType::JSON_NUMBER().tag {
             return Option<int>::Some((int)self.number_val);
@@ -361,13 +385,15 @@ impl JsonValue {
         return Option<int>::None();
     }
 
-    fn as_float(self) -> Option<double> {
+    /// Returns the floating-point value when it is a number.
+    fn as_float(self) -> Option<f64> {
         if self.kind.tag == JsonType::JSON_NUMBER().tag {
-            return Option<double>::Some(self.number_val);
+            return Option<f64>::Some(self.number_val);
         }
-        return Option<double>::None();
+        return Option<f64>::None();
     }
 
+    /// Returns the boolean value when it is a boolean.
     fn as_bool(self) -> Option<bool> {
         if self.kind.tag == JsonType::JSON_BOOL().tag {
             return Option<bool>::Some(self.bool_val);
@@ -377,6 +403,7 @@ impl JsonValue {
 
     // Object key accessors
 
+    /// Returns the object field value for `key`.
     fn get(self, key: char*) -> Option<JsonValue*> {
         if self.kind.tag != JsonType::JSON_OBJECT().tag {
             return Option<JsonValue*>::None();
@@ -387,6 +414,7 @@ impl JsonValue {
         return Option<JsonValue*>::None();
     }
 
+    /// Returns the string field for `key`, or `None`.
     fn get_string(self, key: char*) -> Option<char*> {
         let opt = self.get(key);
         if opt.is_none() {
@@ -396,6 +424,7 @@ impl JsonValue {
         return (*val).as_string();
     }
 
+    /// Returns the integer field for `key`, or `None`.
     fn get_int(self, key: char*) -> Option<int> {
         let opt = self.get(key);
         if opt.is_none() {
@@ -405,15 +434,17 @@ impl JsonValue {
         return (*val).as_int();
     }
 
-    fn get_float(self, key: char*) -> Option<double> {
+    /// Returns the floating-point field for `key`, or `None`.
+    fn get_float(self, key: char*) -> Option<f64> {
         let opt = self.get(key);
         if opt.is_none() {
-            return Option<double>::None();
+            return Option<f64>::None();
         }
         let val = opt.unwrap();
         return (*val).as_float();
     }
 
+    /// Returns the boolean field for `key`, or `None`.
     fn get_bool(self, key: char*) -> Option<bool> {
         let opt = self.get(key);
         if opt.is_none() {
@@ -423,6 +454,7 @@ impl JsonValue {
         return (*val).as_bool();
     }
 
+    /// Returns the object field for `key`, or `None`.
     fn get_object(self, key: char*) -> Option<JsonValue*> {
         let opt = self.get(key);
         if opt.is_none() {
@@ -435,6 +467,7 @@ impl JsonValue {
         return Option<JsonValue*>::None();
     }
 
+    /// Returns the array field for `key`, or `None`.
     fn get_array(self, key: char*) -> Option<JsonValue*> {
         let opt = self.get(key);
         if opt.is_none() {
@@ -449,6 +482,7 @@ impl JsonValue {
 
     // Array accessors
 
+    /// Returns the array element at `index`.
     fn at(self, index: usize) -> Option<JsonValue*> {
         if self.kind.tag != JsonType::JSON_ARRAY().tag {
             return Option<JsonValue*>::None();
@@ -459,7 +493,8 @@ impl JsonValue {
         return Option<JsonValue*>::Some(self.array_val.get(index));
     }
 
-    fn len(self) -> usize {
+    /// Returns the array/object size.
+    fn length(self) -> usize {
         if self.kind.tag == JsonType::JSON_ARRAY().tag {
             return self.array_val.length();
         }
@@ -469,6 +504,13 @@ impl JsonValue {
         return 0;
     }
 
+    // Deprecated alias; use `length`.
+    /// Returns the array/object size (deprecated; use `length`).
+    fn len(self) -> usize {
+        return self.length();
+    }
+
+    /// Recursively frees the value and its children.
     fn free(self) {
         if (self.kind.tag == JsonType::JSON_STRING().tag) dealloc<char>(self.string_val);
         if (self.kind.tag == JsonType::JSON_ARRAY().tag) {
@@ -504,12 +546,16 @@ impl Drop for JsonValue {
 }
 
 impl JsonValue {
-    fn to_string(self) -> String {
+    /// Returns a serialized JSON string (caller frees).
+    fn to_string(self) -> char* {
         let s = String::new("");
         self.stringify(&s);
-        return s;
+        let out = s.c_str();
+        s.forget();
+        return out;
     }
 
+    /// Serializes the value into the given String buffer.
     fn stringify(self, buf: String*) {
         if (self.kind.tag == JsonType::JSON_NULL().tag) {
             buf.append_c_ptr("null");

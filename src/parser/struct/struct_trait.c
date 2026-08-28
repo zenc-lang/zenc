@@ -16,11 +16,10 @@ ASTNode *parse_trait(ParserContext *ctx, Lexer *l)
 {
     lexer_next(l); // eat trait
     Token n = lexer_next(l);
-    check_identifier(ctx, n);
-    if (n.type != TOK_IDENT)
+    check_identifier(n);
+    if (n.kind != TOK_IDENT)
     {
         zpanic_at(n, "Expected trait name");
-        return NULL;
         return NULL;
     }
     char *name = xmalloc(n.len + 1);
@@ -30,18 +29,17 @@ ASTNode *parse_trait(ParserContext *ctx, Lexer *l)
     // Generics <T>
     char **generic_params = NULL;
     int generic_count = 0;
-    if (lexer_peek(l).type == TOK_LANGLE)
+    if (lexer_peek(l).kind == TOK_LANGLE)
     {
         lexer_next(l);                                // eat <
         generic_params = xmalloc(sizeof(char *) * 8); // simplified
         while (1)
         {
             Token p = lexer_next(l);
-            check_identifier(ctx, p);
-            if (p.type != TOK_IDENT)
+            check_identifier(p);
+            if (p.kind != TOK_IDENT)
             {
                 zpanic_at(p, "Expected generic parameter name");
-                return NULL;
                 return NULL;
             }
             generic_params[generic_count] = xmalloc(p.len + 1);
@@ -50,17 +48,17 @@ ASTNode *parse_trait(ParserContext *ctx, Lexer *l)
             generic_count++;
 
             Token sep = lexer_peek(l);
-            if (sep.type == TOK_EOF)
+            if (sep.kind == TOK_EOF)
             {
                 zpanic_at(sep, "Expected '>' in generic parameter list");
                 break;
             }
-            if (sep.type == TOK_COMMA)
+            if (sep.kind == TOK_COMMA)
             {
                 lexer_next(l);
                 continue;
             }
-            else if (sep.type == TOK_RANGLE)
+            else if (sep.kind == TOK_RANGLE)
             {
                 lexer_next(l);
                 break;
@@ -68,7 +66,6 @@ ASTNode *parse_trait(ParserContext *ctx, Lexer *l)
             else
             {
                 zpanic_at(sep, "Expected , or > in generic params");
-                return NULL;
                 return NULL;
             }
         }
@@ -88,50 +85,49 @@ ASTNode *parse_trait(ParserContext *ctx, Lexer *l)
     while (1)
     {
         skip_comments(l);
-        if (lexer_peek(l).type == TOK_RBRACE)
+        if (lexer_peek(l).kind == TOK_RBRACE)
         {
             lexer_next(l);
             break;
         }
-        if (lexer_peek(l).type == TOK_EOF)
+        if (lexer_peek(l).kind == TOK_EOF)
         {
             zpanic_at(lexer_peek(l), "Unexpected end of file in trait body");
             break;
         }
 
         DeclarationAttributes attrs = {0};
-        if (lexer_peek(l).type == TOK_AT)
+        if (lexer_peek(l).kind == TOK_AT)
         {
             attrs = parse_attributes(ctx, l);
         }
 
         // Parse method signature: fn name(args...) -> ret;
         Token ft = lexer_next(l);
-        if (ft.type != TOK_IDENT || strncmp(ft.start, "fn", 2) != 0)
+        if (ft.kind != TOK_IDENT || strncmp(ft.start, "fn", 2) != 0)
         {
             zpanic_at(ft, "Expected fn in trait");
-            return NULL;
             return NULL;
         }
 
         Token mn = lexer_next(l);
-        check_identifier(ctx, mn);
+        check_identifier(mn);
         char *mname = xmalloc(mn.len + 1);
         strncpy(mname, mn.start, mn.len);
         mname[mn.len] = 0;
 
         char **defaults = NULL;
-        int arg_count = 0;
+        int count = 0;
         Type **arg_types = NULL;
         ASTNode **default_values = NULL;
         char **param_names = NULL;
         int is_varargs = 0;
-        char *args = parse_and_convert_args(ctx, l, &defaults, &default_values, &arg_count,
-                                            &arg_types, &param_names, &is_varargs, NULL);
+        char *args = parse_and_convert_args(ctx, l, &defaults, &default_values, &count, &arg_types,
+                                            &param_names, &is_varargs, NULL);
 
         char *ret = xstrdup("void");
         Type *ret_type_obj = type_new(TYPE_VOID);
-        if (lexer_peek(l).type == TOK_ARROW)
+        if (lexer_peek(l).kind == TOK_ARROW)
         {
             lexer_next(l);
             ret_type_obj = parse_type_formal(ctx, l);
@@ -143,7 +139,7 @@ ASTNode *parse_trait(ParserContext *ctx, Lexer *l)
             ret = type_to_string(ret_type_obj);
         }
 
-        if (lexer_peek(l).type == TOK_SEMICOLON)
+        if (lexer_peek(l).kind == TOK_SEMICOLON)
         {
             lexer_next(l);
             ASTNode *m = ast_create(NODE_FUNCTION);
@@ -154,7 +150,7 @@ ASTNode *parse_trait(ParserContext *ctx, Lexer *l)
             m->func.args = args;
             m->func.defaults = defaults;
             m->func.default_values = default_values;
-            m->func.arg_count = arg_count;
+            m->func.count = count;
             m->func.arg_types = arg_types;
             m->func.ret_type = ret;
             m->func.ret_type_info = ret_type_obj;
@@ -176,7 +172,6 @@ ASTNode *parse_trait(ParserContext *ctx, Lexer *l)
         {
             // Default implementation? Not supported yet.
             zpanic_at(lexer_peek(l), "Trait methods must end with ; for now");
-            return NULL;
             return NULL;
         }
     }

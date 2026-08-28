@@ -10,10 +10,12 @@ struct Queue<T> {
 }
 
 impl Queue<T> {
+    /// Creates a new, empty queue.
     fn new() -> Queue<T> {
         return Queue<T>{data: NULL, cap: 0, head: 0, tail: 0, count: 0};
     }
 
+/// Frees the backing storage.
 fn free(self) {
     if (self.data) {
         dealloc<T>(self.data);
@@ -92,16 +94,19 @@ self.count = self.count - 1;
 return Option<T>::Some(value);
 }
 
+/// Returns the number of items.
 fn length(self) -> usize {
     return self.count;
 }
 
+/// Removes all items.
 fn clear(self) {
     self.head = 0;
     self.tail = 0;
     self.count = 0;
 }
 
+/// Returns whether the queue is empty.
 fn is_empty(self) -> bool {
     return self.count == 0;
 }

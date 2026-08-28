@@ -12,47 +12,50 @@ struct timeval {
 }
 
 extern fn gettimeofday(tv: timeval*, tz: void*) -> int;
-extern fn srand(seed: U32);
-extern fn rand() -> int;
 // Note: time() is declared by <time.h> which is already included above.
 // Zen C does not redeclare it to avoid type conflicts (time_t varies by platform).
 
-fn _time_now_impl() -> U64 {
+fn _time_now_impl() -> u64 {
     let tv: timeval;
     gettimeofday(&tv, NULL);
-    return (U64)tv.tv_sec * 1000 + (U64)tv.tv_usec / 1000;
+    return (u64)tv.tv_sec * 1000 + (u64)tv.tv_usec / 1000;
 }
 
-fn _z_time_time() -> I64 {
-    return (I64)time(NULL);
+fn _z_time_time() -> i64 {
+    return (i64)time(NULL);
 }
 
 struct Duration {
-    millis: U64;
+    millis: u64;
 }
 
 impl Duration {
-    fn from_ms(ms: U64) -> Duration {
+    /// Creates a Duration from milliseconds.
+    fn from_ms(ms: u64) -> Duration {
         return Duration { millis: ms };
     }
     
-    fn from_secs(s: U64) -> Duration {
-        return Duration { millis: s * (U64)1000 };
+    /// Creates a Duration from seconds.
+    fn from_secs(s: u64) -> Duration {
+        return Duration { millis: s * (u64)1000 };
     }
 }
 
 struct Time {}
 
 impl Time {
-    fn now() -> U64 {
+    /// Returns the current time in milliseconds.
+    fn now() -> u64 {
         return _time_now_impl();
     }
     
+    /// Sleeps for the given Duration.
     fn sleep(d: Duration) {
-        usleep((U32)(d.millis * (U64)1000));
+        usleep((u32)(d.millis * (u64)1000));
     }
     
-    fn sleep_ms(ms: U64) {
-        usleep((U32)(ms * (U64)1000));
+    /// Sleeps for the given number of milliseconds.
+    fn sleep_ms(ms: u64) {
+        usleep((u32)(ms * (u64)1000));
     }
 }

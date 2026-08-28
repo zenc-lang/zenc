@@ -25,10 +25,10 @@ fn _z_fs_closedir(dir: void*) -> int {
     return closedir((DIR*)dir);
 }
 
-fn _z_fs_get_metadata(path: const char*, size: U64*, is_dir: c_int*, is_file: c_int*) -> c_int {
+fn _z_fs_get_metadata(path: const char*, size: u64*, is_dir: c_int*, is_file: c_int*) -> c_int {
     let st: fs_stat;
     if (stat(path, &st) != 0) return -1;
-    *size = (U64)st.st_size;
+    *size = (u64)st.st_size;
     *is_dir = (c_int)((st.st_mode & 0xF000) == 0x4000);
     *is_file = (c_int)((st.st_mode & 0xF000) == 0x8000);
     return 0;

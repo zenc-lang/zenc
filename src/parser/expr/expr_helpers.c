@@ -12,7 +12,7 @@
 
 int token_is_field_name(Token t)
 {
-    if (t.type == TOK_IDENT || t.type == TOK_INT)
+    if (t.kind == TOK_IDENT || t.kind == TOK_INT)
     {
         return 1;
     }
@@ -137,13 +137,13 @@ ASTNode *find_function_definition(ParserContext *ctx, const char *name)
 void get_struct_name(ParserContext *ctx, ASTNode *node, char **out_struct_name,
                      char **out_var_ref_name)
 {
-    if (node->type == NODE_EXPR_UNARY && strcmp(node->unary.op, "&") == 0 &&
-        node->unary.operand->type == NODE_EXPR_VAR)
+    if (node->kind == NODE_EXPR_UNARY && strcmp(node->unary.op, "&") == 0 &&
+        node->unary.operand->kind == NODE_EXPR_VAR)
     {
         *out_var_ref_name = node->unary.operand->var_ref.name;
         *out_struct_name = find_symbol_type(ctx, *out_var_ref_name);
     }
-    else if (node->type == NODE_EXPR_VAR)
+    else if (node->kind == NODE_EXPR_VAR)
     {
         Type *rhs_t = find_symbol_type_info(ctx, node->var_ref.name);
         if (rhs_t && rhs_t->kind == TYPE_POINTER && rhs_t->inner &&
@@ -183,20 +183,20 @@ CallArgs parse_call_args(ParserContext *ctx, Lexer *l, FuncSig *sig)
     CallArgs res = {NULL, NULL, NULL, 0, 0};
     (void)ctx;
 
-    if (lexer_peek(l).type != TOK_RPAREN)
+    if (lexer_peek(l).kind != TOK_RPAREN)
     {
         while (1)
         {
-            if (lexer_peek(l).type == TOK_EOF)
+            if (lexer_peek(l).kind == TOK_EOF)
             {
                 break;
             }
             char *arg_name = NULL;
             Token t1 = lexer_peek(l);
-            if (t1.type == TOK_IDENT)
+            if (t1.kind == TOK_IDENT)
             {
                 Token t2 = lexer_peek2(l);
-                if (t2.type == TOK_COLON)
+                if (t2.kind == TOK_COLON)
                 {
                     arg_name = token_strdup(t1);
                     res.has_named = 1;
@@ -208,7 +208,7 @@ CallArgs parse_call_args(ParserContext *ctx, Lexer *l, FuncSig *sig)
             ASTNode *arg = parse_expression(ctx, l);
             check_move_usage(ctx, arg, arg ? arg->token : t1);
 
-            if (arg && arg->type == NODE_EXPR_VAR)
+            if (arg && arg->kind == NODE_EXPR_VAR)
             {
                 Type *inner_t = find_symbol_type_info(ctx, arg->var_ref.name);
                 if (!inner_t)
@@ -231,9 +231,9 @@ CallArgs parse_call_args(ParserContext *ctx, Lexer *l, FuncSig *sig)
             }
 
             // Implicit trait cast logic
-            if (sig && res.arg_count < sig->total_args && arg)
+            if (sig && sig->arg_types && res.count < sig->total_args && arg)
             {
-                Type *expected = sig->arg_types[res.arg_count];
+                Type *expected = sig->arg_types[res.count];
                 if (expected && expected->name && is_trait(expected->name))
                 {
                     arg = transform_to_trait_object(ctx, expected->name, arg);
@@ -251,11 +251,11 @@ CallArgs parse_call_args(ParserContext *ctx, Lexer *l, FuncSig *sig)
                 res.tail = arg;
             }
 
-            res.arg_names = xrealloc(res.arg_names, (size_t)(res.arg_count + 1) * sizeof(char *));
-            res.arg_names[res.arg_count] = arg_name;
-            res.arg_count++;
+            res.arg_names = xrealloc(res.arg_names, (size_t)(res.count + 1) * sizeof(char *));
+            res.arg_names[res.count] = arg_name;
+            res.count++;
 
-            if (lexer_peek(l).type == TOK_COMMA)
+            if (lexer_peek(l).kind == TOK_COMMA)
             {
                 lexer_next(l);
             }
@@ -311,7 +311,7 @@ ASTNode *transform_to_trait_object(ParserContext *ctx, const char *target_trait,
             snprintf(v_buf, sizeof(v_buf), "%s__%s__VTable", clean_struct_type, clean_trait);
             char *v_mangled = merge_underscores(v_buf);
 
-            if (source_expr->type == NODE_EXPR_UNARY && strcmp(source_expr->unary.op, "&") == 0)
+            if (source_expr->kind == NODE_EXPR_UNARY && strcmp(source_expr->unary.op, "&") == 0)
             {
                 snprintf(code, 512, "(%s){.self=(void*)&%s, .vtable=&%s}", clean_trait,
                          var_ref_name, v_mangled);
@@ -389,7 +389,7 @@ void validate_named_arguments(Token call_token, const char *func_name, char **ar
         }
 
         // Check bounds
-        if (i >= func_def->func.arg_count)
+        if (i >= func_def->func.count)
         {
             continue;
         }
@@ -424,7 +424,7 @@ void check_move_usage(ParserContext *ctx, ASTNode *node, Token t)
     {
         return;
     }
-    if (node->type == NODE_EXPR_VAR)
+    if (node->kind == NODE_EXPR_VAR)
     {
         // Move check placeholder: find_symbol_entry(ctx, node->var_ref.name);
     }
@@ -453,7 +453,7 @@ char *infer_printf_format(ParserContext *ctx, ASTNode **args, int ac)
     for (int i = 0; i < ac; i++)
     {
         Type *inner_t = args[i]->type_info;
-        if (!inner_t && args[i]->type == NODE_EXPR_VAR)
+        if (!inner_t && args[i]->kind == NODE_EXPR_VAR)
         {
             inner_t = find_symbol_type_info(ctx, args[i]->var_ref.name);
         }
@@ -504,12 +504,12 @@ char *infer_printf_format(ParserContext *ctx, ASTNode **args, int ac)
 
 void check_format_string(ASTNode *call, Token t)
 {
-    if (call->type != NODE_EXPR_CALL)
+    if (call->kind != NODE_EXPR_CALL)
     {
         return;
     }
     ASTNode *callee = call->call.callee;
-    if (callee->type != NODE_EXPR_VAR)
+    if (callee->kind != NODE_EXPR_VAR)
     {
         return;
     }
@@ -548,7 +548,7 @@ void check_format_string(ASTNode *call, Token t)
         return;
     }
 
-    if (fmt_arg->type != NODE_EXPR_LITERAL || fmt_arg->literal.type_kind != 2)
+    if (fmt_arg->kind != NODE_EXPR_LITERAL || fmt_arg->literal.kind != 2)
     {
         return;
     }

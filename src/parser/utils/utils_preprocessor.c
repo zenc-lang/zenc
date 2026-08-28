@@ -219,13 +219,13 @@ void try_parse_macro_const(ParserContext *ctx, const char *content)
     lexer_init(&l, p, ctx->config, ctx->current_filename);
 
     Token def = lexer_next(&l);
-    if (def.type != TOK_IDENT || strncmp(def.start, "define", 6) != 0)
+    if (def.kind != TOK_IDENT || strncmp(def.start, "define", 6) != 0)
     {
         return;
     }
 
     Token name = lexer_next(&l);
-    if (name.type != TOK_IDENT)
+    if (name.kind != TOK_IDENT)
     {
         return;
     }
@@ -413,24 +413,24 @@ void try_parse_macro_const(ParserContext *ctx, const char *content)
     while (1)
     {
         Token ct = lexer_next(&check_l);
-        if (ct.type == TOK_EOF)
+        if (ct.kind == TOK_EOF)
         {
             break;
         }
-        if (ct.type == TOK_LPAREN)
+        if (ct.kind == TOK_LPAREN)
         {
             balance++;
         }
-        else if (ct.type == TOK_RPAREN)
+        else if (ct.kind == TOK_RPAREN)
         {
             balance--;
         }
-        else if (ct.type == TOK_LBRACE || ct.type == TOK_RBRACE || ct.type == TOK_SEMICOLON)
+        else if (ct.kind == TOK_LBRACE || ct.kind == TOK_RBRACE || ct.kind == TOK_SEMICOLON)
         {
             return;
         }
 
-        if (cfg->misra_mode && ct.type == TOK_OP)
+        if (cfg->misra_mode && ct.kind == TOK_OP)
         {
             if (ct.len == 1 && *ct.start == '#')
             {
@@ -442,7 +442,7 @@ void try_parse_macro_const(ParserContext *ctx, const char *content)
             }
         }
 
-        if (ct.type == TOK_IDENT)
+        if (ct.kind == TOK_IDENT)
         {
             char *tok_str = token_strdup(ct);
             int is_prim = is_primitive_type_name(tok_str);
@@ -471,7 +471,7 @@ void try_parse_macro_const(ParserContext *ctx, const char *content)
         return;
     }
 
-    if (lexer_peek(&l).type == TOK_EOF)
+    if (lexer_peek(&l).kind == TOK_EOF)
     {
         return;
     }

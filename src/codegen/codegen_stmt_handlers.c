@@ -117,7 +117,7 @@ void handle_node_impl(ParserContext *ctx, ASTNode *node)
         ASTNode *m = node->impl.methods;
         while (m)
         {
-            if (m->type == NODE_FUNCTION && m->func.name &&
+            if (m->kind == NODE_FUNCTION && m->func.name &&
                 strncmp(m->func.name, sname, (size_t)(slen)) == 0 && m->func.name[slen] == '_' &&
                 m->func.name[slen + 1] == '_')
             {
@@ -162,7 +162,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
         // Parse args
         char *args_copy = xstrdup(node->func.args);
         char *token = strtok(args_copy, ",");
-        int arg_count = 0;
+        int count = 0;
         char **arg_names = xmalloc(32 * sizeof(char *));
         char **arg_types = xmalloc(32 * sizeof(char *));
         while (token)
@@ -175,9 +175,9 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
             if (last_space)
             {
                 *last_space = 0;
-                arg_types[arg_count] = xstrdup(token);
-                arg_names[arg_count] = xstrdup(last_space + 1);
-                arg_count++;
+                arg_types[count] = xstrdup(token);
+                arg_names[count] = xstrdup(last_space + 1);
+                count++;
             }
             token = strtok(NULL, ",");
         }
@@ -185,14 +185,14 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
 
         // 1. Init function (struct definition emitted in protos)
         EMIT(ctx, "void %s_init(struct %s_Future *f", final_name, final_name);
-        for (int i = 0; i < arg_count; i++)
+        for (int i = 0; i < count; i++)
         {
             EMIT(ctx, ", %s %s", arg_types[i], arg_names[i]);
         }
         EMIT(ctx, ")\n{\n");
         emitter_indent(&ctx->cg.emitter);
         EMIT(ctx, "f->_state = 0;\n");
-        for (int i = 0; i < arg_count; i++)
+        for (int i = 0; i < count; i++)
         {
             EMIT(ctx, "f->%s = %s;\n", arg_names[i], arg_names[i]);
         }
@@ -201,7 +201,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
 
         // 3. Emit the actual function body as _impl_%s (regular C function with normal returns)
         EMIT(ctx, "%s _impl_%s(", has_ret ? node->func.ret_type : "void", final_name);
-        for (int i = 0; i < arg_count; i++)
+        for (int i = 0; i < count; i++)
         {
             EMIT(ctx, "%s%s %s", i > 0 ? ", " : "", arg_types[i], arg_names[i]);
         }
@@ -210,7 +210,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
         ctx->cg.defer_count = 0;
 
         // Set up drop flags for parameters with destructors (e.g. String, Vec)
-        for (int ai = 0; ai < arg_count && ai < node->func.arg_count; ai++)
+        for (int ai = 0; ai < count && ai < node->func.count; ai++)
         {
             Type *arg_type = node->func.arg_types[ai];
             if (!arg_type)
@@ -222,7 +222,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
             if (arg_type->kind == TYPE_STRUCT && arg_type->name)
             {
                 ASTNode *def = find_struct_def(ctx, arg_type->name);
-                if (def && def->type == NODE_STRUCT && def->type_info &&
+                if (def && def->kind == NODE_STRUCT && def->type_info &&
                     def->type_info->traits.has_drop)
                 {
                     has_drop = 1;
@@ -234,7 +234,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
                 EMIT(ctx, "int __z_drop_flag_%s = 1;\n", arg_names[ai]);
                 ASTNode *defer_node = xmalloc(sizeof(ASTNode));
                 defer_node->token = node->token;
-                defer_node->type = NODE_RAW_STMT;
+                defer_node->kind = NODE_RAW_STMT;
                 size_t stmt_sz = 256 + strlen(arg_names[ai]) * 2 + strlen(drop_type_name);
                 char *stmt_str = xmalloc(stmt_sz);
                 if (strcmp(arg_names[ai], "self") == 0)
@@ -283,7 +283,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
         if (has_ret)
         {
             EMIT(ctx, "f->_result = _impl_%s(", final_name);
-            for (int i = 0; i < arg_count; i++)
+            for (int i = 0; i < count; i++)
             {
                 EMIT(ctx, "%sf->%s", i > 0 ? ", " : "", arg_names[i]);
             }
@@ -292,7 +292,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
         else
         {
             EMIT(ctx, "_impl_%s(", final_name);
-            for (int i = 0; i < arg_count; i++)
+            for (int i = 0; i < count; i++)
             {
                 EMIT(ctx, "%sf->%s", i > 0 ? ", " : "", arg_names[i]);
             }
@@ -300,7 +300,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
             // Also drop the params that were passed by value
         }
         // Zero out future fields for types with destructors (ownership moved to _impl_)
-        for (int ai = 0; ai < arg_count && ai < node->func.arg_count; ai++)
+        for (int ai = 0; ai < count && ai < node->func.count; ai++)
         {
             Type *arg_type = node->func.arg_types[ai];
             if (!arg_type)
@@ -310,7 +310,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
             if (arg_type->kind == TYPE_STRUCT && arg_type->name)
             {
                 ASTNode *def = find_struct_def(ctx, arg_type->name);
-                if (def && def->type == NODE_STRUCT && def->type_info &&
+                if (def && def->kind == NODE_STRUCT && def->type_info &&
                     def->type_info->traits.has_drop && ai < 32 && arg_names[ai])
                 {
                     EMIT(ctx, "memset(&f->%s, 0, sizeof(f->%s));\n", arg_names[ai], arg_names[ai]);
@@ -328,7 +328,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
                  node->func.ret_type, final_name, final_name);
         }
 
-        for (int i = 0; i < arg_count; i++)
+        for (int i = 0; i < count; i++)
         {
             zfree(arg_names[i]);
             zfree(arg_types[i]);
@@ -391,10 +391,10 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
                     EMIT(ctx, ", ");
                 }
                 EMIT(ctx, "%s", custom->name);
-                if (custom->arg_count > 0)
+                if (custom->count > 0)
                 {
                     EMIT(ctx, "(");
-                    for (int i = 0; i < custom->arg_count; i++)
+                    for (int i = 0; i < custom->count; i++)
                     {
                         if (i > 0)
                         {
@@ -424,10 +424,10 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
                     EMIT(ctx, ", ");
                 }
                 EMIT(ctx, "%s", custom->name);
-                if (custom->arg_count > 0)
+                if (custom->count > 0)
                 {
                     EMIT(ctx, "(");
-                    for (int i = 0; i < custom->arg_count; i++)
+                    for (int i = 0; i < custom->count; i++)
                     {
                         if (i > 0)
                         {
@@ -465,14 +465,14 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
     // Set self_is_pointer flag for codegen of the body
     int prev_self_is_ptr = ctx->self_is_pointer;
     ctx->self_is_pointer = 0;
-    if (node->func.arg_count > 0 && node->func.param_names && node->func.param_names[0] &&
+    if (node->func.count > 0 && node->func.param_names && node->func.param_names[0] &&
         strcmp(node->func.param_names[0], "self") == 0)
     {
         ctx->self_is_pointer = 1;
     }
 
     // Initialize drop flags for arguments that implement Drop
-    for (int i = 0; i < node->func.arg_count; i++)
+    for (int i = 0; i < node->func.count; i++)
     {
         Type *arg_type = node->func.arg_types[i];
         char *arg_name = node->func.param_names ? node->func.param_names[i] : NULL;
@@ -495,7 +495,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
                 else
                 {
                     ASTNode *def = find_struct_def(ctx, arg_type->name);
-                    if (def && def->type == NODE_STRUCT && def->type_info &&
+                    if (def && def->kind == NODE_STRUCT && def->type_info &&
                         def->type_info->traits.has_drop)
                     {
                         has_drop = 1;
@@ -511,7 +511,7 @@ void handle_node_function(ParserContext *ctx, ASTNode *node)
 
                 ASTNode *defer_node = xmalloc(sizeof(ASTNode));
                 defer_node->token = node->token;
-                defer_node->type = NODE_RAW_STMT;
+                defer_node->kind = NODE_RAW_STMT;
                 char *stmt_str = NULL;
                 if (arg_type->kind == TYPE_FUNCTION)
                 {
@@ -589,7 +589,7 @@ void handle_node_impl_trait(ParserContext *ctx, ASTNode *node)
         ASTNode *m = node->impl_trait.methods;
         while (m)
         {
-            if (m->type == NODE_FUNCTION && m->func.name &&
+            if (m->kind == NODE_FUNCTION && m->func.name &&
                 strncmp(m->func.name, sname, (size_t)(slen)) == 0 && m->func.name[slen] == '_' &&
                 m->func.name[slen + 1] == '_')
             {
@@ -750,7 +750,7 @@ void handle_node_var_decl(ParserContext *ctx, ASTNode *node)
     {
         char *tname = NULL;
         if (node->type_info &&
-            (!node->var_decl.init_expr || node->var_decl.init_expr->type != NODE_AWAIT))
+            (!node->var_decl.init_expr || node->var_decl.init_expr->kind != NODE_AWAIT))
         {
             tname = type_to_c_string(node->type_info);
             // Async functions now return Async*; correct the type name
@@ -784,7 +784,7 @@ void handle_node_var_decl(ParserContext *ctx, ASTNode *node)
                 EMIT(ctx, "int __z_drop_flag_%s = 1; ", node->var_decl.name);
 
                 ASTNode *defer_node = xmalloc(sizeof(ASTNode));
-                defer_node->type = NODE_RAW_STMT;
+                defer_node->kind = NODE_RAW_STMT;
                 defer_node->token = node->token;
                 size_t stmt_sz = 256 + strlen(node->var_decl.name) * 2 + strlen(clean_type);
                 char *stmt_str = xmalloc(stmt_sz);
@@ -878,7 +878,7 @@ void handle_node_var_decl(ParserContext *ctx, ASTNode *node)
                     EMIT(ctx, "int __z_drop_flag_%s = 1; ", node->var_decl.name);
 
                     ASTNode *defer_node = xmalloc(sizeof(ASTNode));
-                    defer_node->type = NODE_RAW_STMT;
+                    defer_node->kind = NODE_RAW_STMT;
                     defer_node->token = node->token;
                     char *stmt_str = NULL;
                     if (node->var_decl.init_expr && node->var_decl.init_expr->type_info &&
@@ -989,13 +989,13 @@ void handle_node_if(ParserContext *ctx, ASTNode *node)
     EMIT(ctx, "if (");
     codegen_expression(ctx, node->if_stmt.condition);
     EMIT(ctx, ") ");
-    if (ctx->config->misra_mode && node->if_stmt.then_body->type != NODE_BLOCK)
+    if (ctx->config->misra_mode && node->if_stmt.then_body->kind != NODE_BLOCK)
     {
         EMIT(ctx, "{\n");
         emitter_indent(&ctx->cg.emitter);
     }
     codegen_node_single(ctx, node->if_stmt.then_body);
-    if (ctx->config->misra_mode && node->if_stmt.then_body->type != NODE_BLOCK)
+    if (ctx->config->misra_mode && node->if_stmt.then_body->kind != NODE_BLOCK)
     {
         emitter_dedent(&ctx->cg.emitter);
         EMIT(ctx, "\n}");
@@ -1004,13 +1004,13 @@ void handle_node_if(ParserContext *ctx, ASTNode *node)
     {
         emit_source_mapping(ctx, node->if_stmt.else_body);
         EMIT(ctx, " else ");
-        if (ctx->config->misra_mode && node->if_stmt.else_body->type != NODE_BLOCK)
+        if (ctx->config->misra_mode && node->if_stmt.else_body->kind != NODE_BLOCK)
         {
             EMIT(ctx, "{\n");
             emitter_indent(&ctx->cg.emitter);
         }
         codegen_node_single(ctx, node->if_stmt.else_body);
-        if (ctx->config->misra_mode && node->if_stmt.else_body->type != NODE_BLOCK)
+        if (ctx->config->misra_mode && node->if_stmt.else_body->kind != NODE_BLOCK)
         {
             emitter_dedent(&ctx->cg.emitter);
             EMIT(ctx, "\n}");
@@ -1027,13 +1027,13 @@ void handle_node_unless(ParserContext *ctx, ASTNode *node)
     EMIT(ctx, "if (!(");
     codegen_expression(ctx, node->unless_stmt.condition);
     EMIT(ctx, ")) ");
-    if (ctx->config->misra_mode && node->unless_stmt.body->type != NODE_BLOCK)
+    if (ctx->config->misra_mode && node->unless_stmt.body->kind != NODE_BLOCK)
     {
         EMIT(ctx, "{\n");
         emitter_indent(&ctx->cg.emitter);
     }
     codegen_node_single(ctx, node->unless_stmt.body);
-    if (ctx->config->misra_mode && node->unless_stmt.body->type != NODE_BLOCK)
+    if (ctx->config->misra_mode && node->unless_stmt.body->kind != NODE_BLOCK)
     {
         emitter_dedent(&ctx->cg.emitter);
         EMIT(ctx, "\n}");
@@ -1045,13 +1045,13 @@ void handle_node_guard(ParserContext *ctx, ASTNode *node)
     EMIT(ctx, "if (!(");
     codegen_expression(ctx, node->guard_stmt.condition);
     EMIT(ctx, ")) ");
-    if (ctx->config->misra_mode && node->guard_stmt.body->type != NODE_BLOCK)
+    if (ctx->config->misra_mode && node->guard_stmt.body->kind != NODE_BLOCK)
     {
         EMIT(ctx, "{\n");
         emitter_indent(&ctx->cg.emitter);
     }
     codegen_node_single(ctx, node->guard_stmt.body);
-    if (ctx->config->misra_mode && node->guard_stmt.body->type != NODE_BLOCK)
+    if (ctx->config->misra_mode && node->guard_stmt.body->kind != NODE_BLOCK)
     {
         emitter_dedent(&ctx->cg.emitter);
         EMIT(ctx, "\n}");
@@ -1083,13 +1083,13 @@ void handle_node_while(ParserContext *ctx, ASTNode *node)
     }
     else
     {
-        if (ctx->config->misra_mode && node->while_stmt.body->type != NODE_BLOCK)
+        if (ctx->config->misra_mode && node->while_stmt.body->kind != NODE_BLOCK)
         {
             EMIT(ctx, "{\n");
             emitter_indent(&ctx->cg.emitter);
         }
         codegen_node_single(ctx, node->while_stmt.body);
-        if (ctx->config->misra_mode && node->while_stmt.body->type != NODE_BLOCK)
+        if (ctx->config->misra_mode && node->while_stmt.body->kind != NODE_BLOCK)
         {
             emitter_dedent(&ctx->cg.emitter);
             EMIT(ctx, "\n}");

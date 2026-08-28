@@ -123,10 +123,10 @@ static void dump_node(ParserContext *ctx, ASTNode *node, int is_last, const char
 static void emit_label(ParserContext *ctx, ASTNode *node)
 {
     // Title: short type name
-    emitter_printf(&ctx->cg.emitter, " %s", node_type_name((int)(node->type)));
+    emitter_printf(&ctx->cg.emitter, " %s", node_type_name((int)(node->kind)));
 
     // Name or operator for relevant node types
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_FUNCTION:
     case NODE_VAR_DECL:
@@ -176,7 +176,7 @@ static void emit_label(ParserContext *ctx, ASTNode *node)
         }
         break;
     case NODE_EXPR_CALL:
-        if (node->call.callee && node->call.callee->type == NODE_EXPR_VAR &&
+        if (node->call.callee && node->call.callee->kind == NODE_EXPR_VAR &&
             node->call.callee->var_ref.name)
         {
             const char *fn = node->call.callee->var_ref.name;
@@ -214,9 +214,9 @@ static void emit_label(ParserContext *ctx, ASTNode *node)
     }
 
     // Literal values
-    if (node->type == NODE_EXPR_LITERAL)
+    if (node->kind == NODE_EXPR_LITERAL)
     {
-        switch (node->literal.type_kind)
+        switch (node->literal.kind)
         {
         case LITERAL_INT:
             emitter_printf(&ctx->cg.emitter, " %llu", node->literal.int_val);
@@ -304,7 +304,7 @@ static void dump_node(ParserContext *ctx, ASTNode *node, int is_last, const char
     emitter_printf(&ctx->cg.emitter, "\n");
 
     // Children
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_ROOT:
         dump_children(ctx, node->root.children, prefix, is_last);

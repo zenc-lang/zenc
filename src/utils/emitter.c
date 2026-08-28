@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "emitter.h"
+#include "../arena.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -11,7 +12,7 @@ static int emitter_grow(Emitter *e, size_t needed)
         return 1;
     }
     size_t new_cap = needed + (needed >> 1);
-    char *new_buf = realloc(e->buffer.buf, new_cap);
+    char *new_buf = xrealloc(e->buffer.buf, new_cap);
     if (!new_buf)
     {
         return 0;
@@ -156,7 +157,7 @@ void emitter_vprintf(Emitter *e, const char *fmt, va_list args)
     char *buf = stack_buf;
     if ((size_t)len + 1 > sizeof(stack_buf))
     {
-        buf = malloc((size_t)len + 1);
+        buf = libc_malloc((size_t)len + 1);
         if (!buf)
         {
             return;
@@ -166,7 +167,7 @@ void emitter_vprintf(Emitter *e, const char *fmt, va_list args)
     emitter_flush_buffered(e, buf, (size_t)len);
     if (buf != stack_buf)
     {
-        free(buf);
+        libc_free(buf);
     }
 }
 
@@ -262,7 +263,7 @@ int emitter_pop(Emitter *e)
     EmitterSavedState *s = &e->saved_stack[--e->saved_count];
     if (e->mode == EMITTER_BUFFER)
     {
-        free(e->buffer.buf);
+        zfree(e->buffer.buf);
     }
     e->mode = s->mode;
     if (e->mode == EMITTER_FILE)

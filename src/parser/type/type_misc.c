@@ -35,17 +35,17 @@ char *parse_array_literal(ParserContext *ctx, Lexer *l, const char *st)
     while (1)
     {
         Token t = lexer_peek(l);
-        if (t.type == TOK_RBRACKET)
+        if (t.kind == TOK_RBRACKET)
         {
             lexer_next(l);
             break;
         }
-        if (t.type == TOK_COMMA)
+        if (t.kind == TOK_COMMA)
         {
             lexer_next(l);
             continue;
         }
-        if (t.type == TOK_EOF)
+        if (t.kind == TOK_EOF)
         {
             break;
         }
@@ -55,19 +55,19 @@ char *parse_array_literal(ParserContext *ctx, Lexer *l, const char *st)
         while (1)
         {
             Token it = lexer_peek(l);
-            if (it.type == TOK_EOF)
+            if (it.kind == TOK_EOF)
             {
                 break;
             }
-            if (d == 0 && (it.type == TOK_COMMA || it.type == TOK_RBRACKET))
+            if (d == 0 && (it.kind == TOK_COMMA || it.kind == TOK_RBRACKET))
             {
                 break;
             }
-            if (it.type == TOK_LBRACKET || it.type == TOK_LPAREN)
+            if (it.kind == TOK_LBRACKET || it.kind == TOK_LPAREN)
             {
                 d++;
             }
-            if (it.type == TOK_RBRACKET || it.type == TOK_RPAREN)
+            if (it.kind == TOK_RBRACKET || it.kind == TOK_RPAREN)
             {
                 d--;
             }
@@ -149,17 +149,17 @@ char *parse_tuple_literal(ParserContext *ctx, Lexer *l, const char *tn)
     while (1)
     {
         Token t = lexer_peek(l);
-        if (t.type == TOK_RPAREN)
+        if (t.kind == TOK_RPAREN)
         {
             lexer_next(l);
             break;
         }
-        if (t.type == TOK_COMMA)
+        if (t.kind == TOK_COMMA)
         {
             lexer_next(l);
             continue;
         }
-        if (t.type == TOK_EOF)
+        if (t.kind == TOK_EOF)
         {
             break;
         }
@@ -169,19 +169,19 @@ char *parse_tuple_literal(ParserContext *ctx, Lexer *l, const char *tn)
         while (1)
         {
             Token it = lexer_peek(l);
-            if (it.type == TOK_EOF)
+            if (it.kind == TOK_EOF)
             {
                 break;
             }
-            if (d == 0 && (it.type == TOK_COMMA || it.type == TOK_RPAREN))
+            if (d == 0 && (it.kind == TOK_COMMA || it.kind == TOK_RPAREN))
             {
                 break;
             }
-            if (it.type == TOK_LPAREN)
+            if (it.kind == TOK_LPAREN)
             {
                 d++;
             }
-            if (it.type == TOK_RPAREN)
+            if (it.kind == TOK_RPAREN)
             {
                 d--;
             }
@@ -211,8 +211,7 @@ ASTNode *parse_embed(ParserContext *ctx, Lexer *l)
 {
     lexer_next(l);
     Token t = lexer_next(l);
-    if (t.type != TOK_STRING && t.type != TOK_RAW_STRING)
-
+    if (t.kind != TOK_STRING && t.kind != TOK_RAW_STRING)
     {
         zpanic_at(t, "String required");
         return NULL;
@@ -225,7 +224,7 @@ ASTNode *parse_embed(ParserContext *ctx, Lexer *l)
 
     // Check for optional "as Type"
     Type *target_type = NULL;
-    if (lexer_peek(l).type == TOK_IDENT && lexer_peek(l).len == 2 &&
+    if (lexer_peek(l).kind == TOK_IDENT && lexer_peek(l).len == 2 &&
         strncmp(lexer_peek(l).start, "as", 2) == 0)
     {
         lexer_next(l); // consume 'as'
@@ -236,8 +235,8 @@ ASTNode *parse_embed(ParserContext *ctx, Lexer *l)
     if (!f)
     {
         zpanic_at(t, "404: %s", fn);
+        // In fault-tolerant mode (LSP), zpanic_at returns instead of exiting.
         return NULL;
-        return NULL; // In fault-tolerant mode (LSP), zpanic_at returns instead of exiting.
     }
     fseek(f, 0, SEEK_END);
     long len = ftell(f);

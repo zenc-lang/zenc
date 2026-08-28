@@ -13,7 +13,7 @@ fn hash_combine(a: usize, b: usize) -> usize {
 // Pure Zen-C generic hash using FNV-1a algorithm
 fn hash_compute(data: const void*, len: usize) -> usize {
     let hash = __zen_hash_seed;
-    let bytes: U8* = (U8*)data;
+    let bytes: u8* = (u8*)data;
     
     for (let i: usize = 0; i < len; i = i + 1) {
         hash = hash_combine(hash, (usize)bytes[i]);

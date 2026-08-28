@@ -46,6 +46,7 @@ make_warning.log
 crash-*
 leak-*
 timeout-*
+slow-unit-*
 fuzz/corpus/
 fuzz/out/
 

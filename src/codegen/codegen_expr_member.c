@@ -65,10 +65,10 @@ void handle_expr_member(ParserContext *ctx, ASTNode *node)
     }
     else
     {
-        if (node->member.target->type == NODE_EXPR_VAR)
+        if (node->member.target->kind == NODE_EXPR_VAR)
         {
             ASTNode *def = find_struct_def(ctx, node->member.target->var_ref.name);
-            if (def && def->type == NODE_ENUM)
+            if (def && def->kind == NODE_ENUM)
             {
                 EMIT(ctx, "%s__%s", node->member.target->var_ref.name, node->member.field);
                 return;
@@ -134,7 +134,7 @@ void handle_expr_index(ParserContext *ctx, ASTNode *node)
 
     if (is_slice_struct)
     {
-        if (node->index.array->type == NODE_EXPR_VAR)
+        if (node->index.array->kind == NODE_EXPR_VAR)
         {
             codegen_expression(ctx, node->index.array);
             EMIT(ctx, ".data[_z_check_bounds(");

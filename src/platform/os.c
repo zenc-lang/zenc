@@ -221,7 +221,7 @@ void z_get_absolute_path(const char *path, char *buffer, size_t size)
                         {
                             strncpy(buffer, physical, size - 1);
                             buffer[size - 1] = '\0';
-                            free(real);
+                            libc_free(real);
                             return;
                         }
                     }
@@ -231,7 +231,7 @@ void z_get_absolute_path(const char *path, char *buffer, size_t size)
                     {
                         strncpy(buffer, exe_dir, size - 1);
                         buffer[size - 1] = '\0';
-                        free(real);
+                        libc_free(real);
                         return;
                     }
                 }
@@ -240,7 +240,7 @@ void z_get_absolute_path(const char *path, char *buffer, size_t size)
 #endif
         strncpy(buffer, real, size - 1);
         buffer[size - 1] = '\0';
-        free(real);
+        libc_free(real);
     }
     else
     {

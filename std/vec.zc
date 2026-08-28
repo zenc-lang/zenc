@@ -41,6 +41,7 @@ struct VecIterRef<T> {
 }
 
 impl VecIter<T> {
+    /// Yields the next item, or `None` when exhausted.
     fn next(self) -> Option<T> {
         if (self.idx < self.count) {
             let item = self.data[self.idx];
@@ -50,12 +51,109 @@ impl VecIter<T> {
         return Option<T>::None();
     }
     
+    /// Returns an iterator yielding copies.
     fn iterator(self) -> VecIter<T> {
          return self;
+    }
+
+    // Drains the remaining items into a new Vec.
+    /// Drains the remaining items into a new Vec.
+    fn collect(self) -> Vec<T> {
+        let out = Vec<T>::new();
+        let remaining = self.count - self.idx;
+        if (remaining > 0) {
+            out.grow_to_fit(remaining);
+        }
+        while (self.idx < self.count) {
+            out.push(self.data[self.idx]);
+            self.idx = self.idx + 1;
+        }
+        return out;
+    }
+
+    // Number of items still to be yielded.
+    /// Number of items still to be yielded.
+    fn count(self) -> usize {
+        return self.count - self.idx;
+    }
+
+    // Calls `f` for each remaining item.
+    /// Calls `f` for each remaining item.
+    fn forEach(self, f: fn(T)) {
+        while (self.idx < self.count) {
+            f(self.data[self.idx]);
+            self.idx = self.idx + 1;
+        }
+    }
+
+    // Returns the first item for which `pred` returns true.
+    /// Returns the first item accepted by `pred`.
+    fn find(self, pred: fn(T) -> bool) -> Option<T> {
+        while (self.idx < self.count) {
+            let item = self.data[self.idx];
+            self.idx = self.idx + 1;
+            if (pred(item)) {
+                return Option<T>::Some(item);
+            }
+        }
+        return Option<T>::None();
+    }
+
+    // Returns true when `pred` accepts at least one remaining item.
+    /// Returns whether `pred` accepts at least one remaining item.
+    fn any(self, pred: fn(T) -> bool) -> bool {
+        while (self.idx < self.count) {
+            let item = self.data[self.idx];
+            self.idx = self.idx + 1;
+            if (pred(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Returns true when `pred` accepts every remaining item.
+    /// Returns whether `pred` accepts every remaining item.
+    fn all(self, pred: fn(T) -> bool) -> bool {
+        while (self.idx < self.count) {
+            let item = self.data[self.idx];
+            self.idx = self.idx + 1;
+            if (!pred(item)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Collects the remaining items accepted by `pred` into a new Vec.
+    /// Collects the remaining items accepted by `pred`.
+    fn filter(self, pred: fn(T) -> bool) -> Vec<T> {
+        let out = Vec<T>::new();
+        while (self.idx < self.count) {
+            let item = self.data[self.idx];
+            self.idx = self.idx + 1;
+            if (pred(item)) {
+                out.push(item);
+            }
+        }
+        return out;
+    }
+
+    // Reduces the remaining items with `f` starting from `init`.
+    /// Reduces the remaining items with `f` from `init`.
+    fn fold(self, init: T, f: fn(T, T) -> T) -> T {
+        let acc = init;
+        while (self.idx < self.count) {
+            let item = self.data[self.idx];
+            self.idx = self.idx + 1;
+            acc = f(acc, item);
+        }
+        return acc;
     }
 }
 
 impl VecIterRef<T> {
+    /// Yields the next item, or `None` when exhausted.
     fn next(self) -> VecIterResult<T> {
         if (self.idx < self.count) {
             let item = &self.data[self.idx];
@@ -65,16 +163,38 @@ impl VecIterRef<T> {
         return VecIterResult<T> { ptr: NULL };
     }
     
+    /// Returns an iterator yielding copies.
     fn iterator(self) -> VecIterRef<T> {
         return self;
+    }
+
+    // Number of items still to be yielded.
+    /// Number of items still to be yielded.
+    fn count(self) -> usize {
+        return self.count - self.idx;
+    }
+
+    // Returns the first item for which `pred` returns true.
+    /// Returns the first item accepted by `pred`.
+    fn find(self, pred: fn(T*) -> bool) -> VecIterResult<T> {
+        while (self.idx < self.count) {
+            let item = &self.data[self.idx];
+            self.idx = self.idx + 1;
+            if (pred(item)) {
+                return VecIterResult<T> { ptr: item };
+            }
+        }
+        return VecIterResult<T> { ptr: NULL };
     }
 }
 
 impl Vec<T> {
+    /// Creates a new, empty Vec (no allocation until first push).
     fn new() -> Vec<T> {
         return Vec<T> { data: NULL, len: 0, cap: 0 };
     }
 
+    /// Creates a new Vec with an initial capacity.
     fn with_capacity(cap: usize) -> Vec<T> {
         if (cap == 0) {
             return Vec<T> { data: NULL, len: 0, cap: 0 };
@@ -93,6 +213,7 @@ impl Vec<T> {
         self.data = realloc_n<T>(self.data, old_cap, self.cap);
     }
 
+    /// Ensures capacity for at least `new_len` items.
     fn grow_to_fit(self, new_len: usize) {
         if self.cap >= new_len {
             return;
@@ -107,6 +228,7 @@ impl Vec<T> {
         self.data = realloc_n<T>(self.data, old_cap, self.cap);
     }
 
+    /// Returns an iterator yielding copies.
     fn iterator(self) -> VecIter<T> {
         return VecIter<T> {
             data: self.data,
@@ -115,6 +237,7 @@ impl Vec<T> {
         };
     }
 
+    /// Returns an iterator yielding item pointers.
     fn iter_ref(self) -> VecIterRef<T> {
         return VecIterRef<T> {
             data: self.data,
@@ -123,6 +246,7 @@ impl Vec<T> {
         };
     }
     
+    /// Appends an item.
     fn push(self, item: T) {
         if (self.len >= self.cap) {
             self.grow();
@@ -131,6 +255,7 @@ impl Vec<T> {
         self.len = self.len + 1;
     }
 
+    /// Inserts an item at `idx`.
     fn insert(self, idx: usize, item: T) {
         if (idx > self.len) {
             !"Panic: Insert index out of bounds";
@@ -147,6 +272,7 @@ impl Vec<T> {
         self.len = self.len + 1;
     }
 
+    /// Removes and returns the last item (0 if empty).
     fn pop(self) -> T {
         if (self.len == 0) {
             !"Panic: pop called on empty Vec";
@@ -156,6 +282,7 @@ impl Vec<T> {
         return self.data[self.len];
     }
 
+    /// Removes and returns the last item, or `None` when empty.
     fn pop_opt(self) -> Option<T> {
         if (self.len == 0) {
             return Option<T>::None();
@@ -164,6 +291,7 @@ impl Vec<T> {
         return Option<T>::Some(self.data[self.len]);
     }
 
+    /// Removes and returns the item at `idx`.
     fn remove(self, idx: usize) -> T {
         if (idx >= self.len) {
              !"Panic: Remove index out of bounds";
@@ -189,6 +317,7 @@ impl Vec<T> {
         other.forget();
     }
 
+    /// Returns a copy of the item at `idx`.
     fn get(self, idx: usize) -> T {
         if (idx >= self.len) {
             !"Panic: Index out of bounds";
@@ -201,6 +330,7 @@ impl Vec<T> {
         return self.get(idx);
     }
 
+    /// Returns a pointer to the item at `idx`.
     fn get_ref(self, idx: usize) -> T* {
         if (idx >= self.len) {
             !"Panic: Index out of bounds";
@@ -217,10 +347,12 @@ impl Vec<T> {
         return self.data[self.len - 1];
     }
 
+    /// Returns the number of items.
     fn length(self) -> usize {
         return self.len;
     }
 
+    /// Returns whether an equal item exists.
     fn contains(self, item: T) -> bool {
         let i: usize = 0;
         while i < self.len {
@@ -230,14 +362,17 @@ impl Vec<T> {
         return false;
     }
 
+    /// Returns whether the Vec is empty.
     fn is_empty(self) -> bool {
         return self.len == 0;
     }
 
+    /// Removes all items (keeps capacity).
     fn clear(self) {
         self.len = 0;
     }
     
+    /// Frees the backing buffer.
     fn free(self) {
         if (self.data != NULL) {
             dealloc<T>(self.data);
@@ -255,6 +390,7 @@ impl Vec<T> {
         return self.data[0];
     }
     
+    /// Writes an item at `idx`.
     fn set(self, idx: usize, item: T) {
         if (idx >= self.len) {
             !"Panic: set index out of bounds";
@@ -263,6 +399,7 @@ impl Vec<T> {
         self.data[idx] = item;
     }
     
+    /// Reverses the Vec in place.
     fn reverse(self) {
         let i: usize = 0;
         let j = self.len - 1;
@@ -288,6 +425,7 @@ impl Vec<T> {
     }
 
     // Prevent Drop from freeing memory (simulates move)
+    /// Detaches the backing buffer without freeing it.
     fn forget(self) {
         self.data = NULL;
         self.len = 0;
@@ -360,6 +498,7 @@ impl Vec<T> {
         }
     }
 
+    /// Returns a deep copy.
     fn clone(self) -> Vec<T> {
         if (self.len == 0) {
             return Vec<T> { data: NULL, len: 0, cap: 0 };

@@ -13,10 +13,10 @@ int eval_const_int_expr(ASTNode *node, ParserContext *ctx, long long *out_val)
         return 0;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_EXPR_LITERAL:
-        if (node->literal.type_kind == LITERAL_INT)
+        if (node->literal.kind == LITERAL_INT)
         {
             *out_val = (long long int)(node->literal.int_val);
             return 1;

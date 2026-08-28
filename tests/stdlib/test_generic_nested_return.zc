@@ -1,0 +1,22 @@
+// stdlib: test_generic_nested_return
+//
+// Regression test: a generic method that returns a nested generic of its own
+// parameter (Result<T>::ok -> Option<T>) must not corrupt unrelated generic
+// instantiations. This used to fail when Option<Vec<DirEntry>> (from
+// std/fs.zc, via the umbrella import) was instantiated before Map<JsonValue>,
+// binding Map's placeholder V to Vec<DirEntry> so Map<JsonValue>::get emitted
+// Option<Vec<DirEntry>> instead of Option<JsonValue>.
+import "std.zc"
+
+test "generic nested return type stays isolated" {
+    let m = Map<JsonValue>::new();
+    let r = m.get("missing");
+    assert(r.is_none(), "Map<JsonValue>::get on empty map is None");
+
+    let ok = Result<int>::Ok(7);
+    let e = Result<int>::Err("boom");
+    assert(ok.ok().is_some(), "Result::ok on Ok is Some");
+    assert(ok.ok().unwrap() == 7, "Result::ok carries the value");
+    assert(e.ok().is_none(), "Result::ok on Err is None");
+    assert(e.err().is_some(), "Result::err on Err is Some");
+}

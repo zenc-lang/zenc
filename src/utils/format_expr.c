@@ -19,6 +19,6 @@ char *format_expression_as_c(struct ParserContext *ctx, struct ASTNode *node)
     emitter_pop(&ctx->cg.emitter);
     // Copy to arena so callers don't need system heap management
     char *arena_copy = result ? xstrdup(result) : NULL;
-    free(result);
+    zfree(result);
     return arena_copy;
 }

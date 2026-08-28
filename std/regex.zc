@@ -19,6 +19,7 @@ struct ZRegMatch {
 }
 
 impl Match {
+    /// Compiles a regular expression pattern.
     fn new(text: char*, start: int, len: int) -> Match {
         return Match { text: text, start: start, len: len };
     }
@@ -63,6 +64,7 @@ impl Regex {
         return self.preg != NULL;
     }
 
+    /// Returns whether the pattern matches the text.
     fn match(self, text: char*) -> bool {
         if (self.preg == NULL) { return false; }
         let res: bool = false;
@@ -87,10 +89,12 @@ impl Regex {
         return res;
     }
 
+    /// Returns whether the pattern matches.
     fn is_match(self, text: char*) -> bool {
         return self.match(text);
     }
 
+    /// Returns the first match, or `None`.
     fn find(self, text: char*) -> Option<Match> {
         if (self.preg == NULL) { return Option<Match>::None(); }
         
@@ -117,6 +121,7 @@ impl Regex {
         return self.find(text + start);
     }
 
+    /// Returns the number of matches.
     fn count(self, text: char*) -> int {
         if (self.preg == NULL) { return 0; }
         let count = 0;
@@ -137,6 +142,7 @@ impl Regex {
         return count;
     }
 
+    /// Splits the text on matches.
     fn split(self, text: char*) -> Vec<String> {
         let parts = Vec<String>::new();
         if (self.preg == NULL) {

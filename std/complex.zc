@@ -3,12 +3,12 @@ import "./math.zc"
 import "./string.zc"
 
 struct Complex {
-    real: double;
-    imag: double;
+    real: f64;
+    imag: f64;
 }
 
 impl Complex {
-    fn new(r: double, i: double) -> Complex {
+    fn new(r: f64, i: f64) -> Complex {
         return Complex { real: r, imag: i };
     }
 
@@ -43,11 +43,11 @@ impl Complex {
     }
 
     // Mathematical Properties
-    fn magnitude(self) -> double {
+    fn magnitude(self) -> f64 {
         return Math::sqrt((self.real * self.real) + (self.imag * self.imag));
     }
 
-    fn phase(self) -> double {
+    fn phase(self) -> f64 {
         return Math::atan2(self.imag, self.real);
     }
 
@@ -61,7 +61,7 @@ impl Complex {
     }
 
     // String Interpolation Support
-    fn to_string(self) -> String {
+    fn to_string(self) -> char* {
         let sign = "+";
         let im = self.imag;
         if (im < 0.0) {
@@ -74,6 +74,8 @@ impl Complex {
         s.append_c(sign);
         s.append_c(" {im}i");
         
-        return s;
+        let out = s.c_str();
+        s.forget();
+        return out;
     }
 }

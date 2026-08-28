@@ -27,7 +27,7 @@ typedef struct LSPRange
     int start_col;    ///< Start column (1-based).
     int end_line;     ///< End line.
     int end_col;      ///< End column (approximated).
-    RangeType type;   ///< Type of range (def or ref).
+    RangeType kind;   ///< Type of range (def or ref).
     int def_line;     ///< Line of definition (if reference).
     int def_col;      ///< Column of definition (if reference).
     char *hover_text; ///< Tooltip text / signature.

@@ -106,6 +106,93 @@ else
     check "zc transpile emits C source" 0
 fi
 
+# --- Robustness: pathological inputs must exit cleanly (never crash) -------
+
+# A crash (signal) yields exit code > 128; a clean compile or a normal
+# diagnostic error stays <= 128. This guards the parser/codegen overflow
+# fixes against regressions.
+robust_check() {
+    local name="$1"
+    local code="$2"
+    printf '%s\n' "$code" > "$workdir/robust.zc"
+    "$ZC" build "$workdir/robust.zc" -o "$workdir/robust_out" >/dev/null 2>&1
+    local rc=$?
+    if [ "$rc" -le 128 ]; then
+        check "$name" 1
+    else
+        check "$name" 0
+    fi
+}
+
+robust_check "20-arg ?() scan does not crash" 'fn main() {
+    let x = ?("prompt", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20);
+    println "x";
+}'
+
+long_ident=$(python3 -c "print('A' * 1500)")
+robust_check "very long qualified identifier does not crash" "fn main() {
+    let x = Foo::$long_ident;
+    println \"x\";
+}"
+
+robust_check "enum variant with 40 type args does not crash" "fn gen_enum() {
+    return 0;
+}
+enum E { V(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int) }
+fn main() {
+    let e = E::V(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40);
+    println \"e\";
+}"
+
+robust_check "@derive on a struct with many long fields does not crash" "fn gen_derive() {
+    return 0;
+}
+@derive(Eq)
+struct S {
+    field_0_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_3_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_4_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_5_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_6_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_7_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_8_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_9_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_10_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_11_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_12_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_13_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_14_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_15_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_16_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_17_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_18_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_19_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_20_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_21_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_22_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_23_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_24_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_25_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_26_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_27_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_28_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+    field_29_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: int;
+}
+fn main() {
+    println \"ok\";
+}"
+
+garg=$(python3 -c "print('B' * 1500)")
+robust_check "generic call with a very long type argument does not crash" "fn f<T>(x: T) -> T {
+    return x;
+}
+fn main() {
+    let y = f<$garg>(1);
+    println \"y\";
+}"
+
 echo "----------------------------------------"
 echo "Results (CLI):"
 echo "-> Passed:  $PASSED"

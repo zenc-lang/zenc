@@ -107,7 +107,7 @@ void zptr_register_plugin(ZPlugin *plugin)
         return;
     }
 
-    PluginNode *node = malloc(sizeof(PluginNode));
+    PluginNode *node = libc_malloc(sizeof(PluginNode));
     if (node)
     {
         node->plugin = plugin;
@@ -171,7 +171,7 @@ ZPlugin *zptr_load_plugin(const char *path)
     zptr_unload_plugin(plugin->name);
 
     // Register
-    PluginNode *node = malloc(sizeof(PluginNode));
+    PluginNode *node = libc_malloc(sizeof(PluginNode));
 
     if (node)
     {
@@ -224,7 +224,7 @@ void zptr_plugin_mgr_cleanup(void)
         {
             z_dlclose(curr->handle);
         }
-        zfree(curr);
+        libc_free(curr);
         curr = next;
     }
     head = NULL;
@@ -252,7 +252,7 @@ int zptr_unload_plugin(const char *name)
             {
                 z_dlclose(curr->handle);
             }
-            zfree(curr);
+            libc_free(curr);
             return 1;
         }
         prev = curr;

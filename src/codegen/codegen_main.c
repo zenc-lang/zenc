@@ -18,12 +18,12 @@ static int struct_depends_on(ParserContext *ctx, ASTNode *s1, const char *target
     }
 
     // Check structs
-    if (s1->type == NODE_STRUCT)
+    if (s1->kind == NODE_STRUCT)
     {
         ASTNode *field = s1->strct.fields;
         while (field)
         {
-            if (field->type == NODE_FIELD && field->field.type)
+            if (field->kind == NODE_FIELD && field->field.type)
             {
                 char *type_str = field->field.type;
 
@@ -74,12 +74,12 @@ static int struct_depends_on(ParserContext *ctx, ASTNode *s1, const char *target
         }
     }
     // Check enums (ADTs)
-    else if (s1->type == NODE_ENUM)
+    else if (s1->kind == NODE_ENUM)
     {
         ASTNode *variant = s1->enm.variants;
         while (variant)
         {
-            if (variant->type == NODE_ENUM_VARIANT && variant->variant.payload)
+            if (variant->kind == NODE_ENUM_VARIANT && variant->variant.payload)
             {
                 char *type_str = type_to_c_string(variant->variant.payload);
                 if (type_str)
@@ -183,11 +183,11 @@ static int count_sortable_nodes_internal(ASTNode *head, VisitedModules **visited
     ASTNode *n = head;
     while (n)
     {
-        if (n->type == NODE_STRUCT || n->type == NODE_ENUM || n->type == NODE_TRAIT)
+        if (n->kind == NODE_STRUCT || n->kind == NODE_ENUM || n->kind == NODE_TRAIT)
         {
             count++;
         }
-        else if (n->type == NODE_IMPORT)
+        else if (n->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, n->import_stmt.path))
             {
@@ -196,7 +196,7 @@ static int count_sortable_nodes_internal(ASTNode *head, VisitedModules **visited
                     count_sortable_nodes_internal(n->import_stmt.module_root, visited, depth + 1);
             }
         }
-        else if (n->type == NODE_ROOT)
+        else if (n->kind == NODE_ROOT)
         {
             // Avoid same-root recursion if children == head
             if (n->root.children != head)
@@ -227,11 +227,11 @@ static void collect_sortable_nodes_internal(ASTNode *head, ASTNode **nodes, int 
     ASTNode *n = head;
     while (n)
     {
-        if (n->type == NODE_STRUCT || n->type == NODE_ENUM || n->type == NODE_TRAIT)
+        if (n->kind == NODE_STRUCT || n->kind == NODE_ENUM || n->kind == NODE_TRAIT)
         {
             nodes[(*idx)++] = n;
         }
-        else if (n->type == NODE_IMPORT)
+        else if (n->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, n->import_stmt.path))
             {
@@ -240,7 +240,7 @@ static void collect_sortable_nodes_internal(ASTNode *head, ASTNode **nodes, int 
                                                 depth + 1);
             }
         }
-        else if (n->type == NODE_ROOT)
+        else if (n->kind == NODE_ROOT)
         {
             // Avoid same-root recursion if children == head
             if (n->root.children != head)
@@ -301,7 +301,7 @@ static ASTNode *topo_sort_structs(ParserContext *ctx, ASTNode *head)
             }
 
             // Traits have no dependencies, emit first.
-            if (nodes[i]->type == NODE_TRAIT)
+            if (nodes[i]->kind == NODE_TRAIT)
             {
                 order[order_idx++] = i;
                 emitted[i] = 1;
@@ -320,11 +320,11 @@ static ASTNode *topo_sort_structs(ParserContext *ctx, ASTNode *head)
 
                 // Get the name of the potential dependency.
                 const char *dep_name = NULL;
-                if (nodes[j]->type == NODE_STRUCT)
+                if (nodes[j]->kind == NODE_STRUCT)
                 {
                     dep_name = nodes[j]->strct.name;
                 }
-                else if (nodes[j]->type == NODE_ENUM)
+                else if (nodes[j]->kind == NODE_ENUM)
                 {
                     dep_name = nodes[j]->enm.name;
                 }
@@ -436,7 +436,7 @@ static void emit_raw_statements_internal(ParserContext *ctx, ASTNode *node,
     }
     while (node)
     {
-        if (node->type == NODE_IMPORT)
+        if (node->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, node->import_stmt.path))
             {
@@ -447,7 +447,7 @@ static void emit_raw_statements_internal(ParserContext *ctx, ASTNode *node,
             node = node->next;
             continue;
         }
-        else if (node->type == NODE_ROOT)
+        else if (node->kind == NODE_ROOT)
         {
             emit_raw_statements_internal(ctx, node->root.children, visited, depth + 1, preproc_only,
                                          emitted_raw);
@@ -455,7 +455,7 @@ static void emit_raw_statements_internal(ParserContext *ctx, ASTNode *node,
             continue;
         }
 
-        if ((node->type == NODE_RAW_STMT || node->type == NODE_PREPROC_DIRECTIVE) &&
+        if ((node->kind == NODE_RAW_STMT || node->kind == NODE_PREPROC_DIRECTIVE) &&
             node->raw_stmt.content)
         {
             const char *content = node->raw_stmt.content;
@@ -484,7 +484,7 @@ static void emit_auto_drop_glues(ParserContext *ctx, ASTNode *structs)
     ASTNode *s = structs;
     while (s)
     {
-        if (s->type == NODE_STRUCT && s->type_info && s->type_info->traits.has_drop &&
+        if (s->kind == NODE_STRUCT && s->type_info && s->type_info->traits.has_drop &&
             !s->strct.is_template)
         {
             if (s->cfg_condition)
@@ -542,7 +542,7 @@ static void emit_generic_drop_macro(ParserContext *ctx, ASTNode *structs)
         ASTNode *s = structs;
         while (s)
         {
-            if (s->type == NODE_STRUCT && s->type_info && s->type_info->traits.has_drop &&
+            if (s->kind == NODE_STRUCT && s->type_info && s->type_info->traits.has_drop &&
                 !s->strct.is_template)
             {
                 if (s->cfg_condition)
@@ -571,7 +571,7 @@ static void emit_generic_drop_macro(ParserContext *ctx, ASTNode *structs)
         ASTNode *s = structs;
         while (s)
         {
-            if (s->type == NODE_STRUCT && s->type_info && s->type_info->traits.has_drop &&
+            if (s->kind == NODE_STRUCT && s->type_info && s->type_info->traits.has_drop &&
                 !s->strct.is_template)
             {
                 char *sname = s->strct.name;
@@ -595,12 +595,12 @@ static void flatten_comptime_nodes(ASTNode *parent)
     }
 
     // For blocks: walk block.statements
-    if (parent->type == NODE_BLOCK)
+    if (parent->kind == NODE_BLOCK)
     {
         ASTNode **pp = &parent->block.statements;
         while (pp && *pp)
         {
-            if ((*pp)->type == NODE_COMPTIME && (*pp)->comptime.generated)
+            if ((*pp)->kind == NODE_COMPTIME && (*pp)->comptime.generated)
             {
                 ASTNode *gen = (*pp)->comptime.generated;
                 ASTNode *gen_last = gen;
@@ -638,12 +638,12 @@ static void flatten_comptime_nodes(ASTNode *parent)
     }
 
     // For root: walk root.children
-    if (parent->type == NODE_ROOT)
+    if (parent->kind == NODE_ROOT)
     {
         ASTNode **pp = &parent->root.children;
         while (pp && *pp)
         {
-            if ((*pp)->type == NODE_COMPTIME && (*pp)->comptime.generated)
+            if ((*pp)->kind == NODE_COMPTIME && (*pp)->comptime.generated)
             {
                 ASTNode *gen = (*pp)->comptime.generated;
                 ASTNode *gen_last = gen;
@@ -681,7 +681,7 @@ static void flatten_comptime_nodes(ASTNode *parent)
     }
 
     // For if/while/for/etc: recurse into sub-blocks
-    if (parent->type == NODE_IF)
+    if (parent->kind == NODE_IF)
     {
         if (parent->if_stmt.then_body)
         {
@@ -692,74 +692,74 @@ static void flatten_comptime_nodes(ASTNode *parent)
             flatten_comptime_nodes(parent->if_stmt.else_body);
         }
     }
-    if (parent->type == NODE_WHILE && parent->while_stmt.body)
+    if (parent->kind == NODE_WHILE && parent->while_stmt.body)
     {
         flatten_comptime_nodes(parent->while_stmt.body);
     }
-    if (parent->type == NODE_FOR && parent->for_stmt.body)
+    if (parent->kind == NODE_FOR && parent->for_stmt.body)
     {
         flatten_comptime_nodes(parent->for_stmt.body);
     }
-    if (parent->type == NODE_FOR_RANGE && parent->for_range.body)
+    if (parent->kind == NODE_FOR_RANGE && parent->for_range.body)
     {
         flatten_comptime_nodes(parent->for_range.body);
     }
-    if (parent->type == NODE_LOOP && parent->loop_stmt.body)
+    if (parent->kind == NODE_LOOP && parent->loop_stmt.body)
     {
         flatten_comptime_nodes(parent->loop_stmt.body);
     }
-    if (parent->type == NODE_REPEAT && parent->repeat_stmt.body)
+    if (parent->kind == NODE_REPEAT && parent->repeat_stmt.body)
     {
         flatten_comptime_nodes(parent->repeat_stmt.body);
     }
-    if (parent->type == NODE_MATCH)
+    if (parent->kind == NODE_MATCH)
     {
         ASTNode *c = parent->match_stmt.cases;
         while (c)
         {
-            if (c->type == NODE_MATCH_CASE && c->match_case.body)
+            if (c->kind == NODE_MATCH_CASE && c->match_case.body)
             {
                 flatten_comptime_nodes(c->match_case.body);
             }
             c = c->next;
         }
     }
-    if (parent->type == NODE_FUNCTION && parent->func.body)
+    if (parent->kind == NODE_FUNCTION && parent->func.body)
     {
         flatten_comptime_nodes(parent->func.body);
     }
-    if (parent->type == NODE_TEST && parent->test_stmt.body)
+    if (parent->kind == NODE_TEST && parent->test_stmt.body)
     {
         flatten_comptime_nodes(parent->test_stmt.body);
     }
-    if (parent->type == NODE_DEFER && parent->defer_stmt.stmt)
+    if (parent->kind == NODE_DEFER && parent->defer_stmt.stmt)
     {
         flatten_comptime_nodes(parent->defer_stmt.stmt);
     }
-    if (parent->type == NODE_GUARD && parent->guard_stmt.body)
+    if (parent->kind == NODE_GUARD && parent->guard_stmt.body)
     {
         flatten_comptime_nodes(parent->guard_stmt.body);
     }
-    if (parent->type == NODE_UNLESS && parent->unless_stmt.body)
+    if (parent->kind == NODE_UNLESS && parent->unless_stmt.body)
     {
         flatten_comptime_nodes(parent->unless_stmt.body);
     }
-    if (parent->type == NODE_DO_WHILE && parent->do_while_stmt.body)
+    if (parent->kind == NODE_DO_WHILE && parent->do_while_stmt.body)
     {
         flatten_comptime_nodes(parent->do_while_stmt.body);
     }
 
     // For lambda/impl bodies
-    if (parent->type == NODE_LAMBDA && parent->lambda.body)
+    if (parent->kind == NODE_LAMBDA && parent->lambda.body)
     {
         flatten_comptime_nodes(parent->lambda.body);
     }
-    if (parent->type == NODE_IMPL)
+    if (parent->kind == NODE_IMPL)
     {
         ASTNode *m = parent->impl.methods;
         while (m)
         {
-            if (m->type == NODE_FUNCTION && m->func.body)
+            if (m->kind == NODE_FUNCTION && m->func.body)
             {
                 flatten_comptime_nodes(m->func.body);
             }
@@ -768,7 +768,7 @@ static void flatten_comptime_nodes(ASTNode *parent)
     }
 
     // For function declaration bodies
-    if (parent->type == NODE_FUNCTION && parent->func.body)
+    if (parent->kind == NODE_FUNCTION && parent->func.body)
     {
         flatten_comptime_nodes(parent->func.body);
     }
@@ -787,11 +787,11 @@ void codegen_c_program(ParserContext *ctx, ASTNode *node)
     {
         return;
     }
-    if (node->type == NODE_ROOT)
+    if (node->kind == NODE_ROOT)
     {
         ctx->current_scope = ctx->global_scope;
         ASTNode *kids = node->root.children;
-        while (kids && kids->type == NODE_ROOT)
+        while (kids && kids->kind == NODE_ROOT)
         {
             kids = kids->root.children;
         }
@@ -904,17 +904,17 @@ void codegen_c_program(ParserContext *ctx, ASTNode *node)
         ASTNode *k = kids;
         while (k)
         {
-            if (k->type == NODE_STRUCT || k->type == NODE_ENUM)
+            if (k->kind == NODE_STRUCT || k->kind == NODE_ENUM)
             {
                 int found = 0;
                 ASTNode *chk = merged;
                 while (chk)
                 {
-                    if (chk->type == k->type)
+                    if (chk->kind == k->kind)
                     {
-                        const char *n1 = (k->type == NODE_STRUCT) ? k->strct.name : k->enm.name;
+                        const char *n1 = (k->kind == NODE_STRUCT) ? k->strct.name : k->enm.name;
                         const char *n2 =
-                            (chk->type == NODE_STRUCT) ? chk->strct.name : chk->enm.name;
+                            (chk->kind == NODE_STRUCT) ? chk->strct.name : chk->enm.name;
                         if (n1 && n2 && strcmp(n1, n2) == 0)
                         {
                             found = 1;
@@ -987,14 +987,14 @@ void codegen_c_program(ParserContext *ctx, ASTNode *node)
             {
                 // Check if this global is already in the merged list (by name)
                 int is_duplicate = 0;
-                if (struct_ref->node && (struct_ref->node->type == NODE_VAR_DECL ||
-                                         struct_ref->node->type == NODE_CONST))
+                if (struct_ref->node && (struct_ref->node->kind == NODE_VAR_DECL ||
+                                         struct_ref->node->kind == NODE_CONST))
                 {
                     const char *var_name = struct_ref->node->var_decl.name;
                     ASTNode *check = merged_globals;
                     while (check)
                     {
-                        if ((check->type == NODE_VAR_DECL || check->type == NODE_CONST) &&
+                        if ((check->kind == NODE_VAR_DECL || check->kind == NODE_CONST) &&
                             check->var_decl.name && strcmp(check->var_decl.name, var_name) == 0)
                         {
                             is_duplicate = 1;
@@ -1105,7 +1105,7 @@ void codegen_c_program(ParserContext *ctx, ASTNode *node)
         ASTNode *iter = merged_funcs;
         while (iter)
         {
-            if (iter->type == NODE_IMPL)
+            if (iter->kind == NODE_IMPL)
             {
                 char *sname = iter->impl.struct_name;
                 if (!sname)
@@ -1128,11 +1128,11 @@ void codegen_c_program(ParserContext *ctx, ASTNode *node)
                 int skip = 0;
                 if (def)
                 {
-                    if (def->type == NODE_STRUCT && def->strct.is_template)
+                    if (def->kind == NODE_STRUCT && def->strct.is_template)
                     {
                         skip = 1;
                     }
-                    else if (def->type == NODE_ENUM && def->enm.is_template)
+                    else if (def->kind == NODE_ENUM && def->enm.is_template)
                     {
                         skip = 1;
                     }
@@ -1160,7 +1160,7 @@ void codegen_c_program(ParserContext *ctx, ASTNode *node)
                     continue;
                 }
             }
-            if (iter->type == NODE_IMPL_TRAIT)
+            if (iter->kind == NODE_IMPL_TRAIT)
             {
                 char *sname = iter->impl_trait.target_type;
                 if (!sname)
@@ -1218,7 +1218,7 @@ void codegen_c_program(ParserContext *ctx, ASTNode *node)
         ASTNode *chk = merged_funcs;
         while (chk)
         {
-            if (chk->type == NODE_FUNCTION && strcmp(chk->func.name, "main") == 0)
+            if (chk->kind == NODE_FUNCTION && strcmp(chk->func.name, "main") == 0)
             {
                 has_user_main = 1;
                 break;

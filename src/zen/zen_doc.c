@@ -147,7 +147,7 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
             // Associated with this node
         }
 
-        switch (node->type)
+        switch (node->kind)
         {
         case NODE_FUNCTION:
         {
@@ -160,7 +160,7 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
 
             // Print signature
             printf("```zc\nfn %s(", display_name);
-            for (int i = 0; i < node->func.arg_count; i++)
+            for (int i = 0; i < node->func.count; i++)
             {
                 if (node->func.param_names && node->func.param_names[i])
                 {
@@ -176,7 +176,7 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
                 {
                     printf("?");
                 }
-                if (i < node->func.arg_count - 1)
+                if (i < node->func.count - 1)
                 {
                     printf(", ");
                 }
@@ -209,7 +209,7 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
             ASTNode *field = node->strct.fields;
             while (field)
             {
-                if (field->type == NODE_FIELD)
+                if (field->kind == NODE_FIELD)
                 {
                     printf("    %s: %s,\n", field->field.name,
                            field->field.type ? field->field.type : "?");
@@ -222,7 +222,7 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
             field = node->strct.fields;
             while (field)
             {
-                if (field->type == NODE_FIELD && field->doc_comment)
+                if (field->kind == NODE_FIELD && field->doc_comment)
                 {
                     printf("\n### field `%s`\n", field->field.name);
                     print_markdown_doc(field->doc_comment);
@@ -245,7 +245,7 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
             ASTNode *variant = node->enm.variants;
             while (variant)
             {
-                if (variant->type == NODE_ENUM_VARIANT)
+                if (variant->kind == NODE_ENUM_VARIANT)
                 {
                     printf("    %s,\n", variant->variant.name);
                 }
@@ -257,7 +257,7 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
             variant = node->enm.variants;
             while (variant)
             {
-                if (variant->type == NODE_ENUM_VARIANT && variant->doc_comment)
+                if (variant->kind == NODE_ENUM_VARIANT && variant->doc_comment)
                 {
                     printf("\n### variant `%s`\n", variant->variant.name);
                     print_markdown_doc(variant->doc_comment);
@@ -297,7 +297,7 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
         case NODE_IMPL_TRAIT:
         {
             const char *raw_name =
-                (node->type == NODE_IMPL) ? node->impl.struct_name : node->impl_trait.target_type;
+                (node->kind == NODE_IMPL) ? node->impl.struct_name : node->impl_trait.target_type;
             const char *sname = unmangle_name(raw_name);
             printf("\n## impl for `%s`\n", sname);
             if (node->doc_comment)
@@ -306,10 +306,10 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
             }
 
             ASTNode *method =
-                (node->type == NODE_IMPL) ? node->impl.methods : node->impl_trait.methods;
+                (node->kind == NODE_IMPL) ? node->impl.methods : node->impl_trait.methods;
             while (method)
             {
-                if (method->type == NODE_FUNCTION)
+                if (method->kind == NODE_FUNCTION)
                 {
                     const char *mname = unmangle_name(method->func.name);
                     printf("\n### method `%s`\n", mname);
@@ -349,8 +349,7 @@ static void generate_docs_internal(struct ParserContext *ctx, ASTNode *node, int
 
 void generate_docs(struct ParserContext *ctx, ASTNode *root)
 {
-    (void)ctx;
-    if (root->type != NODE_ROOT)
+    if (root->kind != NODE_ROOT)
     {
         return;
     }
@@ -362,4 +361,18 @@ void generate_docs(struct ParserContext *ctx, ASTNode *root)
     }
 
     generate_docs_internal(ctx, root->root.children, 0);
+
+    // Generic impl blocks (`impl Box<T>`) are registered as templates instead
+    // of top-level AST nodes, so the walk above skips them. Render their
+    // methods here (isolating each impl node so the iterator stops cleanly).
+    for (GenericImplTemplate *it = ctx->impl_templates; it; it = it->next)
+    {
+        if (it->impl_node && it->impl_node->kind == NODE_IMPL)
+        {
+            ASTNode *saved_next = it->impl_node->next;
+            it->impl_node->next = NULL;
+            generate_docs_internal(ctx, it->impl_node, 0);
+            it->impl_node->next = saved_next;
+        }
+    }
 }

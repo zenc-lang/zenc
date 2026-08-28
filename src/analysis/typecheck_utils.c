@@ -20,7 +20,7 @@ int tc_expr_has_side_effects(ASTNode *node)
         return 0;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_EXPR_CALL:
         // Function calls are always considered to have potential side effects in MISRA
@@ -119,13 +119,13 @@ void collect_symbols(ASTNode *node, SymbolSet *reads, SymbolSet *writes)
         return;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_EXPR_BINARY:
         if (node->binary.op && strstr(node->binary.op, "="))
         {
             // LHS is a write
-            if (node->binary.left->type == NODE_EXPR_VAR)
+            if (node->binary.left->kind == NODE_EXPR_VAR)
             {
                 if (writes->count < 32)
                 {
@@ -147,7 +147,7 @@ void collect_symbols(ASTNode *node, SymbolSet *reads, SymbolSet *writes)
             (strcmp(node->unary.op, "++") == 0 || strcmp(node->unary.op, "--") == 0 ||
              strcmp(node->unary.op, "_post++") == 0 || strcmp(node->unary.op, "_post--") == 0))
         {
-            if (node->unary.operand->type == NODE_EXPR_VAR)
+            if (node->unary.operand->kind == NODE_EXPR_VAR)
             {
                 if (writes->count < 32)
                 {
@@ -469,7 +469,7 @@ void mark_type_as_used(TypeChecker *tc, Type *t)
     }
 
     // Generic arguments
-    for (int i = 0; i < curr->arg_count; i++)
+    for (int i = 0; curr->args && i < curr->count; i++)
     {
         mark_type_as_used(tc, curr->args[i]);
     }
@@ -478,7 +478,7 @@ void mark_type_as_used(TypeChecker *tc, Type *t)
     if (curr->kind == TYPE_FUNCTION)
     {
         mark_type_as_used(tc, curr->inner);
-        for (int i = 0; i < curr->arg_count; i++)
+        for (int i = 0; curr->args && i < curr->count; i++)
         {
             mark_type_as_used(tc, curr->args[i]);
         }

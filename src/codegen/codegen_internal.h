@@ -45,6 +45,7 @@ void handle_lambda(ParserContext *ctx, ASTNode *node);
 void handle_expr_literal(ParserContext *ctx, ASTNode *node);
 void handle_raw_stmt(ParserContext *ctx, ASTNode *node);
 void handle_ast_comment(ParserContext *ctx, ASTNode *node);
+void handle_erroneous(ParserContext *ctx, ASTNode *node);
 void handle_ternary(ParserContext *ctx, ASTNode *node);
 void handle_await(ParserContext *ctx, ASTNode *node);
 void handle_va_start(ParserContext *ctx, ASTNode *node);

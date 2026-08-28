@@ -33,6 +33,7 @@ impl Slice<T> {
     }
 
     // Alias for backwards compatibility with std/mem.zc
+    /// Creates a Slice over a buffer.
     fn new(data: T*, len: usize) -> Slice<T> {
         return Slice<T> { data: data, len: len };
     }
@@ -45,6 +46,7 @@ impl Slice<T> {
         };
     }
 
+    /// Returns the slice length.
     fn length(self) -> usize {
         return self.len;
     }
@@ -53,6 +55,7 @@ impl Slice<T> {
         return self.len == 0;
     }
 
+    /// Returns the item at `idx`.
     fn get(self, idx: usize) -> Option<T> {
         if (idx >= self.len) {
             return Option<T>::None();

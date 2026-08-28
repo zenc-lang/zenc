@@ -10,7 +10,7 @@ def Z_SEEK_END = 2;
 def Z_F_OK = 0;
 
 extern fn _z_fs_mkdir(path: const char*) -> c_int;
-extern fn _z_fs_get_metadata(path: const char*, size: U64*, is_dir: c_int*, is_file: c_int*) -> c_int;
+extern fn _z_fs_get_metadata(path: const char*, size: u64*, is_dir: c_int*, is_file: c_int*) -> c_int;
 extern fn _z_fs_read_entry(dir: void*, out_name: char*, buf_size: c_int, is_dir: c_int*) -> c_int;
 extern fn _z_fs_opendir(name: const char*) -> void*;
 extern fn _z_fs_closedir(dir: void*) -> c_int;
@@ -20,7 +20,7 @@ struct File {
 }
 
 struct Metadata {
-    size: U64;
+    size: u64;
     is_dir: bool;
     is_file: bool;
 }
@@ -31,6 +31,7 @@ struct DirEntry {
 }
 
 impl File {
+    /// Opens a file with the given mode.
     fn open(path: char*, mode: char*) -> Result<File> {
         let h = fopen(path, mode);
         if (h == NULL) {
@@ -39,6 +40,7 @@ impl File {
         return Result<File>::Ok(File { handle: h });
     }
 
+    /// Closes the file handle.
     fn close(self) {
         if (self.handle) {
             fclose((FILE*)self.handle);
@@ -46,6 +48,7 @@ impl File {
         }
     }
 
+    /// Reads the whole file into a String.
     fn read_to_string(self) -> Result<String> {
         if (self.handle == NULL) {
             return Result<String>::Err("File not open");
@@ -74,6 +77,7 @@ impl File {
         return ret;
     }
 
+    /// Reads the whole file into a String.
     fn read_all(path: char*) -> Result<String> {
         let res = File::open(path, "rb");
         if (res.is_err()) {
@@ -89,6 +93,7 @@ impl File {
         return ret;
     }
 
+    /// Writes a C string to the file.
     fn write_string(self, content: char*) -> Result<bool> {
         if (self.handle == NULL) {
             return Result<bool>::Err("File not open");
@@ -102,6 +107,7 @@ impl File {
         return Result<bool>::Ok(true);
     }
 
+    /// Reads all lines into a Vec of Strings.
     fn read_lines(path: char*) -> Result< Vec<String> > {
         let res = File::read_all(path);
         if (res.is_err()) {
@@ -142,6 +148,7 @@ impl File {
         return ret;
     }
 
+    /// Writes multiple lines to the file.
     fn write_lines(path: char*, lines: Vec<String>*) -> Result<bool> {
         let res = File::open(path, "wb");
         if (res.is_err()) {
@@ -159,11 +166,13 @@ impl File {
         return Result<bool>::Ok(true);
     }
 
+    /// Returns whether the path exists.
     fn exists(path: char*) -> bool {
         let zero: c_int = 0;
         return access(path, Z_F_OK) == zero;
     }
 
+    /// Returns the file metadata, or `None`.
     fn metadata(path: char*) -> Result<Metadata> {
         let size: uint64_t;
         let is_d: c_int;
@@ -176,12 +185,13 @@ impl File {
         }
         
         return Result<Metadata>::Ok(Metadata { 
-            size: (U64)size, 
+            size: (u64)size, 
             is_dir: is_d != non_zero, 
             is_file: is_f != non_zero 
         });
     }
 
+    /// Creates a directory.
     fn create_dir(path: char*) -> Result<bool> {
         let status = _z_fs_mkdir(path);
         let zero: c_int = 0;
@@ -191,6 +201,7 @@ impl File {
         return Result<bool>::Ok(true);
     }
 
+    /// Removes a file.
     fn remove_file(path: char*) -> Result<bool> {
         let status = unlink(path);
         let zero: c_int = 0;
@@ -200,6 +211,7 @@ impl File {
         return Result<bool>::Ok(true);
     }
 
+    /// Removes a directory.
     fn remove_dir(path: char*) -> Result<bool> {
         let status = rmdir(path);
         let zero: c_int = 0;
@@ -209,6 +221,7 @@ impl File {
         return Result<bool>::Ok(true);
     }
 
+    /// Lists a directory as Vec of DirEntry.
     fn read_dir(path: char*) -> Result< Vec<DirEntry> > {
         let dir = _z_fs_opendir(path);
         if (dir == NULL) {
@@ -255,6 +268,7 @@ impl File {
         return ret;
     }
 
+    /// Returns the current working directory.
     fn current_dir() -> Result<String> {
         let buf: char* = alloc_n<char>(1024);
         if (buf == NULL) return Result<String>::Err("Out of memory");

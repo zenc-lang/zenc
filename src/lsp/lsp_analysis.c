@@ -205,7 +205,7 @@ void lsp_goto_definition(const char *uri, int line, int col, int id)
 
     if (r)
     {
-        if (r->type == RANGE_DEFINITION)
+        if (r->kind == RANGE_DEFINITION)
         {
             target_start_line = r->start_line;
             target_start_col = r->start_col;
@@ -213,7 +213,7 @@ void lsp_goto_definition(const char *uri, int line, int col, int id)
             target_end_col = r->end_col;
             found = 1;
         }
-        else if (r->type == RANGE_REFERENCE)
+        else if (r->kind == RANGE_REFERENCE)
         {
             char *name = get_symbol_name(r);
             if (name)
@@ -233,7 +233,7 @@ void lsp_goto_definition(const char *uri, int line, int col, int id)
             if (!found && r->def_line >= 0)
             {
                 LSPRange *def = lsp_find_at(idx, r->def_line, r->def_col);
-                if (def && def->type == RANGE_DEFINITION)
+                if (def && def->kind == RANGE_DEFINITION)
                 {
                     target_start_line = r->def_line;
                     target_start_col = r->def_col;
@@ -241,6 +241,34 @@ void lsp_goto_definition(const char *uri, int line, int col, int id)
                     target_end_col = r->def_col;
                     found = 1;
                 }
+            }
+        }
+    }
+
+    if (!found && r && r->node)
+    {
+        char *name = NULL;
+        if (r->node->kind == NODE_EXPR_VAR)
+        {
+            name = r->node->var_ref.name;
+        }
+        else if (r->node->kind == NODE_EXPR_CALL && r->node->call.callee &&
+                 r->node->call.callee->kind == NODE_EXPR_VAR)
+        {
+            name = r->node->call.callee->var_ref.name;
+        }
+
+        if (name)
+        {
+            DefinitionResult def = lsp_project_find_definition(name);
+            if (def.uri && def.range)
+            {
+                target_uri = def.uri;
+                target_start_line = def.range->start_line;
+                target_start_col = def.range->start_col;
+                target_end_line = def.range->end_line;
+                target_end_col = def.range->end_col;
+                found = 1;
             }
         }
     }
@@ -434,40 +462,40 @@ static char *get_symbol_name(LSPRange *r)
     {
         return NULL;
     }
-    if (r->node->type == NODE_FUNCTION)
+    if (r->node->kind == NODE_FUNCTION)
     {
         return r->node->func.name;
     }
-    if (r->node->type == NODE_VAR_DECL || r->node->type == NODE_CONST)
+    if (r->node->kind == NODE_VAR_DECL || r->node->kind == NODE_CONST)
     {
         return r->node->var_decl.name;
     }
-    if (r->node->type == NODE_STRUCT)
+    if (r->node->kind == NODE_STRUCT)
     {
         return r->node->strct.name;
     }
-    if (r->node->type == NODE_ENUM)
+    if (r->node->kind == NODE_ENUM)
     {
         return r->node->enm.name;
     }
-    if (r->node->type == NODE_ENUM_VARIANT)
+    if (r->node->kind == NODE_ENUM_VARIANT)
     {
         return r->node->variant.name;
     }
-    if (r->node->type == NODE_TRAIT)
+    if (r->node->kind == NODE_TRAIT)
     {
         return r->node->trait.name;
     }
-    if (r->node->type == NODE_TYPE_ALIAS)
+    if (r->node->kind == NODE_TYPE_ALIAS)
     {
         return r->node->type_alias.alias;
     }
-    if (r->node->type == NODE_EXPR_VAR)
+    if (r->node->kind == NODE_EXPR_VAR)
     {
         return r->node->var_ref.name;
     }
-    if (r->node->type == NODE_EXPR_CALL && r->node->call.callee &&
-        r->node->call.callee->type == NODE_EXPR_VAR)
+    if (r->node->kind == NODE_EXPR_CALL && r->node->call.callee &&
+        r->node->call.callee->kind == NODE_EXPR_VAR)
     {
         return r->node->call.callee->var_ref.name;
     }
@@ -491,16 +519,16 @@ void lsp_hover(const char *uri, int line, int col, int id)
 
     if (r)
     {
-        if (r->type == RANGE_DEFINITION)
+        if (r->kind == RANGE_DEFINITION)
         {
             text = r->hover_text;
         }
-        else if (r->type == RANGE_REFERENCE)
+        else if (r->kind == RANGE_REFERENCE)
         {
             if (r->def_line >= 0)
             {
                 LSPRange *def = lsp_find_at(idx, r->def_line, r->def_col);
-                if (def && def->type == RANGE_DEFINITION)
+                if (def && def->kind == RANGE_DEFINITION)
                 {
                     text = def->hover_text;
                 }
@@ -521,7 +549,7 @@ void lsp_hover(const char *uri, int line, int col, int id)
         }
 
         // Plugin-Specific Hover Support
-        if (!text && r->node && r->node->type == NODE_PLUGIN)
+        if (!text && r->node && r->node->kind == NODE_PLUGIN)
         {
             ZPlugin *plugin = zptr_find_plugin(r->node->plugin_stmt.plugin_name);
             if (plugin && plugin->hover_fn)
@@ -613,7 +641,7 @@ static void enqueue_node_children(ASTNode *curr, ASTNode **queue, int *q_tail, i
     {
         return;
     }
-    if (curr->type == NODE_BLOCK)
+    if (curr->kind == NODE_BLOCK)
     {
         ASTNode *stmt = curr->block.statements;
         while (stmt)
@@ -625,7 +653,7 @@ static void enqueue_node_children(ASTNode *curr, ASTNode **queue, int *q_tail, i
             stmt = stmt->next;
         }
     }
-    else if (curr->type == NODE_IF)
+    else if (curr->kind == NODE_IF)
     {
         if (curr->if_stmt.then_body && *q_tail < q_limit)
         {
@@ -636,14 +664,14 @@ static void enqueue_node_children(ASTNode *curr, ASTNode **queue, int *q_tail, i
             queue[(*q_tail)++] = curr->if_stmt.else_body;
         }
     }
-    else if (curr->type == NODE_WHILE)
+    else if (curr->kind == NODE_WHILE)
     {
         if (curr->while_stmt.body && *q_tail < q_limit)
         {
             queue[(*q_tail)++] = curr->while_stmt.body;
         }
     }
-    else if (curr->type == NODE_FOR)
+    else if (curr->kind == NODE_FOR)
     {
         if (curr->for_stmt.init && *q_tail < q_limit)
         {
@@ -671,7 +699,7 @@ static ASTNode *find_local_in_func(ASTNode *func, const char *name)
     // Also check params!
     if (func->func.param_names && func->func.arg_types)
     {
-        for (int i = 0; i < func->func.arg_count; i++)
+        for (int i = 0; i < func->func.count; i++)
         {
             if (strcmp(func->func.param_names[i], name) == 0)
             {
@@ -683,7 +711,7 @@ static ASTNode *find_local_in_func(ASTNode *func, const char *name)
     while (q_head < q_tail && q_tail < 1024)
     {
         ASTNode *curr = queue[q_head++];
-        if (curr->type == NODE_VAR_DECL)
+        if (curr->kind == NODE_VAR_DECL)
         {
             if (strcmp(curr->var_decl.name, name) == 0)
             {
@@ -708,7 +736,7 @@ static Type *resolve_local_type(ASTNode *func, const char *name)
     // Check args
     if (func->func.param_names && func->func.arg_types)
     {
-        for (int i = 0; i < func->func.arg_count; i++)
+        for (int i = 0; i < func->func.count; i++)
         {
             if (strcmp(func->func.param_names[i], name) == 0)
             {
@@ -718,7 +746,7 @@ static Type *resolve_local_type(ASTNode *func, const char *name)
     }
     // Check body vars
     ASTNode *decl = find_local_in_func(func, name);
-    if (decl && decl->type == NODE_VAR_DECL)
+    if (decl && decl->kind == NODE_VAR_DECL)
     {
         return decl->var_decl.type_info;
     }
@@ -824,7 +852,7 @@ static LSPContext lsp_get_completion_context(const char *source, int line, int c
         // Approximate line check (Zen C AST stores line numbers in tokens)
         if (curr->token.line > 0 && curr->token.line <= line)
         {
-            if (curr->type == NODE_WHILE || curr->type == NODE_FOR || curr->type == NODE_LOOP)
+            if (curr->kind == NODE_WHILE || curr->kind == NODE_FOR || curr->kind == NODE_LOOP)
             {
                 return CTX_LOOP;
             }
@@ -857,7 +885,7 @@ void lsp_completion(const char *uri, int line, int col, int id)
         LSPRange *r = pf->index->head;
         while (r)
         {
-            if (r->type == RANGE_DEFINITION && r->node && r->node->type == NODE_FUNCTION)
+            if (r->kind == RANGE_DEFINITION && r->node && r->node->kind == NODE_FUNCTION)
             {
                 if (r->start_line <= line && r->start_line > best_line)
                 {
@@ -1011,7 +1039,7 @@ void lsp_completion(const char *uri, int line, int col, int id)
                     else
                     {
                         ASTNode *decl = find_local_in_func(target_func, base_name);
-                        if (decl && decl->type == NODE_VAR_DECL && decl->var_decl.type_str)
+                        if (decl && decl->kind == NODE_VAR_DECL && decl->var_decl.type_str)
                         {
                             type_name = xstrdup(decl->var_decl.type_str);
                         }
@@ -1050,7 +1078,7 @@ void lsp_completion(const char *uri, int line, int col, int id)
 
                         ASTNode *struct_node = find_struct_def(g_project->ctx, clean_name);
                         int found_field = 0;
-                        if (struct_node && struct_node->type == NODE_STRUCT)
+                        if (struct_node && struct_node->kind == NODE_STRUCT)
                         {
                             ASTNode *field = struct_node->strct.fields;
                             while (field)
@@ -1092,7 +1120,7 @@ void lsp_completion(const char *uri, int line, int col, int id)
                         ASTNode *struct_node = find_struct_def(g_project->ctx, clean_name);
                         if (struct_node)
                         {
-                            if (struct_node->type == NODE_STRUCT)
+                            if (struct_node->kind == NODE_STRUCT)
                             {
                                 ASTNode *field = struct_node->strct.fields;
                                 while (field)
@@ -1105,7 +1133,7 @@ void lsp_completion(const char *uri, int line, int col, int id)
                                     field = field->next;
                                 }
                             }
-                            else if (struct_node->type == NODE_ENUM)
+                            else if (struct_node->kind == NODE_ENUM)
                             {
                                 ASTNode *variant = struct_node->enm.variants;
                                 while (variant)
@@ -1383,7 +1411,7 @@ void lsp_completion(const char *uri, int line, int col, int id)
         {
             if (target_func->func.param_names)
             {
-                for (int i = 0; i < target_func->func.arg_count; i++)
+                for (int i = 0; i < target_func->func.count; i++)
                 {
                     cJSON *item = cJSON_CreateObject();
                     cJSON_AddStringToObject(item, "label", target_func->func.param_names[i]);
@@ -1409,7 +1437,7 @@ void lsp_completion(const char *uri, int line, int col, int id)
                     continue;
                 }
 
-                if (curr->type == NODE_VAR_DECL || curr->type == NODE_CONST)
+                if (curr->kind == NODE_VAR_DECL || curr->kind == NODE_CONST)
                 {
                     if (curr->token.line > 0 && (curr->token.line - 1) <= line)
                     {
@@ -1417,12 +1445,12 @@ void lsp_completion(const char *uri, int line, int col, int id)
                         cJSON_AddStringToObject(item, "label", curr->var_decl.name);
                         cJSON_AddNumberToObject(
                             item, "kind",
-                            curr->type == NODE_CONST ? 21 : 6);           // Constant or Variable
+                            curr->kind == NODE_CONST ? 21 : 6);           // Constant or Variable
                         cJSON_AddStringToObject(item, "sortText", "002"); // Local priority
                         cJSON_AddItemToArray(items, item);
                     }
                 }
-                else if (curr->type == NODE_BLOCK)
+                else if (curr->kind == NODE_BLOCK)
                 {
                     ASTNode *stmt = curr->block.statements;
                     while (stmt)
@@ -1434,7 +1462,7 @@ void lsp_completion(const char *uri, int line, int col, int id)
                         stmt = stmt->next;
                     }
                 }
-                else if (curr->type == NODE_IF)
+                else if (curr->kind == NODE_IF)
                 {
                     if (curr->if_stmt.then_body && q_tail < 1024)
                     {
@@ -1445,14 +1473,14 @@ void lsp_completion(const char *uri, int line, int col, int id)
                         queue[q_tail++] = curr->if_stmt.else_body;
                     }
                 }
-                else if (curr->type == NODE_WHILE)
+                else if (curr->kind == NODE_WHILE)
                 {
                     if (curr->while_stmt.body && q_tail < 1024)
                     {
                         queue[q_tail++] = curr->while_stmt.body;
                     }
                 }
-                else if (curr->type == NODE_FOR)
+                else if (curr->kind == NODE_FOR)
                 {
                     if (curr->for_stmt.init && q_tail < 1024)
                     {
@@ -1517,32 +1545,32 @@ static cJSON *ast_to_symbol(ASTNode *node)
     char *name = NULL;
     int kind = 0;
 
-    if (node->type == NODE_FUNCTION)
+    if (node->kind == NODE_FUNCTION)
     {
         name = node->func.name;
         kind = 12;
     }
-    else if (node->type == NODE_STRUCT)
+    else if (node->kind == NODE_STRUCT)
     {
         name = node->strct.name;
         kind = 23;
     }
-    else if (node->type == NODE_VAR_DECL)
+    else if (node->kind == NODE_VAR_DECL)
     {
         name = node->var_decl.name;
         kind = 13;
     }
-    else if (node->type == NODE_CONST)
+    else if (node->kind == NODE_CONST)
     {
         name = node->var_decl.name;
         kind = 14;
     }
-    else if (node->type == NODE_ENUM)
+    else if (node->kind == NODE_ENUM)
     {
         name = node->enm.name;
         kind = 10;
     }
-    else if (node->type == NODE_FIELD)
+    else if (node->kind == NODE_FIELD)
     {
         name = node->field.name;
         kind = 8;
@@ -1575,7 +1603,7 @@ static cJSON *ast_to_symbol(ASTNode *node)
     cJSON *selRange = cJSON_Duplicate(range, 1);
     cJSON_AddItemToObject(item, "selectionRange", selRange);
 
-    if (node->type == NODE_STRUCT && node->strct.fields)
+    if (node->kind == NODE_STRUCT && node->strct.fields)
     {
         cJSON *children = cJSON_CreateArray();
         ASTNode *f = node->strct.fields;
@@ -1612,7 +1640,7 @@ void lsp_document_symbol(const char *uri, int id)
     ASTNode *node = pf->ast;
 
     // Unwrap ROOT node if present
-    if (node && node->type == NODE_ROOT)
+    if (node && node->kind == NODE_ROOT)
     {
         node = node->root.children;
     }
@@ -1645,28 +1673,28 @@ void lsp_references(const char *uri, int line, int col, int id)
         if (r && r->node)
         {
             char *name = NULL;
-            if (r->node->type == NODE_FUNCTION)
+            if (r->node->kind == NODE_FUNCTION)
             {
                 name = r->node->func.name;
             }
-            else if (r->node->type == NODE_VAR_DECL)
+            else if (r->node->kind == NODE_VAR_DECL)
             {
                 name = r->node->var_decl.name;
             }
-            else if (r->node->type == NODE_CONST)
+            else if (r->node->kind == NODE_CONST)
             {
                 name = r->node->var_decl.name;
             }
-            else if (r->node->type == NODE_STRUCT)
+            else if (r->node->kind == NODE_STRUCT)
             {
                 name = r->node->strct.name;
             }
-            else if (r->node->type == NODE_EXPR_VAR)
+            else if (r->node->kind == NODE_EXPR_VAR)
             {
                 name = r->node->var_ref.name;
             }
-            else if (r->node->type == NODE_EXPR_CALL && r->node->call.callee &&
-                     r->node->call.callee->type == NODE_EXPR_VAR)
+            else if (r->node->kind == NODE_EXPR_CALL && r->node->call.callee &&
+                     r->node->call.callee->kind == NODE_EXPR_VAR)
             {
                 name = r->node->call.callee->var_ref.name;
             }
@@ -1919,28 +1947,28 @@ void lsp_rename(const char *uri, int line, int col, const char *new_name, int id
     }
 
     char *name = NULL;
-    if (r->node->type == NODE_FUNCTION)
+    if (r->node->kind == NODE_FUNCTION)
     {
         name = r->node->func.name;
     }
-    else if (r->node->type == NODE_VAR_DECL)
+    else if (r->node->kind == NODE_VAR_DECL)
     {
         name = r->node->var_decl.name;
     }
-    else if (r->node->type == NODE_CONST)
+    else if (r->node->kind == NODE_CONST)
     {
         name = r->node->var_decl.name;
     }
-    else if (r->node->type == NODE_STRUCT)
+    else if (r->node->kind == NODE_STRUCT)
     {
         name = r->node->strct.name;
     }
-    else if (r->node->type == NODE_EXPR_VAR)
+    else if (r->node->kind == NODE_EXPR_VAR)
     {
         name = r->node->var_ref.name;
     }
-    else if (r->node->type == NODE_EXPR_CALL && r->node->call.callee &&
-             r->node->call.callee->type == NODE_EXPR_VAR)
+    else if (r->node->kind == NODE_EXPR_CALL && r->node->call.callee &&
+             r->node->call.callee->kind == NODE_EXPR_VAR)
     {
         name = r->node->call.callee->var_ref.name;
     }

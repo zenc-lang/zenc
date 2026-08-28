@@ -17,3 +17,33 @@ test "Base64 RFC 4648" {
     check("foob", "Zm9vYg==");
     check("foobar", "Zm9vYmFy");
 }
+
+fn check_decode(encoded: char*, expected: char*) {
+    let r = Base64::decode(encoded);
+    assert(r.is_ok(), "Decode '{encoded}' should succeed");
+    let v = r.unwrap();
+    let n = v.len;
+    assert(n == strlen(expected), "Decode '{encoded}' length mismatch");
+    for (let i: usize = 0; i < n; i = i + 1) {
+        assert(v.get(i) == (u8)expected[i], "Decode '{encoded}' byte {i}");
+    }
+    v.free();
+}
+
+test "Base64 Decode RFC 4648" {
+    check_decode("", "");
+    check_decode("Zg==", "f");
+    check_decode("Zm8=", "fo");
+    check_decode("Zm9v", "foo");
+    check_decode("Zm9vYg==", "foob");
+    check_decode("Zm9vYmFy", "foobar");
+}
+
+test "Base64 Decode Errors" {
+    let r1 = Base64::decode("Zg=");
+    assert(r1.is_err(), "odd length should fail");
+
+    let r2 = Base64::decode("Z!==");
+    assert(r2.is_err(), "invalid char should fail");
+}
+

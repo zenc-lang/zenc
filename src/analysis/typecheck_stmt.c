@@ -11,7 +11,7 @@ void check_block(TypeChecker *tc, ASTNode *block, int depth)
     while (stmt)
     {
         // Warn if we see code after a terminating statement
-        if (seen_terminator && stmt->type != NODE_LABEL)
+        if (seen_terminator && stmt->kind != NODE_LABEL)
         {
             const char *rule = tc->pctx->config->misra_mode ? "MISRA Rule 2.1: " : "";
             const char *hints[] = {"Remove unreachable code or restructure control flow", NULL};
@@ -25,8 +25,8 @@ void check_block(TypeChecker *tc, ASTNode *block, int depth)
         {
             // Rule 2.2: There shall be no dead code (expressions with no effect)
             // We ignore call expressions here as they are handled by Rule 17.7
-            if (stmt->type >= NODE_EXPR_BINARY && stmt->type <= NODE_EXPR_SLICE &&
-                stmt->type != NODE_EXPR_CALL)
+            if (stmt->kind >= NODE_EXPR_BINARY && stmt->kind <= NODE_EXPR_SLICE &&
+                stmt->kind != NODE_EXPR_CALL)
             {
                 if (!tc_expr_has_side_effects(stmt))
                 {
@@ -41,8 +41,8 @@ void check_block(TypeChecker *tc, ASTNode *block, int depth)
         tc->is_stmt_context = old_stmt_ctx;
 
         // Track terminating statements
-        if (stmt->type == NODE_RETURN || stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE ||
-            stmt->type == NODE_GOTO)
+        if (stmt->kind == NODE_RETURN || stmt->kind == NODE_BREAK || stmt->kind == NODE_CONTINUE ||
+            stmt->kind == NODE_GOTO)
         {
             seen_terminator = 1;
             terminator_token = stmt->token;
@@ -105,7 +105,7 @@ void check_var_decl(TypeChecker *tc, ASTNode *node, int depth)
                 // Rule 9.3: Arrays shall not be partially initialized.
                 if (decl_type->kind == TYPE_ARRAY && init_type->kind == TYPE_ARRAY)
                 {
-                    if (node->var_decl.init_expr->type == NODE_EXPR_ARRAY_LITERAL)
+                    if (node->var_decl.init_expr->kind == NODE_EXPR_ARRAY_LITERAL)
                     {
                         if (decl_type->array_size != init_type->array_size)
                         {
@@ -166,7 +166,7 @@ void check_var_decl(TypeChecker *tc, ASTNode *node, int depth)
 
 static ASTNode *loop_body(ASTNode *loop)
 {
-    switch (loop->type)
+    switch (loop->kind)
     {
     case NODE_LOOP:
         return loop->loop_stmt.body;
@@ -195,7 +195,7 @@ static int stmt_has_exit_break(ASTNode *node, const char *loop_label, int nested
         return 0;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_BREAK:
         if (node->break_stmt.target_label)
@@ -269,7 +269,7 @@ int stmt_always_returns(ASTNode *stmt)
         return 0;
     }
 
-    switch (stmt->type)
+    switch (stmt->kind)
     {
     case NODE_RETURN:
         return 1;
@@ -297,7 +297,7 @@ int stmt_always_returns(ASTNode *stmt)
         ASTNode *case_node = stmt->match_stmt.cases;
         while (case_node)
         {
-            if (case_node->type == NODE_MATCH_CASE)
+            if (case_node->kind == NODE_MATCH_CASE)
             {
                 if (!stmt_always_returns(case_node->match_case.body))
                 {
@@ -329,7 +329,7 @@ int stmt_always_returns(ASTNode *stmt)
 
 int block_always_returns(ASTNode *block)
 {
-    if (!block || block->type != NODE_BLOCK)
+    if (!block || block->kind != NODE_BLOCK)
     {
         return 0;
     }
@@ -357,18 +357,18 @@ int block_always_returns(ASTNode *block)
     {
         return 1;
     }
-    if (stmt->type == NODE_BLOCK)
+    if (stmt->kind == NODE_BLOCK)
     {
         return block_always_returns(stmt);
     }
     // Any expression type can serve as an implicit return value
-    if (stmt->type == NODE_EXPR_BINARY || stmt->type == NODE_EXPR_UNARY ||
-        stmt->type == NODE_EXPR_LITERAL || stmt->type == NODE_EXPR_VAR ||
-        stmt->type == NODE_EXPR_CALL || stmt->type == NODE_EXPR_MEMBER ||
-        stmt->type == NODE_EXPR_INDEX || stmt->type == NODE_EXPR_CAST ||
-        stmt->type == NODE_EXPR_SIZEOF || stmt->type == NODE_EXPR_STRUCT_INIT ||
-        stmt->type == NODE_EXPR_ARRAY_LITERAL || stmt->type == NODE_EXPR_TUPLE_LITERAL ||
-        stmt->type == NODE_EXPR_SLICE || stmt->type == NODE_TERNARY || stmt->type == NODE_MATCH)
+    if (stmt->kind == NODE_EXPR_BINARY || stmt->kind == NODE_EXPR_UNARY ||
+        stmt->kind == NODE_EXPR_LITERAL || stmt->kind == NODE_EXPR_VAR ||
+        stmt->kind == NODE_EXPR_CALL || stmt->kind == NODE_EXPR_MEMBER ||
+        stmt->kind == NODE_EXPR_INDEX || stmt->kind == NODE_EXPR_CAST ||
+        stmt->kind == NODE_EXPR_SIZEOF || stmt->kind == NODE_EXPR_STRUCT_INIT ||
+        stmt->kind == NODE_EXPR_ARRAY_LITERAL || stmt->kind == NODE_EXPR_TUPLE_LITERAL ||
+        stmt->kind == NODE_EXPR_SLICE || stmt->kind == NODE_TERNARY || stmt->kind == NODE_MATCH)
     {
         return 1;
     }
@@ -383,7 +383,7 @@ void check_function(TypeChecker *tc, ASTNode *node, int depth)
     }
     misra_check_param_nesting(tc->pctx, node);
     // Mark arg types as used
-    for (int i = 0; i < node->func.arg_count; i++)
+    for (int i = 0; i < node->func.count; i++)
     {
         mark_type_as_used(tc, node->func.arg_types[i]);
     }
@@ -404,7 +404,7 @@ void check_function(TypeChecker *tc, ASTNode *node, int depth)
     MoveState *prev_move_state = tc->pctx->move_state;
     tc->pctx->move_state = move_state_create(NULL);
 
-    for (int i = 0; i < node->func.arg_count; i++)
+    for (int i = 0; i < node->func.count; i++)
     {
         if (node->func.param_names && node->func.param_names[i])
         {
@@ -467,7 +467,7 @@ void check_function(TypeChecker *tc, ASTNode *node, int depth)
     // MISRA audits before leaving function scope
     if (tc->pctx->config->misra_mode && tc->pctx->current_scope)
     {
-        for (int i = 0; i < node->func.arg_count; i++)
+        for (int i = 0; i < node->func.count; i++)
         {
             if (node->func.param_names && node->func.param_names[i])
             {
@@ -587,7 +587,7 @@ void check_loop_passes(TypeChecker *tc, ASTNode *node, int depth)
     // Pass 1: standard typecheck and move check
     tc->is_unreachable = 0; // The loop start is assumed reachable if we got here
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_WHILE:
     {
@@ -669,7 +669,7 @@ void check_loop_passes(TypeChecker *tc, ASTNode *node, int depth)
 
         if (tc->pctx->config->misra_mode && node->for_stmt.step)
         {
-            if (node->for_stmt.step->type == NODE_EXPR_BINARY)
+            if (node->for_stmt.step->kind == NODE_EXPR_BINARY)
             {
                 const char *step_op = node->for_stmt.step->binary.op;
                 if (strstr(step_op, "=") && node->for_stmt.step->binary.left->type_info)
@@ -776,7 +776,7 @@ void check_loop_passes(TypeChecker *tc, ASTNode *node, int depth)
         tc->loop_continue_state = NULL;
 
         // Re-run appropriate parts
-        switch (node->type)
+        switch (node->kind)
         {
         case NODE_WHILE:
             check_node(tc, node->while_stmt.condition, depth + 1);
@@ -828,7 +828,7 @@ void check_loop_passes(TypeChecker *tc, ASTNode *node, int depth)
     {
         // Assume infinite loops (like NODE_LOOP) don't exit naturally unless broken,
         // but for safety we'll merge next_iter_state for all, treating condition as maybe false.
-        if (node->type != NODE_LOOP)
+        if (node->kind != NODE_LOOP)
         {
             move_state_merge_into(&final_state, next_iter_state);
         }
@@ -859,13 +859,13 @@ void check_loop_passes(TypeChecker *tc, ASTNode *node, int depth)
     }
 
     // Restore outer context
-    if (node->type == NODE_FOR)
+    if (node->kind == NODE_FOR)
     {
         tc_exit_scope(tc);
     }
 
     // If the loop is an infinite loop and has no breaks, it is unconditionally unreachable after.
-    if ((node->type == NODE_LOOP || node->type == NODE_REPEAT) && !final_state)
+    if ((node->kind == NODE_LOOP || node->kind == NODE_REPEAT) && !final_state)
     {
         tc->is_unreachable = 1;
     }

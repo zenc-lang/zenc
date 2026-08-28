@@ -201,7 +201,7 @@ ZEN_CONST bool is_int_type(TypeKind k)
 void codegen_match_internal(ParserContext *ctx, ASTNode *node, int use_result)
 {
     int id = ctx->cg.tmp_counter++;
-    int is_self = (node->match_stmt.expr->type == NODE_EXPR_VAR &&
+    int is_self = (node->match_stmt.expr->kind == NODE_EXPR_VAR &&
                    strcmp(node->match_stmt.expr->var_ref.name, "self") == 0);
 
     char *ret_type = infer_type(ctx, node);
@@ -239,9 +239,9 @@ void codegen_match_internal(ParserContext *ctx, ASTNode *node, int use_result)
         ref_check = ref_check->next;
     }
 
-    int is_lvalue_opt = (node->match_stmt.expr->type == NODE_EXPR_VAR ||
-                         node->match_stmt.expr->type == NODE_EXPR_MEMBER ||
-                         node->match_stmt.expr->type == NODE_EXPR_INDEX);
+    int is_lvalue_opt = (node->match_stmt.expr->kind == NODE_EXPR_VAR ||
+                         node->match_stmt.expr->kind == NODE_EXPR_MEMBER ||
+                         node->match_stmt.expr->kind == NODE_EXPR_INDEX);
 
     emit_source_mapping(ctx, node); // Step through match statements elegantly
 
@@ -522,7 +522,7 @@ void codegen_match_internal(ParserContext *ctx, ASTNode *node, int use_result)
         // Check if body is a string literal (should auto-print).
         ASTNode *body = c->match_case.body;
         int is_string_literal =
-            (body->type == NODE_EXPR_LITERAL && body->literal.type_kind == LITERAL_STRING);
+            (body->kind == NODE_EXPR_LITERAL && body->literal.kind == LITERAL_STRING);
 
         if (is_expr)
         {
@@ -533,7 +533,7 @@ void codegen_match_internal(ParserContext *ctx, ASTNode *node, int use_result)
             }
             else
             {
-                if (body->type == NODE_BLOCK)
+                if (body->kind == NODE_BLOCK)
                 {
                     int saved = ctx->cg.defer_count;
                     EMIT(ctx, "({ ");

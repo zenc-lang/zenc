@@ -363,7 +363,7 @@ ASTNode *parse_include(ParserContext *ctx, Lexer *l)
     char *path = NULL;
     int is_system = 0;
 
-    if (t.type == TOK_LANGLE)
+    if (t.kind == TOK_LANGLE)
     {
         is_system = 1;
         char buf[MAX_SHORT_MSG_LEN];
@@ -371,12 +371,12 @@ ASTNode *parse_include(ParserContext *ctx, Lexer *l)
         while (1)
         {
             Token i = lexer_next(l);
-            if (i.type == TOK_EOF)
+            if (i.kind == TOK_EOF)
             {
                 zpanic_at(i, "Unexpected EOF in include path, expected '>'");
                 break;
             }
-            if (i.type == TOK_RANGLE)
+            if (i.kind == TOK_RANGLE)
             {
                 break;
             }
@@ -409,12 +409,12 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
     lexer_next(l);
 
     Token next = lexer_peek(l);
-    if (next.type == TOK_IDENT && next.len == 6 && strncmp(next.start, "plugin", 6) == 0)
+    if (next.kind == TOK_IDENT && next.len == 6 && strncmp(next.start, "plugin", 6) == 0)
     {
         lexer_next(l);
 
         Token plugin_tok = lexer_next(l);
-        if (plugin_tok.type != TOK_STRING)
+        if (plugin_tok.kind != TOK_STRING)
         {
             zpanic_at(plugin_tok, "Expected string literal after 'import plugin'");
             return NULL;
@@ -440,11 +440,11 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
 
         char *alias = NULL;
         Token as_tok = lexer_peek(l);
-        if (as_tok.type == TOK_IDENT && as_tok.len == 2 && strncmp(as_tok.start, "as", 2) == 0)
+        if (as_tok.kind == TOK_IDENT && as_tok.len == 2 && strncmp(as_tok.start, "as", 2) == 0)
         {
             lexer_next(l);
             Token alias_tok = lexer_next(l);
-            if (alias_tok.type != TOK_IDENT)
+            if (alias_tok.kind != TOK_IDENT)
             {
                 zpanic_at(alias_tok, "Expected identifier after 'as'");
                 return NULL;
@@ -456,7 +456,7 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
         register_plugin(ctx, plugin_name, alias);
 #endif
 
-        if (lexer_peek(l).type == TOK_SEMICOLON)
+        if (lexer_peek(l).kind == TOK_SEMICOLON)
         {
             lexer_next(l);
         }
@@ -468,31 +468,41 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
     zvec_Str symbols = {0};
     zvec_Str aliases = {0};
 
-    if (lexer_peek(l).type == TOK_LBRACE)
+    if (lexer_peek(l).kind == TOK_LBRACE)
     {
         is_selective = 1;
         lexer_next(l);
 
         while (1)
         {
-            if (lexer_peek(l).type == TOK_RBRACE)
+            if (lexer_peek(l).kind == TOK_RBRACE)
             {
                 break;
             }
-            if (lexer_peek(l).type == TOK_EOF)
+            if (lexer_peek(l).kind == TOK_EOF)
             {
                 zpanic_at(lexer_peek(l), "Unexpected end of file in selective import");
                 break;
             }
-            if (symbols.length > 0 && lexer_peek(l).type == TOK_COMMA)
+            if (symbols.length > 0 && lexer_peek(l).kind == TOK_COMMA)
             {
                 lexer_next(l);
             }
 
             Token sym_tok = lexer_next(l);
-            if (sym_tok.type != TOK_IDENT)
+            if (sym_tok.kind != TOK_IDENT)
             {
                 zpanic_at(sym_tok, "Expected identifier in selective import");
+                for (size_t _c = 0; _c < symbols.length; _c++)
+                {
+                    zfree(symbols.data[_c]);
+                    if (aliases.data[_c])
+                    {
+                        zfree(aliases.data[_c]);
+                    }
+                }
+                zvec_free_Str(&symbols);
+                zvec_free_Str(&aliases);
                 return NULL;
             }
 
@@ -502,14 +512,24 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
             zvec_push_Str(&symbols, sym);
 
             Token inner_next = lexer_peek(l);
-            if (inner_next.type == TOK_IDENT && inner_next.len == 2 &&
+            if (inner_next.kind == TOK_IDENT && inner_next.len == 2 &&
                 strncmp(inner_next.start, "as", 2) == 0)
             {
                 lexer_next(l);
                 Token alias_tok = lexer_next(l);
-                if (alias_tok.type != TOK_IDENT)
+                if (alias_tok.kind != TOK_IDENT)
                 {
                     zpanic_at(alias_tok, "Expected identifier after 'as'");
+                    for (size_t _c = 0; _c < symbols.length; _c++)
+                    {
+                        zfree(symbols.data[_c]);
+                        if (aliases.data[_c])
+                        {
+                            zfree(aliases.data[_c]);
+                        }
+                    }
+                    zvec_free_Str(&symbols);
+                    zvec_free_Str(&aliases);
                     return NULL;
                 }
 
@@ -527,20 +547,40 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
         lexer_next(l);
 
         Token from_tok = lexer_next(l);
-        if (from_tok.type != TOK_IDENT || from_tok.len != 4 ||
+        if (from_tok.kind != TOK_IDENT || from_tok.len != 4 ||
             strncmp(from_tok.start, "from", 4) != 0)
         {
             zpanic_at(from_tok, "Expected 'from' after selective import list, got type=%d",
-                      (int)from_tok.type);
+                      (int)from_tok.kind);
+            for (size_t _c = 0; _c < symbols.length; _c++)
+            {
+                zfree(symbols.data[_c]);
+                if (aliases.data[_c])
+                {
+                    zfree(aliases.data[_c]);
+                }
+            }
+            zvec_free_Str(&symbols);
+            zvec_free_Str(&aliases);
             return NULL;
         }
     }
 
     Token t = lexer_next(l);
-    if (t.type != TOK_STRING && t.type != TOK_RAW_STRING)
+    if (t.kind != TOK_STRING && t.kind != TOK_RAW_STRING)
     {
         zpanic_at(t, "Expected string (filename) after 'from' in selective import, got type %d",
-                  (int)t.type);
+                  (int)t.kind);
+        for (size_t _c = 0; _c < symbols.length; _c++)
+        {
+            zfree(symbols.data[_c]);
+            if (aliases.data[_c])
+            {
+                zfree(aliases.data[_c]);
+            }
+        }
+        zvec_free_Str(&symbols);
+        zvec_free_Str(&aliases);
         return NULL;
     }
     char *fn = token_get_string_content(t);
@@ -555,7 +595,6 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
         else
         {
             zpanic_at(t, "Could not find module: %s", fn);
-            return NULL;
             for (size_t _c = 0; _c < symbols.length; _c++)
             {
                 zfree(symbols.data[_c]);
@@ -599,7 +638,6 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
     if (zmap_get(&ctx->imports.currently_parsing, fn))
     {
         zpanic_at(t, "Circular import detected: '%s'", fn);
-        return NULL;
         for (size_t _c = 0; _c < symbols.length; _c++)
         {
             zfree(symbols.data[_c]);
@@ -630,12 +668,12 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l, int is_re_export)
     if (!is_selective)
     {
         Token next_tok = lexer_peek(l);
-        if (next_tok.type == TOK_IDENT && next_tok.len == 2 &&
+        if (next_tok.kind == TOK_IDENT && next_tok.len == 2 &&
             strncmp(next_tok.start, "as", 2) == 0)
         {
             lexer_next(l);
             Token alias_tok = lexer_next(l);
-            if (alias_tok.type != TOK_IDENT && alias_tok.type != TOK_OP)
+            if (alias_tok.kind != TOK_IDENT && alias_tok.kind != TOK_OP)
             {
                 zpanic_at(alias_tok, "Expected identifier after 'as'");
                 return NULL;

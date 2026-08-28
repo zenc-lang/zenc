@@ -20,6 +20,7 @@ struct Command {
 }
 
 impl Command {
+    /// Creates a new process builder.
     fn new(program: char*) -> Command {
         return Command {
             program: String::from(program),
@@ -27,6 +28,7 @@ impl Command {
         };
     }
     
+    /// Adds a command-line argument.
     fn arg(self, arg: char*) -> Command* {
         self.args.push(String::from(arg));
         return &self;
@@ -46,6 +48,7 @@ impl Command {
         return cmd_str;
     }
     
+    /// Returns the captured stdout.
     fn output(self) -> Output {
         let cmd_str = self._build_cmd();
         let cmd_c = cmd_str.c_str();
@@ -90,6 +93,7 @@ impl Command {
         return code;
     }
 
+    /// Frees the process resources.
     fn free(self) {
         self.program.free();
         

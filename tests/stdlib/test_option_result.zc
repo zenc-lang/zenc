@@ -29,6 +29,9 @@ test "test_option_result_ergonomics" {
     assert(err.unwrap_or_else(fn() { return -1; }) == -1, "unwrap_or_else Err failed");
     assert(err.err().is_some(), "err() on Err should be Some");
     assert(ok.err().is_none(), "err() on Ok should be None");
+    assert(ok.ok().is_some(), "ok() on Ok should be Some");
+    assert(ok.ok().unwrap() == 7, "ok() value failed");
+    assert(err.ok().is_none(), "ok() on Err should be None");
     assert(err.map_err(fn(m: char*) { return m; }).is_err(), "map_err failed");
     assert(ok.is_ok_and(fn(x: int) { return x > 0; }), "is_ok_and true failed");
     assert(!ok.is_ok_and(fn(x: int) { return x > 100; }), "is_ok_and false failed");

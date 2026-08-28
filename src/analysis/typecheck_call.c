@@ -10,7 +10,7 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
     FuncSig *sig = NULL;
 
     // Check if the function exists (for simple direct calls)
-    if (node->call.callee && node->call.callee->type == NODE_EXPR_VAR)
+    if (node->call.callee && node->call.callee->kind == NODE_EXPR_VAR)
     {
         func_name = node->call.callee->var_ref.name;
 
@@ -74,7 +74,7 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
             }
         }
     }
-    else if (node->call.callee && node->call.callee->type == NODE_EXPR_MEMBER)
+    else if (node->call.callee && node->call.callee->kind == NODE_EXPR_MEMBER)
     {
         if (node->call.callee->type_info && node->call.callee->type_info->name)
         {
@@ -108,18 +108,18 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
     }
 
     // Count arguments
-    int arg_count = 0;
+    int count = 0;
     ASTNode *arg = node->call.args;
     while (arg)
     {
-        arg_count++;
+        count++;
         arg = arg->next;
     }
 
     // Member call (a.b()) counts as +1 arg (the receiver)
-    if (node->call.callee && node->call.callee->type == NODE_EXPR_MEMBER)
+    if (node->call.callee && node->call.callee->kind == NODE_EXPR_MEMBER)
     {
-        arg_count++;
+        count++;
     }
 
     // Enforce @pure constraint
@@ -158,20 +158,20 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
             }
         }
 
-        if (arg_count < min_args)
+        if (count < min_args)
         {
             char msg[MAX_SHORT_MSG_LEN];
             snprintf(msg, sizeof(msg), "Too few arguments: '%s' expects at least %d, got %d",
-                     func_name, min_args, arg_count);
+                     func_name, min_args, count);
 
             const char *hints[] = {"Check the function signature for required parameters", NULL};
             tc_ctrl_flow_error(tc, node->token, msg, hints);
         }
-        else if (arg_count > sig->total_args && !sig->is_varargs)
+        else if (count > sig->total_args && !sig->is_varargs)
         {
             char msg[MAX_SHORT_MSG_LEN];
             snprintf(msg, sizeof(msg), "Too many arguments: '%s' expects %d, got %d", func_name,
-                     sig->total_args, arg_count);
+                     sig->total_args, count);
 
             const char *hints[] = {
                 "Remove extra arguments or check if you meant to call a different function", NULL};
@@ -184,7 +184,7 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
     int sig_arg_idx = 0;
 
     // For member calls, the first signature argument is the receiver
-    if (node->call.callee && node->call.callee->type == NODE_EXPR_MEMBER)
+    if (node->call.callee && node->call.callee->kind == NODE_EXPR_MEMBER)
     {
         if (sig && sig->total_args > 0 && sig->arg_types && sig->arg_types[0])
         {
@@ -213,7 +213,7 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
     int forget_receiver_arg =
         func_name && ((fn_len >= 8 && strcmp(func_name + fn_len - 8, "__forget") == 0) ||
                       strcmp(func_name, "forget") == 0);
-    if (forget_receiver_arg && node->call.callee && node->call.callee->type != NODE_EXPR_MEMBER &&
+    if (forget_receiver_arg && node->call.callee && node->call.callee->kind != NODE_EXPR_MEMBER &&
         node->call.args)
     {
         tc->is_forget_receiver = 1;
@@ -229,15 +229,14 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
         else if (!sig && node->call.callee->type_info)
         {
             Type *callee_t = get_inner_type(node->call.callee->type_info);
-            if (callee_t->kind == TYPE_FUNCTION && sig_arg_idx < callee_t->arg_count &&
-                callee_t->args)
+            if (callee_t->kind == TYPE_FUNCTION && sig_arg_idx < callee_t->count && callee_t->args)
             {
                 expected = callee_t->args[sig_arg_idx];
             }
         }
 
         // Propagate expected type to lambda for inference
-        if (arg->type == NODE_LAMBDA && expected)
+        if (arg->kind == NODE_LAMBDA && expected)
         {
             arg->type_info = expected;
         }
@@ -258,7 +257,7 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
             }
             else if (e_resolved->kind == TYPE_FUNCTION && a_resolved->kind == TYPE_FUNCTION)
             {
-                for (int j = 0; j < e_resolved->arg_count && j < a_resolved->arg_count; j++)
+                for (int j = 0; j < e_resolved->count && j < a_resolved->count; j++)
                 {
                     if (a_resolved->args && a_resolved->args[j] &&
                         a_resolved->args[j]->kind == TYPE_UNKNOWN && e_resolved->args &&
@@ -309,7 +308,7 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
         if (sig->elide_from_idx != -1 && node->type_info->kind == TYPE_POINTER)
         {
             int target_depth = 0; // Default to escaping if not found
-            if (node->call.callee && node->call.callee->type == NODE_EXPR_MEMBER &&
+            if (node->call.callee && node->call.callee->kind == NODE_EXPR_MEMBER &&
                 sig->elide_from_idx == 0)
             {
                 if (node->call.callee->member.target->type_info)
@@ -320,7 +319,7 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
             else
             {
                 int current_idx =
-                    (node->call.callee && node->call.callee->type == NODE_EXPR_MEMBER) ? 1 : 0;
+                    (node->call.callee && node->call.callee->kind == NODE_EXPR_MEMBER) ? 1 : 0;
                 ASTNode *a = node->call.args;
                 while (a)
                 {
@@ -360,7 +359,7 @@ void check_expr_call(TypeChecker *tc, ASTNode *node, int depth)
     }
 
     // Rule 13.2: Side effect collision detection in arguments
-    ASTNode *receiver = (node->call.callee && node->call.callee->type == NODE_EXPR_MEMBER)
+    ASTNode *receiver = (node->call.callee && node->call.callee->kind == NODE_EXPR_MEMBER)
                             ? node->call.callee->member.target
                             : NULL;
     check_all_args_side_effects(tc, receiver, node->call.args, node->token);

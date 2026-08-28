@@ -102,7 +102,7 @@ typedef struct Type
     char *link_name;        ///< Optional linkage override (from @link_name).
     struct Type *inner;     ///< Inner type (for POINTER, ARRAY).
     struct Type **args;     ///< Generic arguments (for GENERIC instantiations).
-    int arg_count;          ///< Count of generic arguments.
+    int count;              ///< Count of generic arguments.
     int is_const;           ///< 1 if const-qualified.
     int is_explicit_struct; ///< 1 if defined with "struct" keyword explicitly.
     int is_raw;             // Raw function pointer (fn*)
@@ -206,13 +206,13 @@ typedef struct Attribute
 {
     char *name;
     char **args;
-    int arg_count;
+    int count;
     struct Attribute *next;
 } Attribute;
 
 struct ASTNode
 {
-    NodeType type;
+    NodeType kind;
     ASTNode *next;
     int line;          // Source line number for debugging.
     char *doc_comment; // Attached documentation comment.
@@ -247,7 +247,7 @@ struct ASTNode
             char **defaults;
             ASTNode **default_values; // AST representation (for robust substitution)
             char **param_names;       // Explicit parameter names.
-            int arg_count;
+            int count;
             Type *ret_type_info;
             int is_varargs;
             int is_inline;
@@ -424,7 +424,7 @@ struct ASTNode
 
         struct
         {
-            LiteralKind type_kind;
+            LiteralKind kind;
             unsigned long long int_val;
             double float_val;
             char *string_val;
@@ -442,7 +442,7 @@ struct ASTNode
             ASTNode *callee;
             ASTNode *args;
             char **arg_names;
-            int arg_count;
+            int count;
         } call;
 
         struct
@@ -509,7 +509,7 @@ struct ASTNode
             int used_struct_count;
             int is_opaque;
             char *defined_in_file; // File where the struct is defined (for privacy check)
-            char *crepr_c_type;    // @crepr("C.type") - use C type instead of redefining
+            char *crepr_c_type;    // @crepr("C.kind") - use C type instead of redefining
         } strct;
 
         struct
@@ -617,9 +617,9 @@ struct ASTNode
             char **output_modes;
             char **inputs;
             char **clobbers;
-            int num_outputs;
-            int num_inputs;
-            int num_clobbers;
+            int output_count;
+            int input_count;
+            int clobber_count;
         } asm_stmt;
 
         struct
@@ -634,19 +634,19 @@ struct ASTNode
             char **param_types;
             char *return_type;
             ASTNode *body;
-            int num_params;
+            int count;
             int lambda_id;
             int is_expression;
             int is_bare; // 1 if should be emitted without void* ctx (for fn*)
             char **captured_vars;
             char **captured_types;
             Type **captured_types_info;
-            int num_captures;
+            int capture_count;
             int *capture_modes;
             int default_capture_mode;
             char **explicit_captures;
             int *explicit_capture_modes;
-            int num_explicit_captures;
+            int explicit_capture_count;
         } lambda;
 
         struct

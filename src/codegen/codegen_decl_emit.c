@@ -21,7 +21,7 @@ static void emit_globals_internal(ParserContext *ctx, ASTNode *node, VisitedModu
     }
     while (node)
     {
-        if (node->type == NODE_IMPORT)
+        if (node->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, node->import_stmt.path))
             {
@@ -31,14 +31,14 @@ static void emit_globals_internal(ParserContext *ctx, ASTNode *node, VisitedModu
             node = node->next;
             continue;
         }
-        if (node->type == NODE_VAR_DECL || node->type == NODE_CONST)
+        if (node->kind == NODE_VAR_DECL || node->kind == NODE_CONST)
         {
             EMIT(ctx, "ZC_GLOBAL ");
             if (node->cfg_condition)
             {
                 EMIT(ctx, "#if %s\n", node->cfg_condition);
             }
-            if (node->type == NODE_CONST)
+            if (node->kind == NODE_CONST)
             {
                 EMIT(ctx, "__attribute__((unused)) const ");
             }
@@ -93,7 +93,7 @@ static void emit_globals_internal(ParserContext *ctx, ASTNode *node, VisitedModu
                 }
             }
             EMIT(ctx, ";\n");
-            if (ctx->config->use_cpp && node->type == NODE_VAR_DECL)
+            if (ctx->config->use_cpp && node->kind == NODE_VAR_DECL)
             {
                 char *tname =
                     node->var_decl.type_str
@@ -159,7 +159,7 @@ static void emit_protos_internal(ParserContext *ctx, ASTNode *node, VisitedModul
     ASTNode *f = node;
     while (f)
     {
-        if (f->type == NODE_IMPORT)
+        if (f->kind == NODE_IMPORT)
         {
             if (!is_module_visited(*visited, f->import_stmt.path))
             {
@@ -170,7 +170,7 @@ static void emit_protos_internal(ParserContext *ctx, ASTNode *node, VisitedModul
             continue;
         }
 
-        if (f->type == NODE_FUNCTION)
+        if (f->kind == NODE_FUNCTION)
         {
             if (f->func.name && !f->func.body)
             {
@@ -302,7 +302,7 @@ static void emit_protos_internal(ParserContext *ctx, ASTNode *node, VisitedModul
                 EMIT(ctx, "#endif\n");
             }
         }
-        else if (f->type == NODE_IMPL)
+        else if (f->kind == NODE_IMPL)
         {
             char *sname = f->impl.struct_name;
             if (!sname)
@@ -327,11 +327,11 @@ static void emit_protos_internal(ParserContext *ctx, ASTNode *node, VisitedModul
             int skip = 0;
             if (def)
             {
-                if (def->type == NODE_STRUCT && def->strct.is_template)
+                if (def->kind == NODE_STRUCT && def->strct.is_template)
                 {
                     skip = 1;
                 }
-                else if (def->type == NODE_ENUM && def->enm.is_template)
+                else if (def->kind == NODE_ENUM && def->enm.is_template)
                 {
                     skip = 1;
                 }
@@ -410,7 +410,7 @@ static void emit_protos_internal(ParserContext *ctx, ASTNode *node, VisitedModul
                 EMIT(ctx, "#endif\n");
             }
         }
-        else if (f->type == NODE_IMPL_TRAIT)
+        else if (f->kind == NODE_IMPL_TRAIT)
         {
             char *sname = f->impl_trait.target_type;
             if (!sname)
@@ -482,7 +482,7 @@ static void emit_protos_internal(ParserContext *ctx, ASTNode *node, VisitedModul
                 EMIT(ctx, "#endif\n");
             }
         }
-        else if (f->type == NODE_ROOT)
+        else if (f->kind == NODE_ROOT)
         {
             emit_protos_internal(ctx, f->root.children, visited, emitted, depth + 1);
         }
@@ -526,7 +526,7 @@ void emit_impl_vtables(ParserContext *ctx)
     while (ref)
     {
         ASTNode *node = ref->node;
-        if (node && node->type == NODE_IMPL_TRAIT)
+        if (node && node->kind == NODE_IMPL_TRAIT)
         {
             char *trait = node->impl_trait.trait_name;
 
@@ -535,7 +535,7 @@ void emit_impl_vtables(ParserContext *ctx)
             StructRef *search = ctx->parsed_globals_list;
             while (search)
             {
-                if (search->node && search->node->type == NODE_TRAIT &&
+                if (search->node && search->node->kind == NODE_TRAIT &&
                     strcmp(search->node->trait.name, trait) == 0)
                 {
                     if (search->node->trait.generic_param_count > 0)
@@ -560,11 +560,11 @@ void emit_impl_vtables(ParserContext *ctx)
             int skip = 0;
             if (def)
             {
-                if (def->type == NODE_STRUCT && def->strct.is_template)
+                if (def->kind == NODE_STRUCT && def->strct.is_template)
                 {
                     skip = 1;
                 }
-                else if (def->type == NODE_ENUM && def->enm.is_template)
+                else if (def->kind == NODE_ENUM && def->enm.is_template)
                 {
                     skip = 1;
                 }
@@ -663,7 +663,7 @@ int emit_tests_and_runner(ParserContext *ctx, ASTNode *node)
     int test_count = 0;
     while (cur)
     {
-        if (cur->type == NODE_TEST)
+        if (cur->kind == NODE_TEST)
         {
             if (cur->cfg_condition)
             {
@@ -705,7 +705,7 @@ int emit_tests_and_runner(ParserContext *ctx, ASTNode *node)
         int i = 0;
         while (cur)
         {
-            if (cur->type == NODE_TEST)
+            if (cur->kind == NODE_TEST)
             {
                 if (cur->cfg_condition)
                 {
@@ -766,7 +766,7 @@ static void emit_mangled_pointer_typedefs(ParserContext *ctx)
     ASTNode *ifn = ctx->instantiated_funcs;
     while (ifn)
     {
-        if (ifn->type == NODE_FUNCTION && ifn->func.name && strstr(ifn->func.name, "__"))
+        if (ifn->kind == NODE_FUNCTION && ifn->func.name && strstr(ifn->func.name, "__"))
         {
             char *mangled_part = (char *)strstr(ifn->func.name, "__") + 2;
             if (strstr(mangled_part, "Ptr"))
@@ -834,7 +834,7 @@ void print_type_defs(ParserContext *ctx, ASTNode *nodes)
     ASTNode *local = nodes;
     while (local)
     {
-        if (local->type == NODE_STRUCT && !local->strct.is_template)
+        if (local->kind == NODE_STRUCT && !local->strct.is_template)
         {
             if (local->type_info && local->type_info->kind == TYPE_VECTOR)
             {
@@ -848,7 +848,7 @@ void print_type_defs(ParserContext *ctx, ASTNode *nodes)
                 EMIT(ctx, "typedef %s %s %s;\n", keyword, final_name, final_name);
             }
         }
-        if (local->type == NODE_ENUM && !local->enm.is_template && local->enm.name)
+        if (local->kind == NODE_ENUM && !local->enm.is_template && local->enm.name)
         {
             const char *final_name = local->link_name ? local->link_name : local->enm.name;
 

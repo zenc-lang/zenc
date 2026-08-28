@@ -81,7 +81,7 @@ typedef enum
  */
 typedef struct
 {
-    ZenTokenType type; ///< Type of the token.
+    ZenTokenType kind; ///< Type of the token.
     const char *start; ///< Pointer to start of token in source buffer.
     size_t len;        ///< Length of the token text.
     int line;          ///< Line number (1-based).

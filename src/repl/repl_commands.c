@@ -200,30 +200,30 @@ static int cmd_show(ReplState *state, const char *args)
     ASTNode *nodes = parse_program(&ctx, &l);
 
     ASTNode *search = nodes;
-    if (search && search->type == NODE_ROOT)
+    if (search && search->kind == NODE_ROOT)
     {
         search = search->root.children;
     }
 
     for (ASTNode *n = search; n; n = n->next)
     {
-        if (n->type == NODE_FUNCTION && 0 == strcmp(n->func.name, name))
+        if (n->kind == NODE_FUNCTION && 0 == strcmp(n->func.name, name))
         {
             printf("  fn %s(%s) -> %s\n", n->func.name, n->func.args ? n->func.args : "",
                    n->func.ret_type ? n->func.ret_type : "void");
             found = 1;
             break;
         }
-        else if (n->type == NODE_STRUCT && 0 == strcmp(n->strct.name, name))
+        else if (n->kind == NODE_STRUCT && 0 == strcmp(n->strct.name, name))
         {
             printf("  struct %s {\n", n->strct.name);
             for (ASTNode *field = n->strct.fields; field; field = field->next)
             {
-                if (field->type == NODE_FIELD)
+                if (field->kind == NODE_FIELD)
                 {
                     printf("    %s: %s;\n", field->field.name, field->field.type);
                 }
-                else if (field->type == NODE_VAR_DECL)
+                else if (field->kind == NODE_VAR_DECL)
                 {
                     printf("    %s: %s;\n", field->var_decl.name, field->var_decl.type_str);
                 }
@@ -295,7 +295,7 @@ static int cmd_edit(ReplState *state, const char *args)
                         size_t nread = fread(buffer, 1, (size_t)(length), fr);
                         if (nread != (size_t)(length))
                         {
-                            free(buffer);
+                            zfree(buffer);
                             fclose(fr);
                             return REPL_HANDLED;
                         }
@@ -371,7 +371,7 @@ static int cmd_edit(ReplState *state, const char *args)
                     size_t nread = fread(buffer, 1, (size_t)(length), fr);
                     if (nread != (size_t)(length))
                     {
-                        free(buffer);
+                        zfree(buffer);
                         fclose(fr);
                         return REPL_HANDLED;
                     }
@@ -599,7 +599,7 @@ static int cmd_vars_funcs_structs(ReplState *state, const char *args)
     ASTNode *nodes = parse_program(&ctx, &l);
 
     ASTNode *search = nodes;
-    if (search && search->type == NODE_ROOT)
+    if (search && search->kind == NODE_ROOT)
     {
         search = search->root.children;
     }
@@ -609,7 +609,7 @@ static int cmd_vars_funcs_structs(ReplState *state, const char *args)
         ASTNode *main_func = NULL;
         for (ASTNode *n = search; n; n = n->next)
         {
-            if (n->type == NODE_FUNCTION && 0 == strcmp(n->func.name, "main"))
+            if (n->kind == NODE_FUNCTION && 0 == strcmp(n->func.name, "main"))
             {
                 main_func = n;
                 break;
@@ -632,11 +632,11 @@ static int cmd_vars_funcs_structs(ReplState *state, const char *args)
         zfree(probe_main_code);
 
         int found_vars = 0;
-        if (main_func && main_func->func.body && main_func->func.body->type == NODE_BLOCK)
+        if (main_func && main_func->func.body && main_func->func.body->kind == NODE_BLOCK)
         {
             for (ASTNode *s = main_func->func.body->block.statements; s; s = s->next)
             {
-                if (s->type == NODE_VAR_DECL)
+                if (s->kind == NODE_VAR_DECL)
                 {
                     char *t = s->var_decl.type_str ? s->var_decl.type_str : "Inferred";
                     char fmt[64];
@@ -761,7 +761,7 @@ static int cmd_vars_funcs_structs(ReplState *state, const char *args)
         int found = 0;
         for (ASTNode *n = search; n; n = n->next)
         {
-            if (n->type == NODE_FUNCTION && 0 != strcmp(n->func.name, "main"))
+            if (n->kind == NODE_FUNCTION && 0 != strcmp(n->func.name, "main"))
             {
                 printf("  fn %s()\n", n->func.name);
                 found = 1;
@@ -778,7 +778,7 @@ static int cmd_vars_funcs_structs(ReplState *state, const char *args)
         int found = 0;
         for (ASTNode *n = search; n; n = n->next)
         {
-            if (n->type == NODE_STRUCT)
+            if (n->kind == NODE_STRUCT)
             {
                 printf("  struct %s\n", n->strct.name);
                 found = 1;

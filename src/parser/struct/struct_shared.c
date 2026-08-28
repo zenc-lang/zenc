@@ -12,19 +12,14 @@
 #include <string.h>
 #include <unistd.h>
 
-void auto_import_std_mem(ParserContext *ctx)
+// Loads and parses a std module once, guarding against re-import and
+// re-entrancy. The caller runs its own "already loaded" check before calling.
+void load_std_module(ParserContext *ctx, const char *path)
 {
-    // Check if Drop trait is already registered (means mem.zc was imported)
-    if (check_impl(ctx, "Drop", "__trait_marker__"))
-    {
-        // Check_impl returns 0 if not found, but we need a different check
-        // Let's check if we can find any indicator that mem.zc was loaded
-    }
-    // Resolve path to std/mem.zc
-    char *resolved = z_resolve_path("std/mem.zc", ctx->current_filename, ctx->config);
+    char *resolved = z_resolve_path(path, ctx->current_filename, ctx->config);
     if (!resolved)
     {
-        return; // Could not find mem.zc
+        return; // Could not find the module
     }
     // Check if already imported or currently being parsed
     if (is_file_imported(ctx, resolved))
@@ -51,12 +46,18 @@ void auto_import_std_mem(ParserContext *ctx)
     // Save and restore filename context
     const char *saved_fn = ctx->current_filename;
     ctx->current_filename = resolved;
-    // Parse the mem module contents
+    // Parse the module contents
     parse_program_nodes(ctx, &i);
     ctx->current_filename = saved_fn;
     zmap_remove(&ctx->imports.currently_parsing, resolved);
     mark_file_imported(ctx, resolved);
     zfree(resolved);
+}
+
+// Convenience wrapper kept for the struct_impl call site.
+void auto_import_std_mem(ParserContext *ctx)
+{
+    load_std_module(ctx, "std/mem.zc");
 }
 // Canonical symbol for a method: `Struct__Method` (or `Struct__Trait__Method`).
 // A method whose name starts with `_` must keep the resulting run of three

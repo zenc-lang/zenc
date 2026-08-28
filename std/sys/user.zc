@@ -1,0 +1,30 @@
+
+import "../core.zc"
+
+include <sys/types.h>
+include <unistd.h>
+
+extern fn getuid() -> uint32_t;
+extern fn getgid() -> uint32_t;
+extern fn geteuid() -> uint32_t;
+extern fn getegid() -> uint32_t;
+
+struct User {}
+
+impl User {
+    fn get_uid() -> u32 {
+        return (u32)getuid();
+    }
+
+    fn get_gid() -> u32 {
+        return (u32)getgid();
+    }
+
+    fn get_euid() -> u32 {
+        return (u32)geteuid();
+    }
+
+    fn get_egid() -> u32 {
+        return (u32)getegid();
+    }
+}

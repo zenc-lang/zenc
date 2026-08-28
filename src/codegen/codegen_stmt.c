@@ -42,13 +42,13 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
         [NODE_COMPTIME] = handle_node_comptime,
     };
 
-    if (node->type < 256 && handlers[node->type])
+    if (node->kind < 256 && handlers[node->kind])
     {
-        handlers[node->type](ctx, node);
+        handlers[node->kind](ctx, node);
         return;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_FOR:
     {
@@ -64,7 +64,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
         EMIT(ctx, "for (");
         if (node->for_stmt.init)
         {
-            if (node->for_stmt.init->type == NODE_VAR_DECL)
+            if (node->for_stmt.init->kind == NODE_VAR_DECL)
             {
                 ASTNode *v = node->for_stmt.init;
                 if (v->var_decl.type_str && strcmp(v->var_decl.type_str, "__auto_type") != 0)
@@ -108,13 +108,13 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
         }
         else
         {
-            if (ctx->config->misra_mode && node->for_stmt.body->type != NODE_BLOCK)
+            if (ctx->config->misra_mode && node->for_stmt.body->kind != NODE_BLOCK)
             {
                 EMIT(ctx, "{\n");
                 emitter_indent(&ctx->cg.emitter);
             }
             codegen_node_single(ctx, node->for_stmt.body);
-            if (ctx->config->misra_mode && node->for_stmt.body->type != NODE_BLOCK)
+            if (ctx->config->misra_mode && node->for_stmt.body->kind != NODE_BLOCK)
             {
                 emitter_dedent(&ctx->cg.emitter);
                 EMIT(ctx, "\n}");
@@ -365,8 +365,8 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
 
     case NODE_ASM:
     {
-        int is_extended = (node->asm_stmt.num_outputs > 0 || node->asm_stmt.num_inputs > 0 ||
-                           node->asm_stmt.num_clobbers > 0);
+        int is_extended = (node->asm_stmt.output_count > 0 || node->asm_stmt.input_count > 0 ||
+                           node->asm_stmt.clobber_count > 0);
 
         if (node->asm_stmt.is_volatile)
         {
@@ -400,7 +400,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
                     int idx = -1;
 
                     // Check outputs first
-                    for (int i = 0; i < node->asm_stmt.num_outputs; i++)
+                    for (int i = 0; i < node->asm_stmt.output_count; i++)
                     {
                         if (strcmp(node->asm_stmt.outputs[i], var_name) == 0)
                         {
@@ -412,11 +412,11 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
                     // Then check inputs
                     if (idx == -1)
                     {
-                        for (int i = 0; i < node->asm_stmt.num_inputs; i++)
+                        for (int i = 0; i < node->asm_stmt.input_count; i++)
                         {
                             if (strcmp(node->asm_stmt.inputs[i], var_name) == 0)
                             {
-                                idx = node->asm_stmt.num_outputs + i;
+                                idx = node->asm_stmt.output_count + i;
                                 break;
                             }
                         }
@@ -499,10 +499,10 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
         }
         EMIT(ctx, "\\n\"");
 
-        if (node->asm_stmt.num_outputs > 0)
+        if (node->asm_stmt.output_count > 0)
         {
             EMIT(ctx, "\n        : ");
-            for (int i = 0; i < node->asm_stmt.num_outputs; i++)
+            for (int i = 0; i < node->asm_stmt.output_count; i++)
             {
                 if (i > 0)
                 {
@@ -526,10 +526,10 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
             }
         }
 
-        if (node->asm_stmt.num_inputs > 0)
+        if (node->asm_stmt.input_count > 0)
         {
             EMIT(ctx, "\n        : ");
-            for (int i = 0; i < node->asm_stmt.num_inputs; i++)
+            for (int i = 0; i < node->asm_stmt.input_count; i++)
             {
                 if (i > 0)
                 {
@@ -538,15 +538,15 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
                 EMIT(ctx, "\"r\"(%s)", node->asm_stmt.inputs[i]);
             }
         }
-        else if (node->asm_stmt.num_outputs > 0)
+        else if (node->asm_stmt.output_count > 0)
         {
             EMIT(ctx, "\n        : ");
         }
 
-        if (node->asm_stmt.num_clobbers > 0)
+        if (node->asm_stmt.clobber_count > 0)
         {
             EMIT(ctx, "\n        : ");
-            for (int i = 0; i < node->asm_stmt.num_clobbers; i++)
+            for (int i = 0; i < node->asm_stmt.clobber_count; i++)
             {
                 if (i > 0)
                 {
@@ -566,7 +566,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
         int has_defers = (ctx->cg.defer_count > ctx->cg.func_defer_boundary);
         int handled = 0;
 
-        if (node->ret.value && node->ret.value->type == NODE_EXPR_ARRAY_LITERAL &&
+        if (node->ret.value && node->ret.value->kind == NODE_EXPR_ARRAY_LITERAL &&
             ctx->cg.current_func_ret_type &&
             strncmp(ctx->cg.current_func_ret_type, "Slice__", 7) == 0)
         {
@@ -626,7 +626,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
             handled = 1;
         }
 
-        if (node->ret.value && node->ret.value->type == NODE_EXPR_VAR)
+        if (node->ret.value && node->ret.value->kind == NODE_EXPR_VAR)
         {
             char *tname = infer_type(ctx, node->ret.value);
             if (tname)
@@ -716,7 +716,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
                     emit_auto_type(ctx, node->ret.value, node->token);
                 }
                 EMIT(ctx, " _z_ret = ");
-                if (node->ret.value->type == NODE_EXPR_VAR && ctx->self_is_pointer &&
+                if (node->ret.value->kind == NODE_EXPR_VAR && ctx->self_is_pointer &&
                     strcmp(node->ret.value->var_ref.name, "self") == 0)
                 {
                     EMIT(ctx, "*");
@@ -773,15 +773,15 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
                     EMIT(ctx, "return ");
                 }
 
-                if (node->ret.value && node->ret.value->type == NODE_EXPR_VAR &&
+                if (node->ret.value && node->ret.value->kind == NODE_EXPR_VAR &&
                     ctx->self_is_pointer && strcmp(node->ret.value->var_ref.name, "self") == 0)
                 {
                     // return self; -> return *self; (if returns by value)
                     EMIT(ctx, "*");
                 }
-                else if (node->ret.value && node->ret.value->type == NODE_EXPR_UNARY &&
+                else if (node->ret.value && node->ret.value->kind == NODE_EXPR_UNARY &&
                          strcmp(node->ret.value->unary.op, "&") == 0 &&
-                         node->ret.value->unary.operand->type == NODE_EXPR_VAR &&
+                         node->ret.value->unary.operand->kind == NODE_EXPR_VAR &&
                          strcmp(node->ret.value->unary.operand->var_ref.name, "self") == 0)
                 {
                     // return &self; -> return self; (since self is already a pointer in C)
@@ -842,7 +842,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
     }
     case NODE_EXPR_LITERAL:
         // String literal statement should auto-print
-        if (node->literal.type_kind == LITERAL_STRING)
+        if (node->literal.kind == LITERAL_STRING)
         {
             EMIT(ctx, "printf(\"%%s\\n\", ");
             codegen_expression(ctx, node);
@@ -861,7 +861,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
         ASTNode *call = node->cuda_launch.call;
 
         // Get kernel name from callee
-        if (call->call.callee->type == NODE_EXPR_VAR)
+        if (call->call.callee->kind == NODE_EXPR_VAR)
         {
             EMIT(ctx, "%s<<<", call->call.callee->var_ref.name);
         }
@@ -931,7 +931,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
             lexer_init(&l, node->raw_stmt.content, ctx->config, ctx->current_filename);
             Token t;
             int last_pos = 0;
-            while ((t = lexer_next(&l)).type != TOK_EOF)
+            while ((t = lexer_next(&l)).kind != TOK_EOF)
             {
                 int current_tok_start = (int)(t.start - node->raw_stmt.content);
                 for (int i = last_pos; i < current_tok_start; i++)
@@ -939,13 +939,13 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
                     EMIT(ctx, "%c", node->raw_stmt.content[i]);
                 }
 
-                if (t.type == TOK_IDENT)
+                if (t.kind == TOK_IDENT)
                 {
                     char *name = token_strdup(t);
                     int captured = -1;
                     if (ctx->cg.current_lambda->lambda.captured_vars)
                     {
-                        for (int i = 0; i < ctx->cg.current_lambda->lambda.num_captures; i++)
+                        for (int i = 0; i < ctx->cg.current_lambda->lambda.capture_count; i++)
                         {
                             if (strcmp(name, ctx->cg.current_lambda->lambda.captured_vars[i]) == 0)
                             {
@@ -995,18 +995,18 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node)
     default:
         codegen_expression(ctx, node);
         EMIT(ctx, ";\n");
-        if (node->type == NODE_EXPR_CALL && node->call.callee &&
+        if (node->kind == NODE_EXPR_CALL && node->call.callee &&
             ctx->cg.pending_closure_free_count > 0)
         {
             int is_thread_spawn = 0;
-            if (node->call.callee->type == NODE_EXPR_VAR && node->call.callee->var_ref.name &&
+            if (node->call.callee->kind == NODE_EXPR_VAR && node->call.callee->var_ref.name &&
                 strstr(node->call.callee->var_ref.name, "Thread::spawn"))
             {
                 is_thread_spawn = 1;
             }
-            else if (node->call.callee->type == NODE_EXPR_MEMBER &&
+            else if (node->call.callee->kind == NODE_EXPR_MEMBER &&
                      node->call.callee->member.target &&
-                     node->call.callee->member.target->type == NODE_EXPR_VAR &&
+                     node->call.callee->member.target->kind == NODE_EXPR_VAR &&
                      strcmp(node->call.callee->member.target->var_ref.name, "Thread") == 0 &&
                      strcmp(node->call.callee->member.field, "spawn") == 0)
             {

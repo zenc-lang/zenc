@@ -15,6 +15,8 @@
 #include "zprep_plugin.h"
 #include "analysis/move_check.h"
 
+char *unmangle_ptr_suffix(const char *s);
+
 ASTNode *parse_match(ParserContext *ctx, Lexer *l)
 {
     init_builtins();
@@ -23,11 +25,9 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
     ASTNode *expr = parse_expression(ctx, l);
 
     Token t_brace = lexer_next(l);
-    if (t_brace.type != TOK_LBRACE)
+    if (t_brace.kind != TOK_LBRACE)
     {
         zpanic_at(t_brace, "Expected '{' in match");
-        return NULL;
-        return NULL;
         if (ctx->is_fault_tolerant)
         {
             ASTNode *node = ast_create(NODE_MATCH);
@@ -36,31 +36,32 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
             node->match_stmt.cases = NULL;
             return node;
         }
+        return NULL;
     }
 
     ASTNode *h = 0, *tl = 0;
     while (1)
     {
         skip_comments(l);
-        if (lexer_peek(l).type == TOK_RBRACE)
+        if (lexer_peek(l).kind == TOK_RBRACE)
         {
             break;
         }
-        if (lexer_peek(l).type == TOK_EOF)
+        if (lexer_peek(l).kind == TOK_EOF)
         {
             zpanic_at(lexer_peek(l), "Unexpected end of file in match body");
             break;
         }
-        if (lexer_peek(l).type == TOK_COMMA)
+        if (lexer_peek(l).kind == TOK_COMMA)
         {
             lexer_next(l);
         }
         skip_comments(l);
-        if (lexer_peek(l).type == TOK_RBRACE)
+        if (lexer_peek(l).kind == TOK_RBRACE)
         {
             break;
         }
-        if (lexer_peek(l).type == TOK_EOF)
+        if (lexer_peek(l).kind == TOK_EOF)
         {
             zpanic_at(lexer_peek(l), "Unexpected end of file in match body");
             break;
@@ -80,7 +81,7 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
             {
                 skip_comments(l);
                 Token pk = lexer_peek(l);
-                if (pk.type == TOK_DCOLON)
+                if (pk.kind == TOK_DCOLON)
                 {
                     lexer_next(l); // eat ::
                     Token suffix = lexer_next(l);
@@ -89,22 +90,22 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
                     zfree(p_str);
                     p_str = tmp;
                 }
-                else if (pk.type == TOK_LANGLE)
+                else if (pk.kind == TOK_LANGLE)
                 {
                     lexer_next(l); // eat <
                     int depth = 1;
                     while (depth > 0)
                     {
                         Token t = lexer_next(l);
-                        if (t.type == TOK_LANGLE)
+                        if (t.kind == TOK_LANGLE)
                         {
                             depth++;
                         }
-                        else if (t.type == TOK_RANGLE)
+                        else if (t.kind == TOK_RANGLE)
                         {
                             depth--;
                         }
-                        else if (t.type == TOK_EOF)
+                        else if (t.kind == TOK_EOF)
                         {
                             break;
                         }
@@ -116,10 +117,10 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
                 }
             }
 
-            if (lexer_peek(l).type == TOK_DOTDOT || lexer_peek(l).type == TOK_DOTDOT_EQ ||
-                lexer_peek(l).type == TOK_DOTDOT_LT)
+            if (lexer_peek(l).kind == TOK_DOTDOT || lexer_peek(l).kind == TOK_DOTDOT_EQ ||
+                lexer_peek(l).kind == TOK_DOTDOT_LT)
             {
-                int is_inclusive = (lexer_peek(l).type == TOK_DOTDOT_EQ);
+                int is_inclusive = (lexer_peek(l).kind == TOK_DOTDOT_EQ);
                 lexer_next(l); // eat operator
                 Token end_tok = lexer_next(l);
                 char *end_str = token_strdup(end_tok);
@@ -149,10 +150,10 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
 
             Token next = lexer_peek(l);
             skip_comments(l);
-            int is_or = (next.type == TOK_OR) ||
-                        (next.type == TOK_OP && next.len == 2 && next.start[0] == '|' &&
+            int is_or = (next.kind == TOK_OR) ||
+                        (next.kind == TOK_OP && next.len == 2 && next.start[0] == '|' &&
                          next.start[1] == '|') ||
-                        (next.type == TOK_COMMA);
+                        (next.kind == TOK_COMMA);
             if (is_or)
             {
                 lexer_next(l); // eat ||, 'or', or comma
@@ -175,18 +176,19 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
 
         skip_comments(l);
         if (!is_default && pattern_count == 1 &&
-            (lexer_peek(l).type == TOK_LPAREN || lexer_peek(l).type == TOK_LBRACE))
+            (lexer_peek(l).kind == TOK_LPAREN || lexer_peek(l).kind == TOK_LBRACE))
         {
-            int is_brace = (lexer_peek(l).type == TOK_LBRACE);
+            int is_brace = (lexer_peek(l).kind == TOK_LBRACE);
             lexer_next(l);
 
             bindings = xcalloc(8, sizeof(char *));
             binding_refs = xcalloc(8, sizeof(int));
+            int binding_cap = 8;
 
-            while (lexer_peek(l).type != TOK_RPAREN && lexer_peek(l).type != TOK_RBRACE)
+            while (lexer_peek(l).kind != TOK_RPAREN && lexer_peek(l).kind != TOK_RBRACE)
             {
                 int is_r = 0;
-                if (lexer_peek(l).type == TOK_IDENT && lexer_peek(l).len == 3 &&
+                if (lexer_peek(l).kind == TOK_IDENT && lexer_peek(l).len == 3 &&
                     strncmp(lexer_peek(l).start, "ref", 3) == 0)
                 {
                     lexer_next(l); // eat 'ref'
@@ -194,17 +196,24 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
                 }
 
                 Token b = lexer_next(l);
-                if (b.type != TOK_IDENT)
+                if (b.kind != TOK_IDENT)
                 {
                     zpanic_at(b, "Expected variable name in pattern");
                     break;
                 }
 
-                if (is_brace && lexer_peek(l).type == TOK_COLON)
+                if (binding_count >= binding_cap)
+                {
+                    binding_cap *= 2;
+                    bindings = xrealloc(bindings, sizeof(char *) * (size_t)(binding_cap));
+                    binding_refs = xrealloc(binding_refs, sizeof(int) * (size_t)(binding_cap));
+                }
+
+                if (is_brace && lexer_peek(l).kind == TOK_COLON)
                 {
                     lexer_next(l); // eat :
                     Token val = lexer_next(l);
-                    if (val.type == TOK_IDENT)
+                    if (val.kind == TOK_IDENT)
                     {
                         bindings[binding_count] = token_strdup(val);
                     }
@@ -224,7 +233,7 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
                     binding_count++;
                 }
 
-                if (lexer_peek(l).type == TOK_COMMA)
+                if (lexer_peek(l).kind == TOK_COMMA)
                 {
                     lexer_next(l);
                     continue;
@@ -233,41 +242,38 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
             }
 
             Token end = lexer_next(l);
-            if (is_brace && end.type != TOK_RBRACE)
+            if (is_brace && end.kind != TOK_RBRACE)
             {
                 zpanic_at(end, "Expected }");
                 return NULL;
-                return NULL;
             }
-            else if (!is_brace && end.type != TOK_RPAREN)
+            else if (!is_brace && end.kind != TOK_RPAREN)
             {
                 zpanic_at(end, "Expected )");
-                return NULL;
                 return NULL;
             }
             is_destructure = 1;
         }
 
         ASTNode *guard = NULL;
-        if (lexer_peek(l).type == TOK_IDENT && strncmp(lexer_peek(l).start, "if", 2) == 0)
+        if (lexer_peek(l).kind == TOK_IDENT && strncmp(lexer_peek(l).start, "if", 2) == 0)
         {
             lexer_next(l);
             guard = parse_expression(ctx, l);
         }
 
-        if (lexer_next(l).type != TOK_ARROW)
+        if (lexer_next(l).kind != TOK_ARROW)
         {
             zpanic_at(lexer_peek(l), "Expected => after match pattern");
             return NULL;
-            return NULL;
             if (ctx->is_fault_tolerant)
             {
-                while (lexer_peek(l).type != TOK_RBRACE && lexer_peek(l).type != TOK_COMMA &&
-                       lexer_peek(l).type != TOK_EOF)
+                while (lexer_peek(l).kind != TOK_RBRACE && lexer_peek(l).kind != TOK_COMMA &&
+                       lexer_peek(l).kind != TOK_EOF)
                 {
                     lexer_next(l);
                 }
-                if (lexer_peek(l).type == TOK_COMMA)
+                if (lexer_peek(l).kind == TOK_COMMA)
                 {
                     lexer_next(l);
                 }
@@ -288,7 +294,7 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
             if (vreg)
             {
                 enum_def = find_struct_def(ctx, vreg->enum_name);
-                if (enum_def && enum_def->type == NODE_ENUM)
+                if (enum_def && enum_def->kind == NODE_ENUM)
                 {
                     ASTNode *v = enum_def->enm.variants;
                     while (v)
@@ -313,6 +319,112 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
                             break;
                         }
                         v = v->next;
+                    }
+                }
+            }
+            else if (binding_count == 1 && expr && expr->type_info)
+            {
+                // Struct constructor pattern, e.g. `Ok(val)` matching a
+                // `Result<String>`. The payload type is the constructor's
+                // argument type with the struct's generic parameter substituted
+                // by the concrete argument in the mangled type name.
+                Type *mt = expr->type_info;
+                if (mt->name)
+                {
+                    GenericTemplate *gt = ctx->templates;
+                    while (gt)
+                    {
+                        size_t glen = strlen(gt->name);
+                        if (strncmp(mt->name, gt->name, glen) == 0 && mt->name[glen] == '_')
+                        {
+                            break;
+                        }
+                        gt = gt->next;
+                    }
+                    if (gt && gt->struct_node && gt->struct_node->kind == NODE_STRUCT &&
+                        gt->struct_node->strct.generic_param_count > 0)
+                    {
+                        const char *base = gt->name;
+                        const char *arg_start = mt->name + strlen(base);
+                        while (*arg_start == '_')
+                        {
+                            arg_start++;
+                        }
+
+                        char *ctor = NULL;
+                        if (strstr(pattern, "__"))
+                        {
+                            ctor = xstrdup(pattern);
+                        }
+                        else
+                        {
+                            size_t csz = strlen(base) + strlen(pattern) + 3;
+                            ctor = xmalloc(csz);
+                            sprintf(ctor, "%s__%s", base, pattern); /* safe */
+                        }
+                        GenericFuncTemplate *ft = find_func_template(ctx, ctor);
+                        zfree(ctor);
+                        if (ft && ft->func_node && ft->func_node->kind == NODE_FUNCTION &&
+                            ft->func_node->func.count >= 1 && ft->func_node->func.arg_types[0] &&
+                            ft->func_node->func.arg_types[0]->name)
+                        {
+                            const char *gparam = gt->struct_node->strct.generic_params[0];
+                            const char *pname = ft->func_node->func.arg_types[0]->name;
+                            char *real = NULL;
+                            size_t plen = strlen(pname);
+                            int is_generic_ptr = 0;
+                            if (plen > 1 && pname[plen - 1] == '*')
+                            {
+                                size_t blen = strlen(gparam);
+                                if (plen - 1 == blen && strncmp(pname, gparam, blen) == 0)
+                                {
+                                    is_generic_ptr = 1;
+                                }
+                            }
+                            if (is_generic_ptr || strcmp(pname, gparam) == 0)
+                            {
+                                // Substitute the generic param with the concrete
+                                // argument, unmangling a trailing "Ptr" to '*'.
+                                const char *ap = arg_start;
+                                size_t al = strlen(arg_start);
+                                if (al > 3 && strcmp(arg_start + al - 3, "Ptr") == 0)
+                                {
+                                    size_t blen = al - 3;
+                                    char *b = xmalloc(blen + 2);
+                                    strncpy(b, arg_start, blen);
+                                    b[blen] = 0;
+                                    strcat(b, "*");
+                                    real = b;
+                                    ap = NULL;
+                                }
+                                if (ap)
+                                {
+                                    real = xstrdup(ap);
+                                }
+                                if (is_generic_ptr)
+                                {
+                                    char *t = xmalloc(strlen(real) + 2);
+                                    sprintf(t, "%s*", real); /* safe */
+                                    zfree(real);
+                                    real = t;
+                                }
+                            }
+                            else
+                            {
+                                // Concrete payload (e.g. `char*` for Err).
+                                real = xstrdup(pname);
+                            }
+                            if (real)
+                            {
+                                payload_type = type_from_string_helper(real);
+                                if (!payload_type)
+                                {
+                                    payload_type = type_new(TYPE_STRUCT);
+                                    payload_type->name = xstrdup(real);
+                                }
+                                zfree(real);
+                            }
+                        }
                     }
                 }
             }
@@ -406,31 +518,34 @@ ASTNode *parse_match(ParserContext *ctx, Lexer *l)
                     }
                 }
 
+                if (strcmp(binding, "parsed") == 0)
+                {
+                }
                 add_symbol(ctx, binding, binding_type, binding_type_info, 0);
             }
         }
 
         ASTNode *body = NULL;
         Token pk = lexer_peek(l);
-        if (pk.type == TOK_LBRACE)
+        if (pk.kind == TOK_LBRACE)
         {
             body = parse_block(ctx, l);
         }
-        else if (pk.type == TOK_EXPECT ||
-                 (pk.type == TOK_IDENT && strncmp(pk.start, "expect", 6) == 0))
+        else if (pk.kind == TOK_EXPECT ||
+                 (pk.kind == TOK_IDENT && strncmp(pk.start, "expect", 6) == 0))
         {
             body = parse_expect(ctx, l);
         }
-        else if (pk.type == TOK_ASSERT ||
-                 (pk.type == TOK_IDENT && strncmp(pk.start, "assert", 6) == 0))
+        else if (pk.kind == TOK_ASSERT ||
+                 (pk.kind == TOK_IDENT && strncmp(pk.start, "assert", 6) == 0))
         {
             body = parse_assert(ctx, l);
         }
-        else if (pk.type == TOK_IDENT && strncmp(pk.start, "return", 6) == 0)
+        else if (pk.kind == TOK_IDENT && strncmp(pk.start, "return", 6) == 0)
         {
             body = parse_return(ctx, l);
         }
-        else if (ctx->is_fault_tolerant && (pk.type == TOK_RBRACE || pk.type == TOK_COMMA))
+        else if (ctx->is_fault_tolerant && (pk.kind == TOK_RBRACE || pk.kind == TOK_COMMA))
         {
             body = ast_create(NODE_BLOCK);
             body->token = pk;

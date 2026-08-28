@@ -20,7 +20,7 @@ ASTNode *parse_def(ParserContext *ctx, Lexer *l, int is_export)
     char *type_str = NULL;
     Type *type_obj = NULL;
 
-    if (lexer_peek(l).type == TOK_COLON)
+    if (lexer_peek(l).kind == TOK_COLON)
     {
         lexer_next(l);
         // Hybrid Parse
@@ -50,12 +50,12 @@ ASTNode *parse_def(ParserContext *ctx, Lexer *l, int is_export)
     }
 
     ASTNode *i = 0;
-    if (lexer_peek(l).type == TOK_OP && is_token(lexer_peek(l), "="))
+    if (lexer_peek(l).kind == TOK_OP && is_token(lexer_peek(l), "="))
     {
         lexer_next(l);
 
         Token tk = lexer_peek(l);
-        if (tk.type == TOK_LPAREN && type_str && strncmp(type_str, "Tuple__", 7) == 0)
+        if (tk.kind == TOK_LPAREN && type_str && strncmp(type_str, "Tuple__", 7) == 0)
         {
             char *code = parse_tuple_literal(ctx, l, type_str);
             i = ast_create(NODE_RAW_STMT);
@@ -101,10 +101,9 @@ ASTNode *parse_def(ParserContext *ctx, Lexer *l, int is_export)
     {
         zpanic_at(n, "'def' constants must be initialized");
         return NULL;
-        return NULL;
     }
 
-    if (lexer_peek(l).type == TOK_SEMICOLON)
+    if (lexer_peek(l).kind == TOK_SEMICOLON)
     {
         lexer_next(l);
     }
@@ -128,10 +127,9 @@ ASTNode *parse_type_alias(ParserContext *ctx, Lexer *l, int is_opaque, int is_ex
 {
     lexer_next(l); // consume 'type' or 'alias'
     Token n = lexer_next(l);
-    if (n.type != TOK_IDENT)
+    if (n.kind != TOK_IDENT)
     {
         zpanic_at(n, "Expected identifier for type alias");
-        return NULL;
         return NULL;
     }
 
@@ -144,7 +142,7 @@ ASTNode *parse_type_alias(ParserContext *ctx, Lexer *l, int is_opaque, int is_ex
     }
     char *o = type_to_string(t);
 
-    if (lexer_peek(l).type == TOK_SEMICOLON)
+    if (lexer_peek(l).kind == TOK_SEMICOLON)
     {
         lexer_next(l);
     }

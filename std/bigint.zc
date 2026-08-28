@@ -2,6 +2,8 @@ import "./vec.zc"
 
 import "./mem.zc"
 
+import "./result.zc"
+
 struct BigInt {
     digits: Vec<u8>;
 }
@@ -29,8 +31,13 @@ impl BigInt {
         return BigInt { digits: self.digits.clone() };
     }
     
-    fn free_mem(self) {
+    fn free(self) {
         self.digits.free();
+    }
+
+    // Deprecated alias; use `free`.
+    fn free_mem(self) {
+        self.free();
     }
     
     fn add_in_place(self, other: BigInt*) {
@@ -89,11 +96,222 @@ impl BigInt {
         buf[idx] = 0;
         return buf;
     }
+
+    // internal: remove leading zeros (always keep at least one digit)
+    fn _trim(self) {
+        while (self.digits.len > 1) {
+            if (self.digits.get(self.digits.len - 1) != 0) {
+                break;
+            }
+            self.digits.pop();
+        }
+    }
+
+    // internal: multiply by a small digit m (0..9) in place
+    fn _mul_small_in_place(self, m: int) {
+        if (m == 0) {
+            self.digits.len = 1;
+            self.digits.data[0] = 0;
+            return;
+        }
+        let carry: int = 0;
+        for (let i: usize = 0; i < self.digits.len; i = i + 1) {
+            let cur = (int)self.digits.get(i) * m + carry;
+            self.digits.data[i] = (u8)(cur % 10);
+            carry = cur / 10;
+        }
+        while (carry > 0) {
+            self.digits.push((u8)(carry % 10));
+            carry = carry / 10;
+        }
+    }
+
+    // internal: add a small digit in place
+    fn _add_small_in_place(self, d: int) {
+        let carry = d;
+        let i: usize = 0;
+        while (carry > 0) {
+            if (i >= self.digits.len) {
+                self.digits.push((u8)(carry % 10));
+                carry = carry / 10;
+            } else {
+                let cur = (int)self.digits.get(i) + carry;
+                self.digits.data[i] = (u8)(cur % 10);
+                carry = cur / 10;
+            }
+            i = i + 1;
+        }
+    }
+
+    // internal: returns self * m for a small digit m
+    fn _mul_small(self, m: int) -> BigInt {
+        let res = self.clone();
+        res._mul_small_in_place(m);
+        return res;
+    }
+
+    // internal: multiply by 10^n in place
+    fn _mul_pow10_in_place(self, n: int) {
+        if (n <= 0) { return; }
+        for (let i: int = 0; i < n; i = i + 1) {
+            self.digits.insert(0, 0);
+        }
+    }
+
+    // Returns 0 if this == other, -1 if this < other, +1 if this > other.
+    fn compare(self, other: BigInt*) -> int {
+        if (self.digits.len < other.digits.len) return -1;
+        if (self.digits.len > other.digits.len) return 1;
+        let i = self.digits.len;
+        while (i > 0) {
+            i = i - 1;
+            let a = self.digits.get(i);
+            let b = other.digits.get(i);
+            if (a < b) return -1;
+            if (a > b) return 1;
+        }
+        return 0;
+    }
+
+    fn is_zero(self) -> bool {
+        for (let i: usize = 0; i < self.digits.len; i = i + 1) {
+            if (self.digits.get(i) != 0) return false;
+        }
+        return true;
+    }
+
+    // Parses a decimal string (digits only) into a BigInt.
+    fn from_string(s: char*) -> Result<BigInt> {
+        let len = strlen(s);
+        if (len == 0) {
+            return Result<BigInt>::Err("BigInt::from_string: empty string");
+        }
+        if (s[0] == '-') {
+            return Result<BigInt>::Err("BigInt::from_string: negative numbers not supported");
+        }
+        let b = BigInt::new();
+        b.digits.push(0);
+        for (let i: usize = 0; i < len; i = i + 1) {
+            let c = s[i];
+            if (c < '0' || c > '9') {
+                b.free();
+                return Result<BigInt>::Err("BigInt::from_string: invalid digit");
+            }
+            b._mul_small_in_place(10);
+            b._add_small_in_place((int)(c - '0'));
+        }
+        return Result<BigInt>::Ok(b);
+    }
+
+    // Subtracts other from this (this must be >= other).
+    fn sub(self, other: BigInt*) -> BigInt {
+        if (self.compare(other) < 0) {
+            panic("BigInt::sub: negative result not supported");
+        }
+        let res = self.clone();
+        let borrow: int = 0;
+        for (let i: usize = 0; i < res.digits.len; i = i + 1) {
+            let sub = borrow;
+            if (i < other.digits.len) {
+                sub += (int)other.digits.get(i);
+            }
+            let cur = (int)res.digits.get(i);
+            if (cur >= sub) {
+                res.digits.data[i] = (u8)(cur - sub);
+                borrow = 0;
+            } else {
+                res.digits.data[i] = (u8)(cur + 10 - sub);
+                borrow = 1;
+            }
+        }
+        res._trim();
+        return res;
+    }
+
+    // Multiplies this by other (schoolbook).
+    fn mul(self, other: BigInt*) -> BigInt {
+        let a_len = self.digits.len;
+        let b_len = other.digits.len;
+        let res = BigInt::new();
+        for (let i: usize = 0; i < a_len + b_len; i = i + 1) {
+            res.digits.push(0);
+        }
+        for (let i: usize = 0; i < a_len; i = i + 1) {
+            let carry: int = 0;
+            for (let j: usize = 0; j < b_len; j = j + 1) {
+                let cur = (int)res.digits.get(i + j) +
+                          (int)self.digits.get(i) * (int)other.digits.get(j) + carry;
+                res.digits.data[i + j] = (u8)(cur % 10);
+                carry = cur / 10;
+            }
+            let k = i + b_len;
+            while (carry > 0) {
+                let cur = (int)res.digits.get(k) + carry;
+                res.digits.data[k] = (u8)(cur % 10);
+                carry = cur / 10;
+                k = k + 1;
+            }
+        }
+        res._trim();
+        return res;
+    }
+
+    // Returns the quotient of this / divisor (integer division).
+    fn div(self, divisor: BigInt*) -> BigInt {
+        if (divisor.is_zero()) {
+            panic("BigInt::div: division by zero");
+        }
+        let zero = BigInt::new();
+        zero.digits.push(0);
+        if (self.compare(divisor) < 0) {
+            return zero;
+        }
+
+        let quotient = BigInt::new();
+        quotient.digits.push(0);
+        let rem = BigInt::new();
+        rem.digits.push(0);
+
+        let i = self.digits.len;
+        while (i > 0) {
+            i = i - 1;
+            rem._mul_small_in_place(10);
+            rem._add_small_in_place((int)self.digits.get(i));
+
+            let d = 0;
+            while (d < 9) {
+                let trial = divisor._mul_small(d + 1);
+                if (trial.compare(&rem) > 0) {
+                    break;
+                }
+                d = d + 1;
+            }
+
+            quotient._mul_small_in_place(10);
+            quotient._add_small_in_place(d);
+
+            if (d > 0) {
+                let m = divisor._mul_small(d);
+                let r = rem.sub(&m);
+                rem = r;
+            }
+        }
+        quotient._trim();
+        return quotient;
+    }
+
+    // Returns the remainder of this / divisor.
+    fn rem(self, divisor: BigInt*) -> BigInt {
+        let q = self.div(divisor);
+        let p = q.mul(divisor);
+        let r = self.sub(&p);
+        return r;
+    }
 }
 
 impl Drop for BigInt {
     fn drop(self) {
-        self.free_mem();
+        self.free();
     }
 }
 

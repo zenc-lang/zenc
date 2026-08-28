@@ -18,7 +18,7 @@ These instructions are **MANDATORY** for all code generation and review tasks in
     *   Use `type_new(TYPE_KIND)` helper.
     *   `type_to_string(t)` and `type_to_c_string(t)` return arena-allocated strings. Do not worry about freeing them.
 *   **Traversal**:
-    *   The compiler uses **Recursive Descent** with **Switch Statements** on `node->type`.
+    *   The compiler uses **Recursive Descent** with **Switch Statements** on `node->kind`.
     *   Do NOT introduce Visitor patterns or callback tables unless consistent with existing code.
 
 ## 3. Parser Patterns
@@ -26,11 +26,14 @@ These instructions are **MANDATORY** for all code generation and review tasks in
     *   **Signature Rule**: `ReturnType func_name(ParserContext *ctx, ...)`
 *   **Token Consumption**:
     *   Use `expect(lexer, TOKEN_TYPE, "error message")` for mandatory tokens.
-    *   For optional tokens, check `l->token.type` and assume `lexer_next(l)` is used to advance (verify specific helper availability).
+    *   For optional tokens, check `l->token.kind` and assume `lexer_next(l)` is used to advance (verify specific helper availability).
 *   **Error Handling**:
-    *   **Fatal**: `zpanic("msg")` or `zpanic_at(token, "msg")`. Exits immediately (or delegates to LSP handler).
-    *   **Warning**: `zwarn("msg")` or `zwarn_at(token, "msg")`.
-    *   **Semantic Errors**: Prefer `zpanic_at` for type errors to give line/col info.
+    *   **Fatal / syntax**: `zpanic_at(token, "…")`. Exits immediately (or delegates to the LSP handler in fault-tolerant mode). "Expected …" errors use this.
+    *   **Warning**: `zwarn_at(token, "…")`.
+    *   **Recoverable (parser)**: `zerror_at(token, "…")` — only for conditions parsing can proceed past (e.g. MISRA guidance), not malformed syntax.
+    *   **Semantic (typechecker)**: `tc_error(tc, token, "…")`.
+    *   Every error path that returns `NULL`/an error node must already have emitted a diagnostic.
+*   **Symbol Mangling**: use the canonical `mangle_method_symbol(base, trait, method)` (see `docs`/CONTRIBUTING for the rule); never re-implement `%s__%s`+`merge_underscores` inline.
 
 ## 4. Code Generation (C Backend)
 *   **Generic Mangling**:

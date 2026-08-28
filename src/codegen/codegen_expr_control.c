@@ -33,7 +33,7 @@ void handle_if_expr(ParserContext *ctx, ASTNode *node)
     EMIT(ctx, "({ ");
 
     ASTNode *then_result = NULL;
-    if (node->if_stmt.then_body && node->if_stmt.then_body->type == NODE_BLOCK)
+    if (node->if_stmt.then_body && node->if_stmt.then_body->kind == NODE_BLOCK)
     {
         ASTNode *stmt = node->if_stmt.then_body->block.statements;
         while (stmt && stmt->next)
@@ -61,7 +61,7 @@ void handle_if_expr(ParserContext *ctx, ASTNode *node)
     EMIT(ctx, "if (");
     codegen_expression(ctx, node->if_stmt.condition);
     EMIT(ctx, ") { ");
-    if (node->if_stmt.then_body && node->if_stmt.then_body->type == NODE_BLOCK)
+    if (node->if_stmt.then_body && node->if_stmt.then_body->kind == NODE_BLOCK)
     {
         ASTNode *stmt = node->if_stmt.then_body->block.statements;
         while (stmt && stmt->next)
@@ -83,7 +83,7 @@ void handle_if_expr(ParserContext *ctx, ASTNode *node)
         EMIT(ctx, "; ");
     }
     EMIT(ctx, "} else { ");
-    if (node->if_stmt.else_body && node->if_stmt.else_body->type == NODE_BLOCK)
+    if (node->if_stmt.else_body && node->if_stmt.else_body->kind == NODE_BLOCK)
     {
         ASTNode *stmt = node->if_stmt.else_body->block.statements;
         while (stmt && stmt->next)
@@ -116,7 +116,7 @@ static int type_is_enum(ParserContext *ctx, const char *name)
     StructRef *er = ctx->parsed_enums_list;
     while (er)
     {
-        if (er->node && er->node->type == NODE_ENUM && strcmp(er->node->enm.name, name) == 0)
+        if (er->node && er->node->kind == NODE_ENUM && strcmp(er->node->enm.name, name) == 0)
         {
             return 1;
         }
@@ -125,7 +125,7 @@ static int type_is_enum(ParserContext *ctx, const char *name)
     ASTNode *ins = ctx->instantiated_structs;
     while (ins)
     {
-        if (ins->type == NODE_ENUM && strcmp(ins->enm.name, name) == 0)
+        if (ins->kind == NODE_ENUM && strcmp(ins->enm.name, name) == 0)
         {
             return 1;
         }

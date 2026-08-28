@@ -28,12 +28,12 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             while (1)
             {
                 Token recovery = lexer_peek(l);
-                if (recovery.type == TOK_EOF)
+                if (recovery.kind == TOK_EOF)
                 {
                     return h;
                 }
                 // Resync on tokens that typically start top-level declarations
-                if (recovery.type == TOK_IDENT)
+                if (recovery.kind == TOK_IDENT)
                 {
                     if ((recovery.len == 2 && strncmp(recovery.start, "fn", 2) == 0) ||
                         (recovery.len == 6 && strncmp(recovery.start, "struct", 6) == 0) ||
@@ -55,12 +55,12 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
 
         skip_comments(l);
         Token t = lexer_peek(l);
-        if (t.type == TOK_EOF)
+        if (t.kind == TOK_EOF)
         {
             break;
         }
 
-        if (t.type == TOK_COMPTIME)
+        if (t.kind == TOK_COMPTIME)
         {
             ASTNode *body = parse_comptime_body(ctx, l);
             ASTNode *ct = ast_create(NODE_COMPTIME);
@@ -108,7 +108,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             zvec_push_Str(&ctx->config->c_files, xstrdup(resolved ? resolved : path));
             if (resolved)
             {
-                free(resolved);
+                libc_free(resolved);
             }
 
             s = ast_create(NODE_LINK);
@@ -117,7 +117,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             goto add_node;
         }
 
-        if (t.type == TOK_PREPROC)
+        if (t.kind == TOK_PREPROC)
         {
             lexer_next(l);
             char *content = xmalloc(t.len + 2);
@@ -131,18 +131,18 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             // Audit and potentially deprecate preprocessor directives
             parser_audit_preprocessor(ctx, t);
         }
-        else if (t.type == TOK_DEF)
+        else if (t.kind == TOK_DEF)
         {
             s = parse_def(ctx, l, attrs.is_export);
         }
-        else if (t.type == TOK_IDENT)
+        else if (t.kind == TOK_IDENT)
         {
             // Inline function: inline fn name(...) { }
             if (0 == strncmp(t.start, "inline", 6) && 6 == t.len)
             {
                 lexer_next(l);
                 Token next = lexer_peek(l);
-                if (next.type == TOK_IDENT && 2 == next.len && 0 == strncmp(next.start, "fn", 2))
+                if (next.kind == TOK_IDENT && 2 == next.len && 0 == strncmp(next.start, "fn", 2))
                 {
                     s = parse_function(ctx, l, 0, 0, attrs.link_name, attrs.is_export);
                     attrs.is_inline = 1;
@@ -150,7 +150,6 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                 else
                 {
                     zpanic_at(next, "Expected 'fn' after 'inline'");
-                    return NULL;
                     return NULL;
                 }
             }
@@ -161,7 +160,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             else if (0 == strncmp(t.start, "struct", 6) && 6 == t.len)
             {
                 s = parse_struct(ctx, l, 0, 0, 0, attrs.link_name, attrs.is_export);
-                if (s && s->type == NODE_STRUCT)
+                if (s && s->kind == NODE_STRUCT)
                 {
                     s->strct.is_packed = attrs.is_packed;
                     s->strct.align = attrs.align;
@@ -211,19 +210,21 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             {
                 lexer_next(l); // eat static
                 Token next = lexer_peek(l);
-                if (next.type == TOK_IDENT && next.len == 3 && strncmp(next.start, "let", 3) == 0)
+                if (next.kind == TOK_IDENT && next.len == 3 && strncmp(next.start, "let", 3) == 0)
                 {
                     s = parse_var_decl(ctx, l, attrs.is_export);
-                    s->var_decl.is_static = 1;
-                    if (attrs.is_thread_local)
+                    if (s)
                     {
-                        s->var_decl.is_thread_local = 1;
+                        s->var_decl.is_static = 1;
+                        if (attrs.is_thread_local)
+                        {
+                            s->var_decl.is_thread_local = 1;
+                        }
                     }
                 }
                 else
                 {
                     zpanic_at(next, "Expected 'let' after 'static' in global scope");
-                    return NULL;
                     return NULL;
                 }
             }
@@ -236,34 +237,34 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                 lexer_next(l);
 
                 Token peek = lexer_peek(l);
-                if (peek.type == TOK_IDENT && peek.len == 2 && strncmp(peek.start, "fn", 2) == 0)
+                if (peek.kind == TOK_IDENT && peek.len == 2 && strncmp(peek.start, "fn", 2) == 0)
                 {
                     s = parse_function(ctx, l, 0, 1, attrs.link_name, attrs.is_export);
                 }
-                else if (peek.type == TOK_IDENT && peek.len == 6 &&
+                else if (peek.kind == TOK_IDENT && peek.len == 6 &&
                          strncmp(peek.start, "struct", 6) == 0)
                 {
                     // extern struct Name; -> opaque struct declaration
                     s = parse_struct(ctx, l, 0, 1, 1, attrs.link_name, attrs.is_export);
-                    if (s && s->type == NODE_STRUCT)
+                    if (s && s->kind == NODE_STRUCT)
                     {
                         register_extern_symbol(ctx, s->strct.name);
                     }
                 }
-                else if ((peek.type == TOK_IDENT && peek.len == 5 &&
+                else if ((peek.kind == TOK_IDENT && peek.len == 5 &&
                           strncmp(peek.start, "union", 5) == 0) ||
-                         peek.type == TOK_UNION)
+                         peek.kind == TOK_UNION)
                 {
                     // extern union Name; -> opaque union declaration
                     s = parse_struct(ctx, l, 1, 1, 1, attrs.link_name, attrs.is_export);
-                    if (s && s->type == NODE_STRUCT)
+                    if (s && s->kind == NODE_STRUCT)
                     {
                         register_extern_symbol(ctx, s->strct.name);
                     }
                 }
                 else
                 {
-                    if (lexer_peek(l).type == TOK_IDENT && lexer_peek(l).len == 3 &&
+                    if (lexer_peek(l).kind == TOK_IDENT && lexer_peek(l).len == 3 &&
                         strncmp(lexer_peek(l).start, "let", 3) == 0)
                     {
                         lexer_next(l); // eat let
@@ -272,7 +273,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                     while (1)
                     {
                         Token sym = lexer_next(l);
-                        if (sym.type != TOK_IDENT)
+                        if (sym.kind != TOK_IDENT)
                         {
                             break;
                         }
@@ -281,7 +282,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                         register_extern_symbol(ctx, name);
 
                         Token next = lexer_peek(l);
-                        if (next.type == TOK_COMMA)
+                        if (next.kind == TOK_COMMA)
                         {
                             lexer_next(l);
                         }
@@ -291,7 +292,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                         }
                     }
 
-                    if (lexer_peek(l).type == TOK_SEMICOLON)
+                    if (lexer_peek(l).kind == TOK_SEMICOLON)
                     {
                         lexer_next(l);
                     }
@@ -305,10 +306,9 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             else if (0 == strncmp(t.start, "raw", 3) && 3 == t.len)
             {
                 lexer_next(l);
-                if (lexer_peek(l).type != TOK_LBRACE)
+                if (lexer_peek(l).kind != TOK_LBRACE)
                 {
                     zpanic_at(lexer_peek(l), "Expected { after raw");
-                    return NULL;
                     return NULL;
                 }
                 lexer_next(l);
@@ -319,17 +319,16 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                 while (depth > 0)
                 {
                     Token inner_t = lexer_next(l);
-                    if (inner_t.type == TOK_EOF)
+                    if (inner_t.kind == TOK_EOF)
                     {
                         zpanic_at(inner_t, "Unexpected EOF in raw block");
                         return NULL;
-                        return NULL;
                     }
-                    if (inner_t.type == TOK_LBRACE)
+                    if (inner_t.kind == TOK_LBRACE)
                     {
                         depth++;
                     }
-                    if (inner_t.type == TOK_RBRACE)
+                    if (inner_t.kind == TOK_RBRACE)
                     {
                         depth--;
                     }
@@ -352,20 +351,20 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                 lexer_next(l);
             }
         }
-        else if (t.type == TOK_OPAQUE)
+        else if (t.kind == TOK_OPAQUE)
         {
             lexer_next(l); // eat opaque
             Token next = lexer_peek(l);
             if (0 == strncmp(next.start, "struct", 6) && 6 == next.len)
             {
                 s = parse_struct(ctx, l, 0, 1, 0, attrs.link_name, attrs.is_export);
-                if (s && s->type == NODE_STRUCT)
+                if (s && s->kind == NODE_STRUCT)
                 {
                     s->strct.is_packed = attrs.is_packed;
                     s->strct.align = attrs.align;
                 }
             }
-            else if (next.type == TOK_ALIAS)
+            else if (next.kind == TOK_ALIAS)
             {
                 s = parse_type_alias(ctx, l, 1, attrs.is_export);
             }
@@ -373,14 +372,13 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             {
                 zpanic_at(next, "Expected 'struct' or 'alias' after 'opaque'");
                 return NULL;
-                return NULL;
             }
         }
-        else if (t.type == TOK_ALIAS)
+        else if (t.kind == TOK_ALIAS)
         {
             s = parse_type_alias(ctx, l, 0, attrs.is_export);
         }
-        else if (t.type == TOK_ASYNC)
+        else if (t.kind == TOK_ASYNC)
         {
             lexer_next(l);
             Token next = lexer_peek(l);
@@ -392,22 +390,21 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             {
                 zpanic_at(next, "Expected 'fn' after 'async'");
                 return NULL;
-                return NULL;
             }
         }
-        else if (t.type == TOK_UNION)
+        else if (t.kind == TOK_UNION)
         {
             s = parse_struct(ctx, l, 1, 0, 0, attrs.link_name, attrs.is_export);
         }
-        else if (t.type == TOK_TRAIT)
+        else if (t.kind == TOK_TRAIT)
         {
             s = parse_trait(ctx, l);
         }
-        else if (t.type == TOK_IMPL)
+        else if (t.kind == TOK_IMPL)
         {
             s = parse_impl(ctx, l);
         }
-        else if (t.type == TOK_TEST)
+        else if (t.kind == TOK_TEST)
         {
             s = parse_test(ctx, l);
         }
@@ -416,7 +413,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             lexer_next(l);
         }
 
-        if (s && s->type == NODE_FUNCTION)
+        if (s && s->kind == NODE_FUNCTION)
         {
             s->func.required = attrs.is_required;
             s->func.is_inline = attrs.is_inline || s->func.is_inline;
@@ -458,7 +455,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                 }
             }
         }
-        else if (s && s->type == NODE_STRUCT)
+        else if (s && s->kind == NODE_STRUCT)
         {
             s->strct.is_export = attrs.is_export;
             s->strct.attributes = attrs.custom_attributes;
@@ -478,7 +475,7 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
                 s->next = impls;
             }
         }
-        else if (s && s->type == NODE_ENUM)
+        else if (s && s->kind == NODE_ENUM)
         {
             if (attrs.derived_count > 0)
             {

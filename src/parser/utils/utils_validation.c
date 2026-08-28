@@ -93,7 +93,7 @@ void propagate_vector_inner_types(ParserContext *ctx)
     while (ref)
     {
         ASTNode *strct = ref->node;
-        if (strct && strct->type == NODE_STRUCT && strct->type_info &&
+        if (strct && strct->kind == NODE_STRUCT && strct->type_info &&
             strct->type_info->kind == TYPE_VECTOR && !strct->type_info->inner)
         {
             if (strct->strct.fields && strct->strct.fields->type_info)
@@ -116,7 +116,7 @@ void propagate_drop_traits(ParserContext *ctx)
         while (ref)
         {
             ASTNode *strct = ref->node;
-            if (strct && strct->type == NODE_STRUCT && strct->type_info &&
+            if (strct && strct->kind == NODE_STRUCT && strct->type_info &&
                 !strct->type_info->traits.has_drop)
             {
                 ASTNode *field = strct->strct.fields;
@@ -160,7 +160,7 @@ void propagate_drop_traits(ParserContext *ctx)
         ASTNode *ins = ctx->instantiated_structs;
         while (ins)
         {
-            if (ins->type == NODE_STRUCT && ins->type_info && !ins->type_info->traits.has_drop)
+            if (ins->kind == NODE_STRUCT && ins->type_info && !ins->type_info->traits.has_drop)
             {
                 ASTNode *field = ins->strct.fields;
                 while (field)
@@ -212,12 +212,12 @@ void fix_type_refs_has_drop(ParserContext *ctx)
     for (StructRef *ref = ctx->parsed_funcs_list; ref; ref = ref->next)
     {
         ASTNode *fn = ref->node;
-        if (!fn || fn->type != NODE_FUNCTION)
+        if (!fn || fn->kind != NODE_FUNCTION)
         {
             continue;
         }
 
-        for (int i = 0; i < fn->func.arg_count; i++)
+        for (int i = 0; i < fn->func.count; i++)
         {
             Type *at = fn->func.arg_types[i];
             if (at && at->kind == TYPE_STRUCT && at->name && !at->traits.has_drop)
@@ -244,7 +244,7 @@ void fix_type_refs_has_drop(ParserContext *ctx)
     for (StructRef *ref = ctx->parsed_structs_list; ref; ref = ref->next)
     {
         ASTNode *strct = ref->node;
-        if (!strct || strct->type != NODE_STRUCT)
+        if (!strct || strct->kind != NODE_STRUCT)
         {
             continue;
         }
@@ -264,7 +264,7 @@ void fix_type_refs_has_drop(ParserContext *ctx)
 
     for (ASTNode *ins = ctx->instantiated_structs; ins; ins = ins->next)
     {
-        if (ins->type != NODE_STRUCT)
+        if (ins->kind != NODE_STRUCT)
         {
             continue;
         }

@@ -160,8 +160,8 @@ void misra_check_implicit_conversion(struct ParserContext *ctx, struct Type *tar
     {
         // Check if literal 0 (Rule 11.9 handled elsewhere, but non-zero is 11.4)
         int is_zero = 0;
-        if (source_node && source_node->type == NODE_EXPR_LITERAL &&
-            source_node->literal.type_kind == LITERAL_INT && source_node->literal.int_val == 0)
+        if (source_node && source_node->kind == NODE_EXPR_LITERAL &&
+            source_node->literal.kind == LITERAL_INT && source_node->literal.int_val == 0)
         {
             is_zero = 1;
         }
@@ -350,13 +350,13 @@ void misra_check_null_pointer_constant(ParserContext *ctx, struct ASTNode *node,
     }
 
     struct ASTNode *expr = node;
-    while (expr && expr->type == NODE_EXPR_CAST)
+    while (expr && expr->kind == NODE_EXPR_CAST)
     {
         expr = expr->cast.expr;
     }
 
     // Rule 11.9: The macro NULL shall be the only permitted form of integer null pointer constant.
-    if (expr && expr->type == NODE_EXPR_LITERAL && expr->literal.type_kind == LITERAL_INT)
+    if (expr && expr->kind == NODE_EXPR_LITERAL && expr->literal.kind == LITERAL_INT)
     {
         // In MISRA C, we expect the NULL macro. In Zen C, we prefer the 'null' keyword.
         // If we found a literal 0, it means the user used '0' or '(type)0' instead of 'null'.
@@ -494,7 +494,7 @@ void misra_check_initializer_side_effects(ParserContext *ctx, ASTNode *node)
  */
 void misra_check_match_stmt(ParserContext *ctx, ASTNode *node)
 {
-    if (!ctx->config->misra_mode || !node || node->type != NODE_MATCH)
+    if (!ctx->config->misra_mode || !node || node->kind != NODE_MATCH)
     {
         return;
     }
@@ -612,13 +612,13 @@ void misra_check_const_ptr_param(ParserContext *ctx, const char *name, Token tok
  */
 void misra_check_param_modified(ASTNode *current_func, ASTNode *left, Token token)
 {
-    if (!current_func || !left || left->type != NODE_EXPR_VAR)
+    if (!current_func || !left || left->kind != NODE_EXPR_VAR)
     {
         return;
     }
 
     const char *name = left->var_ref.name;
-    for (int i = 0; i < current_func->func.arg_count; i++)
+    for (int i = 0; i < current_func->func.count; i++)
     {
         if (strcmp(current_func->func.param_names[i], name) == 0)
         {
@@ -687,7 +687,7 @@ void misra_check_struct_decl(ParserContext *ctx, ASTNode *node)
     {
         return;
     }
-    if (!node || node->type != NODE_STRUCT)
+    if (!node || node->kind != NODE_STRUCT)
     {
         return;
     }
@@ -695,7 +695,7 @@ void misra_check_struct_decl(ParserContext *ctx, ASTNode *node)
     ASTNode *field = node->strct.fields;
     while (field)
     {
-        if (field->type == NODE_FIELD)
+        if (field->kind == NODE_FIELD)
         {
             misra_check_pointer_nesting(ctx, field->type_info, field->token);
 
@@ -739,7 +739,7 @@ void misra_check_compound_body(ParserContext *ctx, ASTNode *body, const char *st
         return;
     }
 
-    if (body->type != NODE_BLOCK)
+    if (body->kind != NODE_BLOCK)
     {
         (void)stmt_name;
         zerror_at(body->token, "MISRA Rule 15.6");
@@ -752,18 +752,18 @@ void misra_check_compound_body(ParserContext *ctx, ASTNode *body, const char *st
  */
 void misra_check_terminal_else(ParserContext *ctx, ASTNode *if_node)
 {
-    if (!ctx->config->misra_mode || !if_node || if_node->type != NODE_IF)
+    if (!ctx->config->misra_mode || !if_node || if_node->kind != NODE_IF)
     {
         return;
     }
 
     // Traverse the if-else-if chain.
     ASTNode *curr = if_node;
-    while (curr && curr->type == NODE_IF)
+    while (curr && curr->kind == NODE_IF)
     {
         if (curr->if_stmt.else_body)
         {
-            if (curr->if_stmt.else_body->type == NODE_IF)
+            if (curr->if_stmt.else_body->kind == NODE_IF)
             {
                 // Another else-if, continue traversing.
                 curr = curr->if_stmt.else_body;
@@ -792,12 +792,12 @@ void misra_check_terminal_else(ParserContext *ctx, ASTNode *if_node)
  */
 void misra_check_param_nesting(ParserContext *ctx, ASTNode *func_node)
 {
-    if (!ctx->config->misra_mode || !func_node || func_node->type != NODE_FUNCTION)
+    if (!ctx->config->misra_mode || !func_node || func_node->kind != NODE_FUNCTION)
     {
         return;
     }
 
-    for (int i = 0; i < func_node->func.arg_count; ++i)
+    for (int i = 0; i < func_node->func.count; ++i)
     {
         if (func_node->func.arg_types[i])
         {
@@ -908,7 +908,7 @@ void misra_audit_unused_symbols(ParserContext *ctx)
         else if (sym->is_used && sym->kind == SYM_STRUCT && !sym->is_dereferenced &&
                  sym->decl_token.line != 0)
         {
-            if (sym->data.node && sym->data.node->type == NODE_STRUCT &&
+            if (sym->data.node && sym->data.node->kind == NODE_STRUCT &&
                 !sym->data.node->strct.is_opaque)
             {
                 zerror_at(
@@ -1180,7 +1180,7 @@ void misra_check_preprocessor_expression_parser(struct ParserContext *ctx, Token
 
 void misra_check_strict_match(ParserContext *ctx, ASTNode *node)
 {
-    if (!ctx->config->misra_mode || !node || node->type != NODE_MATCH || !node->match_stmt.expr)
+    if (!ctx->config->misra_mode || !node || node->kind != NODE_MATCH || !node->match_stmt.expr)
     {
         return;
     }
@@ -1602,7 +1602,7 @@ void misra_check_assignment_overlap(struct ParserContext *ctx, struct ASTNode *l
     }
 
     // Check for self-assignment: same variable on both sides
-    if (left->type == NODE_EXPR_VAR && right->type == NODE_EXPR_VAR)
+    if (left->kind == NODE_EXPR_VAR && right->kind == NODE_EXPR_VAR)
     {
         if (left->var_ref.symbol && right->var_ref.symbol &&
             left->var_ref.symbol == right->var_ref.symbol)
@@ -1620,7 +1620,7 @@ void misra_check_assignment_overlap(struct ParserContext *ctx, struct ASTNode *l
  */
 void misra_check_evaluation_order(struct ParserContext *ctx, struct ASTNode *expr)
 {
-    if (!ctx->config->misra_mode || !expr || expr->type != NODE_EXPR_CALL)
+    if (!ctx->config->misra_mode || !expr || expr->kind != NODE_EXPR_CALL)
     {
         return;
     }

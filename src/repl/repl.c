@@ -382,8 +382,8 @@ static int repl_process_line(ReplState *state, char *line_buf, int *brace_depth,
         zfree(check_buf);
 
         if (node &&
-            ((node->type >= NODE_EXPR_BINARY && node->type <= NODE_EXPR_SLICE) ||
-             node->type == NODE_TERNARY || node->type == NODE_LAMBDA) &&
+            ((node->kind >= NODE_EXPR_BINARY && node->kind <= NODE_EXPR_SLICE) ||
+             node->kind == NODE_TERNARY || node->kind == NODE_LAMBDA) &&
             /* Splicing quotes or braces into the "{...}" string literal would
              * produce malformed code; fall back to evaluating as a statement. */
             !strpbrk(raw_input, "\"{}"))

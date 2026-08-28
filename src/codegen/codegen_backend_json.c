@@ -241,7 +241,7 @@ static void json_emit_callee(ParserContext *ctx, ASTNode *callee)
         return;
     }
     const char *name = NULL;
-    if (callee->type == NODE_EXPR_VAR && callee->var_ref.name)
+    if (callee->kind == NODE_EXPR_VAR && callee->var_ref.name)
     {
         name = callee->var_ref.name;
         // Skip mangled prefixes like Vec__int32_t__push -> push
@@ -251,7 +251,7 @@ static void json_emit_callee(ParserContext *ctx, ASTNode *callee)
             name = last_underscore + 1;
         }
     }
-    else if (callee->type == NODE_EXPR_MEMBER && callee->member.field)
+    else if (callee->kind == NODE_EXPR_MEMBER && callee->member.field)
     {
         name = callee->member.field;
     }
@@ -297,10 +297,10 @@ static void json_emit_node(ParserContext *ctx, ASTNode *node, int pretty, int de
     {
         json_indent(ctx, depth);
     }
-    emitter_printf(&ctx->cg.emitter, "{\"node\":\"%s\"", node_type_name((int)(node->type)));
+    emitter_printf(&ctx->cg.emitter, "{\"node\":\"%s\"", node_type_name((int)(node->kind)));
 
     // Name for named nodes
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_FUNCTION:
     case NODE_VAR_DECL:
@@ -358,13 +358,13 @@ static void json_emit_node(ParserContext *ctx, ASTNode *node, int pretty, int de
     }
 
     // Callee name for CALL nodes
-    if (node->type == NODE_EXPR_CALL)
+    if (node->kind == NODE_EXPR_CALL)
     {
         json_emit_callee(ctx, node->call.callee);
     }
 
     // For-range loop fields
-    if (node->type == NODE_FOR_RANGE)
+    if (node->kind == NODE_FOR_RANGE)
     {
         if (node->for_range.var_name)
         {
@@ -383,15 +383,15 @@ static void json_emit_node(ParserContext *ctx, ASTNode *node, int pretty, int de
     }
 
     // RAW content preview
-    if (node->type == NODE_RAW_STMT)
+    if (node->kind == NODE_RAW_STMT)
     {
         json_emit_raw_content(ctx, node->raw_stmt.content);
     }
 
     // Literal values
-    if (node->type == NODE_EXPR_LITERAL)
+    if (node->kind == NODE_EXPR_LITERAL)
     {
-        switch (node->literal.type_kind)
+        switch (node->literal.kind)
         {
         case LITERAL_INT:
             emitter_printf(&ctx->cg.emitter, ",\"value\":%llu", node->literal.int_val);
@@ -436,7 +436,7 @@ static void json_emit_node(ParserContext *ctx, ASTNode *node, int pretty, int de
 
     // Children
     int child_depth = depth + 1;
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_ROOT:
         if (node->root.children)

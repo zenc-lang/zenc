@@ -6,17 +6,41 @@ import "./string.zc"
 include <stdio.h>
 include <stdarg.h>
 
+/// Formats into a thread-local buffer (ring of buffers for nesting).
 fn format(fmt: char*, ...) -> char* {
-    @thread_local static let buffer: char[1024];
+    // A small ring of thread-local buffers so nested format() calls (e.g.
+    // format("%s", format("%d", x))) do not clobber each other. Each returned
+    // pointer stays valid until 4 further format() calls on the same thread.
+    @thread_local static let buffer0: char[4096];
+    @thread_local static let buffer1: char[4096];
+    @thread_local static let buffer2: char[4096];
+    @thread_local static let buffer3: char[4096];
+    @thread_local static let slot: int = 0;
+
+    let idx = slot;
+    slot = (slot + 1) % 4;
+
+    let buf: char* = NULL;
+    if (idx == 0) {
+        buf = (char*)buffer0;
+    } else if (idx == 1) {
+        buf = (char*)buffer1;
+    } else if (idx == 2) {
+        buf = (char*)buffer2;
+    } else {
+        buf = (char*)buffer3;
+    }
+
     let ap: va_list;
     va_start(ap, fmt);
 
-    vsnprintf(buffer, 1024, fmt, ap);
+    vsnprintf(buf, 4096, fmt, ap);
     va_end(ap);
 
-    return (char*)buffer;
+    return buf;
 }
 
+/// Formats into a caller-provided buffer.
 fn format_into(buffer: char*, size: usize, fmt: char*, ...) -> c_int {
     let ap: va_list;
     va_start(ap, fmt);
@@ -27,6 +51,7 @@ fn format_into(buffer: char*, size: usize, fmt: char*, ...) -> c_int {
     return ret;
 }
 
+/// Formats into a new heap-allocated buffer (caller frees).
 fn format_new(fmt: char*, ...) -> char* {
     let buffer: char* = alloc_n<char>(1024);
     if buffer == NULL return NULL;
@@ -40,6 +65,7 @@ fn format_new(fmt: char*, ...) -> char* {
     return buffer;
 }
 
+/// Prints formatted output to stdout.
 fn print(fmt: char*, ...) -> c_int {
     let ap: va_list;
     va_start(ap, fmt);
@@ -48,6 +74,7 @@ fn print(fmt: char*, ...) -> c_int {
     return ret;
 }
 
+/// Prints formatted output to stdout followed by a newline.
 fn println(fmt: char*, ...) -> c_int {
     let ap: va_list;
     va_start(ap, fmt);
@@ -57,6 +84,7 @@ fn println(fmt: char*, ...) -> c_int {
     return ret + 1;
 }
 
+/// Reads a line from stdin (caller frees).
 fn readln() -> char* {
     let cap: usize = 64;
     let len: usize = 0;
@@ -113,6 +141,7 @@ fn _utf8_seq_len(first_byte: byte) -> usize {
     return 1; // Fallback
 }
 
+/// Reads a single rune from stdin.
 fn read_rune() -> rune {
     let std_in = stdin;
     let c1 = fgetc((FILE*)std_in);
@@ -144,6 +173,7 @@ fn read_rune() -> rune {
 }
 
 // Integer to string conversion
+/// Converts an int to a string in a static buffer.
 fn itos(n: int) -> char* {
     @thread_local static let buffer: char[32];
     sprintf((char*)buffer, "%d", n);
@@ -151,6 +181,7 @@ fn itos(n: int) -> char* {
 }
 
 // Heap-allocated integer to string - caller must free
+/// Converts an int to a heap-allocated string (caller frees).
 fn itos_new(n: int) -> char* {
     let buffer: char* = alloc_n<char>(32);
     if (buffer == NULL) {
@@ -161,34 +192,9 @@ fn itos_new(n: int) -> char* {
 }
 
 // Unsigned integer to string
-fn utos(n: uint) -> char* {
+/// Converts an unsigned int to a string in a static buffer.
+fn utos(n: u32) -> char* {
     @thread_local static let buffer: char[32];
     sprintf((char*)buffer, "%u", n);
-    return (char*)buffer;
-}
-
-// Rune to string (UTF-8)
-fn _z_str_rune(r: rune) -> char* {
-    @thread_local static let buffer: char[5];
-    let val = (uint32_t)r;
-    if (val < 0x80) {
-        buffer[0] = (char)val;
-        buffer[1] = 0;
-    } else if (val < 0x800) {
-        buffer[0] = (char)(0xC0 | (val >> 6));
-        buffer[1] = (char)(0x80 | (val & 0x3F));
-        buffer[2] = 0;
-    } else if (val < 0x10000) {
-        buffer[0] = (char)(0xE0 | (val >> 12));
-        buffer[1] = (char)(0x80 | ((val >> 6) & 0x3F));
-        buffer[2] = (char)(0x80 | (val & 0x3F));
-        buffer[3] = 0;
-    } else {
-        buffer[0] = (char)(0xF0 | (val >> 18));
-        buffer[1] = (char)(0x80 | ((val >> 12) & 0x3F));
-        buffer[2] = (char)(0x80 | ((val >> 6) & 0x3F));
-        buffer[3] = (char)(0x80 | (val & 0x3F));
-        buffer[4] = 0;
-    }
     return (char*)buffer;
 }

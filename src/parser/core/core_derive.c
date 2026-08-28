@@ -33,7 +33,7 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
             char body[4096];
             body[0] = 0;
 
-            if (strct->type == NODE_ENUM)
+            if (strct->kind == NODE_ENUM)
             {
                 // Check if enum has payloads
                 int has_payload = 0;
@@ -50,28 +50,30 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
 
                 if (has_payload)
                 {
-                    sprintf(body, "return self.tag == other.tag;"); /* TODO: check buffer size */
+                    snprintf(body, sizeof(body),
+                             "return self.tag == other.tag;"); /* TODO: check buffer size */
                 }
                 else
                 {
                     // Simple enum: direct comparison via raw C (no .tag)
-                    sprintf(body, "raw { return *self == *other; }"); /* TODO: check buffer size */
+                    snprintf(body, sizeof(body),
+                             "raw { return *self == *other; }"); /* TODO: check buffer size */
                 }
             }
             else
             {
                 ASTNode *f = strct->strct.fields;
                 int first = 1;
-                strcat(body, "return ");
+                strncat(body, "return ", sizeof(body) - strlen(body) - 1);
                 while (f)
                 {
-                    if (f->type == NODE_FIELD)
+                    if (f->kind == NODE_FIELD)
                     {
                         char *fn = f->field.name;
                         char *ft = f->field.type;
                         if (!first)
                         {
-                            strcat(body, " && ");
+                            strncat(body, " && ", sizeof(body) - strlen(body) - 1);
                         }
                         char cmp[MAX_VAR_NAME_LEN];
 
@@ -90,7 +92,7 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
                         // Only look up struct def for non-pointer types
                         ASTNode *fdef = is_ptr ? NULL : find_struct_def(ctx, ft);
 
-                        if (!is_ptr && fdef && fdef->type == NODE_ENUM)
+                        if (!is_ptr && fdef && fdef->kind == NODE_ENUM)
                         {
                             // Check if enum is simple (no payloads)
                             int ep = 0;
@@ -106,38 +108,38 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
                             }
                             if (ep)
                             {
-                                sprintf(cmp, "self.%s.tag == other.%s.tag", fn,
-                                        fn); /* TODO: check buffer size */
+                                snprintf(cmp, sizeof(cmp), "self.%s.tag == other.%s.tag", fn,
+                                         fn); /* TODO: check buffer size */
                             }
                             else
                             {
                                 // Simple enum: direct comparison
-                                sprintf(cmp, "self.%s == other.%s", fn,
-                                        fn); /* TODO: check buffer size */
+                                snprintf(cmp, sizeof(cmp), "self.%s == other.%s", fn,
+                                         fn); /* TODO: check buffer size */
                             }
                         }
-                        else if (!is_ptr && fdef && fdef->type == NODE_STRUCT)
+                        else if (!is_ptr && fdef && fdef->kind == NODE_STRUCT)
                         {
                             // Struct field: use __eq function
-                            sprintf(cmp, "%s__eq(&self.%s, &other.%s)", ft, fn,
-                                    fn); /* TODO: check buffer size */
+                            snprintf(cmp, sizeof(cmp), "%s__eq(&self.%s, &other.%s)", ft, fn,
+                                     fn); /* TODO: check buffer size */
                         }
                         else
                         {
                             // Primitive, POINTER, or unknown: use ==
-                            sprintf(cmp, "self.%s == other.%s", fn,
-                                    fn); /* TODO: check buffer size */
+                            snprintf(cmp, sizeof(cmp), "self.%s == other.%s", fn,
+                                     fn); /* TODO: check buffer size */
                         }
-                        strcat(body, cmp);
+                        strncat(body, cmp, sizeof(body) - strlen(body) - 1);
                         first = 0;
                     }
                     f = f->next;
                 }
                 if (first)
                 {
-                    strcat(body, "true");
+                    strncat(body, "true", sizeof(body) - strlen(body) - 1);
                 }
-                strcat(body, ";");
+                strncat(body, ";", sizeof(body) - strlen(body) - 1);
             }
             code = xmalloc(4096 + 1024);
             // Updated signature: other is a pointer T*
@@ -163,7 +165,7 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
         {
             // Generate from_json(j: JsonValue*) -> Result<StructName>
             // Only works for structs (not enums)
-            if (strct->type != NODE_STRUCT)
+            if (strct->kind != NODE_STRUCT)
             {
                 zwarn_at(strct->token, "@derive(FromJson) only works on structs");
                 continue;
@@ -180,7 +182,7 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
             ASTNode *f = strct->strct.fields;
             while (f)
             {
-                if (f->type == NODE_FIELD)
+                if (f->kind == NODE_FIELD)
                 {
                     char *fn = f->field.name;
                     char *ft = f->field.type;
@@ -206,20 +208,22 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
                     }
                     else if (strcmp(ft, "double") == 0)
                     {
-                        sprintf(assign, "let _f_%s = (*j).get_float(\"%s\").unwrap_or(0.0);\n",
-                                fn, /* TODO: check buffer size */
-                                fn);
+                        snprintf(assign, sizeof(assign),
+                                 "let _f_%s = (*j).get_float(\"%s\").unwrap_or(0.0);\n",
+                                 fn, /* TODO: check buffer size */
+                                 fn);
                     }
                     else if (strcmp(ft, "bool") == 0)
                     {
-                        sprintf(assign, "let _f_%s = (*j).get_bool(\"%s\").unwrap_or(false);\n",
-                                fn, /* TODO: check buffer size */
-                                fn);
+                        snprintf(assign, sizeof(assign),
+                                 "let _f_%s = (*j).get_bool(\"%s\").unwrap_or(false);\n",
+                                 fn, /* TODO: check buffer size */
+                                 fn);
                     }
                     else if (strcmp(ft, "char*") == 0)
                     {
-                        sprintf(
-                            assign,
+                        snprintf(
+                            assign, sizeof(assign),
                             "let _f_%s = (*j).get_string(\"%s\").unwrap_or(\"\");\n", /* TODO: check
                                                                                          buffer size
                                                                                        */
@@ -264,34 +268,34 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
                     else
                     {
                         // Nested struct: call NestedType::from_json recursively
-                        sprintf(assign, /* TODO: check buffer size */
-                                "let _opt_%s = (*j).get(\"%s\");\n"
-                                "let _f_%s: %s;\n"
-                                "if _opt_%s.is_some() { _f_%s = "
-                                "%s::from_json(_opt_%s.unwrap()).unwrap(); }\n",
-                                fn, fn, fn, ft, fn, fn, ft, fn);
+                        snprintf(assign, sizeof(assign), /* TODO: check buffer size */
+                                 "let _opt_%s = (*j).get(\"%s\");\n"
+                                 "let _f_%s: %s;\n"
+                                 "if _opt_%s.is_some() { _f_%s = "
+                                 "%s::from_json(_opt_%s.unwrap()).unwrap(); }\n",
+                                 fn, fn, fn, ft, fn, fn, ft, fn);
                     }
-                    strcat(body, assign);
+                    strncat(body, assign, sizeof(body) - strlen(body) - 1);
                 }
                 f = f->next;
             }
 
             // Build struct initialization
-            strcat(body, "return Result<");
-            strcat(body, name);
-            strcat(body, ">::Ok(");
-            strcat(body, name);
-            strcat(body, " { ");
+            strncat(body, "return Result<", sizeof(body) - strlen(body) - 1);
+            strncat(body, name, sizeof(body) - strlen(body) - 1);
+            strncat(body, ">::Ok(", sizeof(body) - strlen(body) - 1);
+            strncat(body, name, sizeof(body) - strlen(body) - 1);
+            strncat(body, " { ", sizeof(body) - strlen(body) - 1);
 
             f = strct->strct.fields;
             int first = 1;
             while (f)
             {
-                if (f->type == NODE_FIELD)
+                if (f->kind == NODE_FIELD)
                 {
                     if (!first)
                     {
-                        strcat(body, ", ");
+                        strncat(body, ", ", sizeof(body) - strlen(body) - 1);
                     }
                     char init[128];
                     // Check if this is a Vec<String> field - clone it to avoid double-free
@@ -312,12 +316,12 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
                     {
                         snprintf(init, 128, "%s: _f_%s", f->field.name, f->field.name);
                     }
-                    strcat(body, init);
+                    strncat(body, init, sizeof(body) - strlen(body) - 1);
                     first = 0;
                 }
                 f = f->next;
             }
-            strcat(body, " }); ");
+            strncat(body, " }); ", sizeof(body) - strlen(body) - 1);
 
             code = xmalloc(8192 + 1024);
             sprintf(code, "impl %s { fn from_json(j: JsonValue*) -> Result<%s> { %s } }",
@@ -328,7 +332,7 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
         {
             // Generate to_json(self) -> JsonValue
             // Only works for structs (not enums)
-            if (strct->type != NODE_STRUCT)
+            if (strct->kind != NODE_STRUCT)
             {
                 zwarn_at(strct->token, "@derive(ToJson) only works on structs");
                 continue;
@@ -340,7 +344,7 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
             ASTNode *f = strct->strct.fields;
             while (f)
             {
-                if (f->type == NODE_FIELD)
+                if (f->kind == NODE_FIELD)
                 {
                     char *fn = f->field.name;
                     char *ft = f->field.type;
@@ -365,25 +369,28 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
                     }
                     else if (strcmp(ft, "double") == 0)
                     {
-                        sprintf(set_call, "_obj.set(\"%s\", JsonValue::number(self.%s));\n",
-                                fn, /* TODO: check buffer size */
-                                fn);
+                        snprintf(set_call, sizeof(set_call),
+                                 "_obj.set(\"%s\", JsonValue::number(self.%s));\n",
+                                 fn, /* TODO: check buffer size */
+                                 fn);
                     }
                     else if (strcmp(ft, "bool") == 0)
                     {
-                        sprintf(set_call, "_obj.set(\"%s\", JsonValue::bool(self.%s));\n", fn,
-                                fn); /* TODO: check buffer size */
+                        snprintf(set_call, sizeof(set_call),
+                                 "_obj.set(\"%s\", JsonValue::bool(self.%s));\n", fn,
+                                 fn); /* TODO: check buffer size */
                     }
                     else if (strcmp(ft, "char*") == 0)
                     {
-                        sprintf(set_call, "_obj.set(\"%s\", JsonValue::string(self.%s));\n",
-                                fn, /* TODO: check buffer size */
-                                fn);
+                        snprintf(set_call, sizeof(set_call),
+                                 "_obj.set(\"%s\", JsonValue::string(self.%s));\n",
+                                 fn, /* TODO: check buffer size */
+                                 fn);
                     }
                     else if (strcmp(ft, "String") == 0)
                     {
-                        sprintf(
-                            set_call,
+                        snprintf(
+                            set_call, sizeof(set_call),
                             "_obj.set(\"%s\", JsonValue::string(self.%s.c_str()));\n", /* TODO:
                                                                                           check
                                                                                           buffer
@@ -392,27 +399,29 @@ ASTNode *generate_derive_impls(ParserContext *ctx, ASTNode *strct, char **traits
                     }
                     else if (ft && strstr(ft, "Vec") && strstr(ft, "String"))
                     {
-                        sprintf(set_call, /* TODO: check buffer size */
-                                "let _arr_%s = JsonValue::array();\n"
-                                "for let _i_%s: usize = 0; _i_%s < self.%s.length(); _i_%s = _i_%s "
-                                "+ 1 {\n"
-                                "  _arr_%s.push(JsonValue::string(self.%s.get(_i_%s).c_str()));\n"
-                                "}\n"
-                                "_obj.set(\"%s\", _arr_%s);\n",
-                                fn, fn, fn, fn, fn, fn, fn, fn, fn, fn, fn);
+                        snprintf(
+                            set_call, sizeof(set_call), /* TODO: check buffer size */
+                            "let _arr_%s = JsonValue::array();\n"
+                            "for let _i_%s: usize = 0; _i_%s < self.%s.length(); _i_%s = _i_%s "
+                            "+ 1 {\n"
+                            "  _arr_%s.push(JsonValue::string(self.%s.get(_i_%s).c_str()));\n"
+                            "}\n"
+                            "_obj.set(\"%s\", _arr_%s);\n",
+                            fn, fn, fn, fn, fn, fn, fn, fn, fn, fn, fn);
                     }
                     else
                     {
                         // Nested struct: call to_json recursively
-                        sprintf(set_call, "_obj.set(\"%s\", self.%s.to_json());\n", fn,
-                                fn); /* TODO: check buffer size */
+                        snprintf(set_call, sizeof(set_call),
+                                 "_obj.set(\"%s\", self.%s.to_json());\n", fn,
+                                 fn); /* TODO: check buffer size */
                     }
-                    strcat(body, set_call);
+                    strncat(body, set_call, sizeof(body) - strlen(body) - 1);
                 }
                 f = f->next;
             }
 
-            strcat(body, "return _obj;");
+            strncat(body, "return _obj;", sizeof(body) - strlen(body) - 1);
 
             code = xmalloc(8192 + 1024);
             sprintf(code, "impl %s { fn to_json(self) -> JsonValue { %s } }", name,

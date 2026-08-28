@@ -18,8 +18,8 @@ static int allow_duplicate_source_mapping = 0;
 
 int should_emit_source_mapping(ASTNode *node)
 {
-    return node && node->type < NODE_REPL_PRINT && node->type != NODE_BLOCK &&
-           node->type != NODE_EXPR_UNARY && node->type != NODE_FIELD;
+    return node && node->kind < NODE_REPL_PRINT && node->kind != NODE_BLOCK &&
+           node->kind != NODE_EXPR_UNARY && node->kind != NODE_FIELD;
 }
 
 void emit_source_mapping_duplicate(ParserContext *ctx, ASTNode *node)
@@ -53,12 +53,12 @@ void emit_source_mapping(ParserContext *ctx, ASTNode *node)
     {
         zwarn_at(node->token,
                  "Encountered source mapping issue for node type %i, please report this issue.",
-                 (int)node->type);
+                 (int)node->kind);
         return;
     }
 
     last_source_mapping_line = node->token.line;
-    last_source_mapping_type = node->type;
+    last_source_mapping_type = node->kind;
 
     if (!ctx->config->misra_mode)
     {

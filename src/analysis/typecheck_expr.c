@@ -14,7 +14,7 @@ void check_move_for_rvalue(TypeChecker *tc, ASTNode *rvalue)
         return;
     }
 
-    if (rvalue->type == NODE_EXPR_VAR)
+    if (rvalue->kind == NODE_EXPR_VAR)
     {
         ZenSymbol *sym = tc_lookup(tc, rvalue->var_ref.name);
         if (sym)
@@ -22,7 +22,7 @@ void check_move_for_rvalue(TypeChecker *tc, ASTNode *rvalue)
             mark_symbol_moved(tc->pctx, sym, rvalue);
         }
     }
-    else if (rvalue->type == NODE_EXPR_UNARY && strcmp(rvalue->unary.op, "*") == 0)
+    else if (rvalue->kind == NODE_EXPR_UNARY && strcmp(rvalue->unary.op, "*") == 0)
     {
         const char *hints[] = {"This type owns resources and cannot be implicitly copied",
                                "Consider borrowing value via references or implementing Copy",
@@ -30,12 +30,12 @@ void check_move_for_rvalue(TypeChecker *tc, ASTNode *rvalue)
         tc_move_error_with_hints(tc, rvalue->token, "Cannot move out of a borrowed reference",
                                  hints);
     }
-    else if (rvalue->type == NODE_EXPR_MEMBER)
+    else if (rvalue->kind == NODE_EXPR_MEMBER)
     {
         // Now allowed, but will be tracked by path
         mark_symbol_moved(tc->pctx, NULL, rvalue);
     }
-    else if (rvalue->type == NODE_EXPR_INDEX)
+    else if (rvalue->kind == NODE_EXPR_INDEX)
     {
         const char *hints[] = {"Cannot move an element out of an array or slice.", NULL};
         tc_move_error_with_hints(tc, rvalue->token, "Cannot move out of an index expression",
@@ -138,7 +138,7 @@ void check_expr_unary(TypeChecker *tc, ASTNode *node, int depth)
     {
         misra_check_inc_dec_result_used(tc->pctx, node->token);
         // Track as a write
-        if (node->unary.operand->type == NODE_EXPR_VAR)
+        if (node->unary.operand->kind == NODE_EXPR_VAR)
         {
             ZenSymbol *s = tc_lookup(tc, node->unary.operand->var_ref.name);
             if (s)
@@ -146,11 +146,11 @@ void check_expr_unary(TypeChecker *tc, ASTNode *node, int depth)
                 s->is_written_to = 1;
             }
         }
-        else if (node->unary.operand->type == NODE_EXPR_UNARY &&
+        else if (node->unary.operand->kind == NODE_EXPR_UNARY &&
                  strcmp(node->unary.operand->unary.op, "*") == 0)
         {
             ASTNode *inner = node->unary.operand->unary.operand;
-            if (inner->type == NODE_EXPR_VAR)
+            if (inner->kind == NODE_EXPR_VAR)
             {
                 ZenSymbol *s = tc_lookup(tc, inner->var_ref.name);
                 if (s)
@@ -173,7 +173,7 @@ void check_expr_unary(TypeChecker *tc, ASTNode *node, int depth)
     {
         node->type_info = type_new_ptr(operand_type);
         // Record provenance depth for escape analysis
-        if (node->unary.operand->type == NODE_EXPR_VAR)
+        if (node->unary.operand->kind == NODE_EXPR_VAR)
         {
             ZenSymbol *sym = tc_lookup(tc, node->unary.operand->var_ref.name);
             if (sym)
@@ -226,7 +226,7 @@ void check_expr_binary(TypeChecker *tc, ASTNode *node, int depth)
         check_node(tc, node->binary.left, depth + 1);
         tc->is_assign_lhs = old_is_assign_lhs;
 
-        if (node->binary.left->type_info && node->binary.right->type == NODE_LAMBDA)
+        if (node->binary.left->type_info && node->binary.right->kind == NODE_LAMBDA)
         {
             node->binary.right->type_info = node->binary.left->type_info;
         }
@@ -242,7 +242,7 @@ void check_expr_binary(TypeChecker *tc, ASTNode *node, int depth)
             collect_symbols(node->binary.right, &r_reads, &r_writes);
 
             // Treat LHS of assignment as a write
-            if (node->binary.left->type == NODE_EXPR_VAR)
+            if (node->binary.left->kind == NODE_EXPR_VAR)
             {
                 int already_in = 0;
                 for (int k = 0; k < l_writes.count; k++)
@@ -343,7 +343,7 @@ void check_expr_binary(TypeChecker *tc, ASTNode *node, int depth)
                                      node->binary.right, 0);
 
             // Mark LHS as written to
-            if (node->binary.left->type == NODE_EXPR_VAR)
+            if (node->binary.left->kind == NODE_EXPR_VAR)
             {
                 ZenSymbol *s = tc_lookup(tc, node->binary.left->var_ref.name);
                 if (s)
@@ -351,11 +351,11 @@ void check_expr_binary(TypeChecker *tc, ASTNode *node, int depth)
                     s->is_written_to = 1;
                 }
             }
-            else if (node->binary.left->type == NODE_EXPR_UNARY &&
+            else if (node->binary.left->kind == NODE_EXPR_UNARY &&
                      strcmp(node->binary.left->unary.op, "*") == 0)
             {
                 ASTNode *inner = node->binary.left->unary.operand;
-                if (inner->type == NODE_EXPR_VAR)
+                if (inner->kind == NODE_EXPR_VAR)
                 {
                     ZenSymbol *s = tc_lookup(tc, inner->var_ref.name);
                     if (s)
@@ -365,10 +365,10 @@ void check_expr_binary(TypeChecker *tc, ASTNode *node, int depth)
                 }
             }
             // Also handle array indexing as write
-            else if (node->binary.left->type == NODE_EXPR_INDEX)
+            else if (node->binary.left->kind == NODE_EXPR_INDEX)
             {
                 ASTNode *arr = node->binary.left->index.array;
-                if (arr->type == NODE_EXPR_VAR)
+                if (arr->kind == NODE_EXPR_VAR)
                 {
                     ZenSymbol *s = tc_lookup(tc, arr->var_ref.name);
                     if (s)
@@ -378,15 +378,15 @@ void check_expr_binary(TypeChecker *tc, ASTNode *node, int depth)
                 }
             }
             // Also handle member access as write
-            else if (node->binary.left->type == NODE_EXPR_MEMBER)
+            else if (node->binary.left->kind == NODE_EXPR_MEMBER)
             {
                 ASTNode *target = node->binary.left->member.target;
                 // Follow the member chain to the base variable
-                while (target && target->type == NODE_EXPR_MEMBER)
+                while (target && target->kind == NODE_EXPR_MEMBER)
                 {
                     target = target->member.target;
                 }
-                if (target && target->type == NODE_EXPR_VAR)
+                if (target && target->kind == NODE_EXPR_VAR)
                 {
                     ZenSymbol *s = tc_lookup(tc, target->var_ref.name);
                     if (s)
@@ -401,13 +401,13 @@ void check_expr_binary(TypeChecker *tc, ASTNode *node, int depth)
         check_move_for_rvalue(tc, node->binary.right);
 
         // LHS is being (re-)initialized, so it becomes Valid.
-        if (node->binary.left->type == NODE_EXPR_VAR)
+        if (node->binary.left->kind == NODE_EXPR_VAR)
         {
             ZenSymbol *lhs_sym = tc_lookup(tc, node->binary.left->var_ref.name);
             if (lhs_sym)
             {
                 if (tc->pctx->config->misra_mode && node->binary.left &&
-                    node->binary.left->type == NODE_EXPR_VAR)
+                    node->binary.left->kind == NODE_EXPR_VAR)
                 {
                     misra_check_param_modified(tc->current_func, node->binary.left,
                                                node->binary.left->token);
@@ -436,9 +436,9 @@ void check_expr_binary(TypeChecker *tc, ASTNode *node, int depth)
     {
         // Division by zero detection for / and %
         if ((strcmp(op, "/") == 0 || strcmp(op, "%") == 0) && node->binary.right &&
-            node->binary.right->type == NODE_EXPR_LITERAL)
+            node->binary.right->kind == NODE_EXPR_LITERAL)
         {
-            LiteralKind kind = node->binary.right->literal.type_kind;
+            LiteralKind kind = node->binary.right->literal.kind;
             if (kind == LITERAL_INT && node->binary.right->literal.int_val == 0)
             {
                 const char *hints[] = {"Division by zero is undefined behavior", NULL};
@@ -655,8 +655,8 @@ void check_expr_binary(TypeChecker *tc, ASTNode *node, int depth)
             }
         }
         else if ((strcmp(op, "<<") == 0 || strcmp(op, ">>") == 0) && node->binary.right &&
-                 node->binary.right->type == NODE_EXPR_LITERAL &&
-                 node->binary.right->literal.type_kind == LITERAL_INT)
+                 node->binary.right->kind == NODE_EXPR_LITERAL &&
+                 node->binary.right->literal.kind == LITERAL_INT)
         {
             // Legacy/Non-MISRA warnings
             unsigned long long shift_amt = node->binary.right->literal.int_val;
@@ -798,8 +798,8 @@ void apply_implicit_struct_pointer_conversions(TypeChecker *tc, ASTNode **expr_p
              (type_eq(a_res, e_res->inner) || is_struct_base_match(a_res, e_res->inner)))
     {
         ASTNode *addr = ast_create(NODE_EXPR_UNARY);
-        int is_rvalue = (expr->type == NODE_EXPR_CALL || expr->type == NODE_EXPR_BINARY ||
-                         expr->type == NODE_MATCH);
+        int is_rvalue = (expr->kind == NODE_EXPR_CALL || expr->kind == NODE_EXPR_BINARY ||
+                         expr->kind == NODE_MATCH);
         addr->unary.op = is_rvalue ? xstrdup("&_rval") : xstrdup("&");
         addr->unary.operand = expr;
         addr->type_info = e_res;
@@ -1052,7 +1052,7 @@ void check_expr_var(TypeChecker *tc, ASTNode *node)
             Type *fn_type = type_new(TYPE_FUNCTION);
             fn_type->is_raw = 1;
             fn_type->inner = sig->ret_type ? sig->ret_type : type_new(TYPE_VOID);
-            fn_type->arg_count = sig->total_args;
+            fn_type->count = sig->total_args;
             if (sig->total_args > 0)
             {
                 fn_type->args = xmalloc(sizeof(Type *) * (size_t)(sig->total_args));
@@ -1086,7 +1086,7 @@ void check_expr_literal(TypeChecker *tc, ASTNode *node)
         return;
     }
 
-    switch (node->literal.type_kind)
+    switch (node->literal.kind)
     {
     case LITERAL_INT:
         node->type_info = type_new(TYPE_I32); // Default to i32
@@ -1164,7 +1164,7 @@ void check_struct_init(TypeChecker *tc, ASTNode *node, int depth)
 
         while (def_field)
         {
-            if (def_field->type == NODE_FIELD &&
+            if (def_field->kind == NODE_FIELD &&
                 strcmp(def_field->field.name, field_init->var_decl.name) == 0)
             {
                 found = 1;
@@ -1179,7 +1179,7 @@ void check_struct_init(TypeChecker *tc, ASTNode *node, int depth)
             field_init->type_info = expected_type;
         }
 
-        if (found && expected_type && field_init->var_decl.init_expr->type == NODE_LAMBDA)
+        if (found && expected_type && field_init->var_decl.init_expr->kind == NODE_LAMBDA)
         {
             field_init->var_decl.init_expr->type_info = expected_type;
         }
@@ -1218,7 +1218,7 @@ void check_struct_init(TypeChecker *tc, ASTNode *node, int depth)
     ASTNode *def_field = def->strct.fields;
     while (def_field)
     {
-        if (def_field->type == NODE_FIELD && def_field->field.name)
+        if (def_field->kind == NODE_FIELD && def_field->field.name)
         {
             int provided = 0;
             ASTNode *fi = node->struct_init.fields;
@@ -1252,7 +1252,7 @@ void check_expr_lambda(TypeChecker *tc, ASTNode *node, int depth)
     Type *expected = get_inner_type(node->type_info);
     if (expected && expected->kind == TYPE_FUNCTION && expected->is_raw)
     {
-        if (node->lambda.num_captures == 0)
+        if (node->lambda.capture_count == 0)
         {
             node->lambda.is_bare = 1;
         }
@@ -1267,7 +1267,7 @@ void check_expr_lambda(TypeChecker *tc, ASTNode *node, int depth)
 
     if (node->lambda.captured_vars)
     {
-        for (int i = 0; i < node->lambda.num_captures; i++)
+        for (int i = 0; i < node->lambda.capture_count; i++)
         {
             char *var_name = node->lambda.captured_vars[i];
             int mode = node->lambda.capture_modes ? node->lambda.capture_modes[i]
@@ -1294,14 +1294,14 @@ void check_expr_lambda(TypeChecker *tc, ASTNode *node, int depth)
 
     tc_enter_scope(tc);
 
-    for (int i = 0; i < node->lambda.num_params; i++)
+    for (int i = 0; i < node->lambda.count; i++)
     {
         char *pname = node->lambda.param_names[i];
         Type *ptype = NULL;
         Type *node_ti = get_inner_type(node->type_info);
         if (node_ti && node_ti->kind == TYPE_FUNCTION && node_ti->args)
         {
-            if (i < node_ti->arg_count)
+            if (i < node_ti->count)
             {
                 ptype = node_ti->args[i];
             }
@@ -1314,7 +1314,7 @@ void check_expr_lambda(TypeChecker *tc, ASTNode *node, int depth)
     {
         int saved_silent = tc->pctx->silent_warnings;
         tc->pctx->silent_warnings = 1;
-        for (int i = 0; i < node->lambda.num_captures; i++)
+        for (int i = 0; i < node->lambda.capture_count; i++)
         {
             char *var_name = node->lambda.captured_vars[i];
             int mode = node->lambda.capture_modes ? node->lambda.capture_modes[i]
@@ -1340,7 +1340,7 @@ void check_expr_lambda(TypeChecker *tc, ASTNode *node, int depth)
 
     if (node->lambda.body)
     {
-        if (node->lambda.body->type == NODE_BLOCK)
+        if (node->lambda.body->kind == NODE_BLOCK)
         {
             check_block(tc, node->lambda.body, depth + 1);
         }

@@ -23,58 +23,58 @@ ASTNode *parse_expression(ParserContext *ctx, Lexer *l)
 
 Precedence get_token_precedence(Token t)
 {
-    if (t.type == TOK_INT || t.type == TOK_FLOAT || t.type == TOK_STRING || t.type == TOK_IDENT ||
-        t.type == TOK_FSTRING)
+    if (t.kind == TOK_INT || t.kind == TOK_FLOAT || t.kind == TOK_STRING || t.kind == TOK_IDENT ||
+        t.kind == TOK_FSTRING)
     {
         return PREC_NONE;
     }
 
-    if (t.type == TOK_QUESTION)
+    if (t.kind == TOK_QUESTION)
     {
         return PREC_CALL;
     }
 
-    if (t.type == TOK_ARROW && t.start[0] == '-')
+    if (t.kind == TOK_ARROW && t.start[0] == '-')
     {
         return PREC_CALL;
     }
 
-    if (t.type == TOK_Q_DOT)
+    if (t.kind == TOK_Q_DOT)
     {
         return PREC_CALL;
     }
 
-    if (t.type == TOK_QQ)
+    if (t.kind == TOK_QQ)
     {
         return PREC_OR;
     }
 
-    if (t.type == TOK_AND)
+    if (t.kind == TOK_AND)
     {
         return PREC_AND;
     }
 
-    if (t.type == TOK_OR)
+    if (t.kind == TOK_OR)
     {
         return PREC_OR;
     }
 
-    if (t.type == TOK_QQ_EQ)
+    if (t.kind == TOK_QQ_EQ)
     {
         return PREC_ASSIGNMENT;
     }
 
-    if (t.type == TOK_PIPE)
+    if (t.kind == TOK_PIPE)
     {
         return PREC_TERM;
     }
 
-    if (t.type == TOK_LANGLE || t.type == TOK_RANGLE)
+    if (t.kind == TOK_LANGLE || t.kind == TOK_RANGLE)
     {
         return PREC_COMPARISON;
     }
 
-    if (t.type == TOK_OP)
+    if (t.kind == TOK_OP)
     {
         if (is_token(t, "=") || is_token(t, "+=") || is_token(t, "-=") || is_token(t, "*=") ||
             is_token(t, "/=") || is_token(t, "%=") || is_token(t, "|=") || is_token(t, "&=") ||
@@ -149,7 +149,7 @@ Precedence get_token_precedence(Token t)
         }
     }
 
-    if (t.type == TOK_LBRACKET || t.type == TOK_LPAREN)
+    if (t.kind == TOK_LBRACKET || t.kind == TOK_LPAREN)
     {
         return PREC_CALL;
     }
@@ -188,14 +188,14 @@ static void find_var_refs(ASTNode *node, char ***refs, int *ref_count)
         return;
     }
 
-    if (node->type == NODE_EXPR_VAR)
+    if (node->kind == NODE_EXPR_VAR)
     {
         *refs = xrealloc(*refs, sizeof(char *) * (size_t)(*ref_count + 1));
         (*refs)[*ref_count] = xstrdup(node->var_ref.name);
         (*ref_count)++;
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_EXPR_BINARY:
         find_var_refs(node->binary.left, refs, ref_count);
@@ -317,14 +317,14 @@ static void find_declared_vars(ASTNode *node, char ***decls, int *count)
         return;
     }
 
-    if (node->type == NODE_VAR_DECL)
+    if (node->kind == NODE_VAR_DECL)
     {
         *decls = xrealloc(*decls, sizeof(char *) * (size_t)(*count + 1));
         (*decls)[*count] = xstrdup(node->var_decl.name);
         (*count)++;
     }
 
-    if (node->type == NODE_MATCH_CASE)
+    if (node->kind == NODE_MATCH_CASE)
     {
         if (node->match_case.binding_names)
         {
@@ -340,7 +340,7 @@ static void find_declared_vars(ASTNode *node, char ***decls, int *count)
         }
     }
 
-    switch (node->type)
+    switch (node->kind)
     {
     case NODE_BLOCK:
         for (ASTNode *stmt = node->block.statements; stmt; stmt = stmt->next)
@@ -378,7 +378,7 @@ static void find_declared_vars(ASTNode *node, char ***decls, int *count)
 // Analyze lambda body to find captured variables.
 void analyze_lambda_captures(ParserContext *ctx, ASTNode *lambda)
 {
-    if (!lambda || lambda->type != NODE_LAMBDA)
+    if (!lambda || lambda->kind != NODE_LAMBDA)
     {
         return;
     }
@@ -395,20 +395,20 @@ void analyze_lambda_captures(ParserContext *ctx, ASTNode *lambda)
     char **capture_types = xmalloc(sizeof(char *) * 32);
     Type **captured_types_info = xmalloc(sizeof(Type *) * 32);
     int *capture_modes = xmalloc(sizeof(int) * 32);
-    int num_captures = 0;
+    int capture_count = 0;
 
-    for (int i = 0; i < lambda->lambda.num_explicit_captures; i++)
+    for (int i = 0; i < lambda->lambda.explicit_capture_count; i++)
     {
         const char *var_name = lambda->lambda.explicit_captures[i];
-        if (!is_in_list(var_name, captures, num_captures))
+        if (!is_in_list(var_name, captures, capture_count))
         {
-            captures[num_captures] = xstrdup(var_name);
-            capture_modes[num_captures] = lambda->lambda.explicit_capture_modes[i];
+            captures[capture_count] = xstrdup(var_name);
+            capture_modes[capture_count] = lambda->lambda.explicit_capture_modes[i];
 
             Type *t = find_symbol_type_info(ctx, var_name);
-            captured_types_info[num_captures] = t;
-            capture_types[num_captures] = t ? type_to_string(t) : xstrdup("int");
-            num_captures++;
+            captured_types_info[capture_count] = t;
+            capture_types[capture_count] = t ? type_to_string(t) : xstrdup("int");
+            capture_count++;
         }
     }
 
@@ -416,7 +416,7 @@ void analyze_lambda_captures(ParserContext *ctx, ASTNode *lambda)
     {
         const char *var_name = all_refs[i];
 
-        if (is_in_list(var_name, lambda->lambda.param_names, lambda->lambda.num_params))
+        if (is_in_list(var_name, lambda->lambda.param_names, lambda->lambda.count))
         {
             continue;
         }
@@ -426,7 +426,7 @@ void analyze_lambda_captures(ParserContext *ctx, ASTNode *lambda)
             continue;
         }
 
-        if (is_in_list(var_name, captures, num_captures))
+        if (is_in_list(var_name, captures, capture_count))
         {
             continue;
         }
@@ -492,7 +492,7 @@ void analyze_lambda_captures(ParserContext *ctx, ASTNode *lambda)
         }
 
         int found = 0;
-        for (int j = 0; j < num_captures; j++)
+        for (int j = 0; j < capture_count; j++)
         {
             if (strcmp(var_name, captures[j]) == 0)
             {
@@ -505,27 +505,27 @@ void analyze_lambda_captures(ParserContext *ctx, ASTNode *lambda)
             continue;
         }
 
-        captures[num_captures] = xstrdup(var_name);
-        capture_modes[num_captures] = lambda->lambda.default_capture_mode;
+        captures[capture_count] = xstrdup(var_name);
+        capture_modes[capture_count] = lambda->lambda.default_capture_mode;
 
         Type *t = find_symbol_type_info(ctx, var_name);
-        captured_types_info[num_captures] = t;
+        captured_types_info[capture_count] = t;
         if (t)
         {
-            capture_types[num_captures] = type_to_string(t);
+            capture_types[capture_count] = type_to_string(t);
         }
         else
         {
-            capture_types[num_captures] = xstrdup("int");
+            capture_types[capture_count] = xstrdup("int");
         }
-        num_captures++;
+        capture_count++;
     }
 
     lambda->lambda.captured_vars = captures;
     lambda->lambda.captured_types = capture_types;
     lambda->lambda.captured_types_info = captured_types_info;
     lambda->lambda.capture_modes = capture_modes;
-    lambda->lambda.num_captures = num_captures;
+    lambda->lambda.capture_count = capture_count;
 
     if (local_decls)
     {

@@ -25,7 +25,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
     Token tk = lexer_peek(l);
     l->emit_comments = prev_emit;
 
-    if (tk.type == TOK_COMMENT)
+    if (tk.kind == TOK_COMMENT)
     {
         l->emit_comments = 1;
         lexer_next(l); // consume comment
@@ -40,7 +40,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
 
     ASTNode *s = NULL;
 
-    if (tk.type == TOK_SEMICOLON)
+    if (tk.kind == TOK_SEMICOLON)
     {
         lexer_next(l);
         ASTNode *nop = ast_create(NODE_BLOCK); // Empty block as NOP
@@ -48,7 +48,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
         return nop;
     }
 
-    if (tk.type == TOK_PREPROC)
+    if (tk.kind == TOK_PREPROC)
     {
         tk = lexer_next(l); // consume token
         char *content = xmalloc(tk.len + 2);
@@ -61,12 +61,12 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
         return raw_s;
     }
 
-    if (tk.type == TOK_STRING || tk.type == TOK_FSTRING || tk.type == TOK_RAW_STRING)
+    if (tk.kind == TOK_STRING || tk.kind == TOK_FSTRING || tk.kind == TOK_RAW_STRING)
     {
         Lexer lookahead = *l;
         lexer_next(&lookahead);
         Token next = lexer_peek(&lookahead);
-        ZenTokenType next_type = next.type;
+        ZenTokenType next_type = next.kind;
 
         if (next_type == TOK_SEMICOLON || next_type == TOK_DOTDOT || next_type == TOK_RBRACE)
         {
@@ -77,7 +77,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             char **used_syms = NULL;
             int used_count = 0;
             char *code = process_printf_sugar(ctx, next, inner, is_ln, "stdout", &used_syms,
-                                              &used_count, 1, (t.type == TOK_RAW_STRING), 0);
+                                              &used_count, 1, (t.kind == TOK_RAW_STRING), 0);
             if (!code)
             {
                 return NULL;
@@ -90,7 +90,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             else if (next_type == TOK_DOTDOT)
             {
                 lexer_next(l); // consume ..
-                if (lexer_peek(l).type == TOK_SEMICOLON)
+                if (lexer_peek(l).kind == TOK_SEMICOLON)
                 {
                     lexer_next(l); // consume optional ;
                 }
@@ -112,13 +112,13 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
     }
 
     // Block
-    if (tk.type == TOK_LBRACE)
+    if (tk.kind == TOK_LBRACE)
     {
         return parse_block(ctx, l);
     }
 
     // Keywords / Special
-    if (tk.type == TOK_DO)
+    if (tk.kind == TOK_DO)
     {
         Token do_tok = lexer_next(l); // eat 'do'
         ctx->cg.loop_depth++;
@@ -127,7 +127,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
 
         // Expect 'while'
         Token while_tok = lexer_peek(l);
-        if (while_tok.type != TOK_IDENT || strncmp(while_tok.start, "while", 5) != 0 ||
+        if (while_tok.kind != TOK_IDENT || strncmp(while_tok.start, "while", 5) != 0 ||
             while_tok.len != 5)
         {
             zpanic_at(while_tok, "Expected 'while' after do block");
@@ -135,7 +135,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
         lexer_next(l); // eat 'while'
 
         ASTNode *cond = parse_expression(ctx, l);
-        if (lexer_peek(l).type == TOK_SEMICOLON)
+        if (lexer_peek(l).kind == TOK_SEMICOLON)
         {
             lexer_next(l);
         }
@@ -147,22 +147,26 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
         n->do_while_stmt.loop_label = NULL;
         return n;
     }
-    if (tk.type == TOK_TRAIT)
+    if (tk.kind == TOK_TRAIT)
     {
         return parse_trait(ctx, l);
     }
-    if (tk.type == TOK_IMPL)
+    if (tk.kind == TOK_IMPL)
     {
         return parse_impl(ctx, l);
     }
-    if (tk.type == TOK_AUTOFREE)
+    if (tk.kind == TOK_AUTOFREE)
     {
         lexer_next(l);
-        if (lexer_peek(l).type != TOK_IDENT || strncmp(lexer_peek(l).start, "let", 3) != 0)
+        if (lexer_peek(l).kind != TOK_IDENT || strncmp(lexer_peek(l).start, "let", 3) != 0)
         {
             zpanic_at(lexer_peek(l), "Expected 'let' after autofree");
         }
         s = parse_var_decl(ctx, l, 0);
+        if (!s)
+        {
+            return NULL;
+        }
         s->var_decl.is_autofree = 1;
         // Mark symbol as autofree to suppress unused variable warning
         ZenSymbol *sym = find_symbol_entry(ctx, s->var_decl.name);
@@ -172,11 +176,11 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
         }
         return s;
     }
-    if (tk.type == TOK_TEST)
+    if (tk.kind == TOK_TEST)
     {
         return parse_test(ctx, l);
     }
-    if (tk.type == TOK_COMPTIME)
+    if (tk.kind == TOK_COMPTIME)
     {
         ASTNode *body = parse_comptime_body(ctx, l);
         ASTNode *ct = ast_create(NODE_COMPTIME);
@@ -184,41 +188,41 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
         ct->comptime.generated = NULL;
         return ct;
     }
-    if (tk.type == TOK_EXPECT)
+    if (tk.kind == TOK_EXPECT)
     {
         return parse_expect(ctx, l);
     }
-    if (tk.type == TOK_ASSERT)
+    if (tk.kind == TOK_ASSERT)
     {
         return parse_assert(ctx, l);
     }
-    if (tk.type == TOK_DEFER)
+    if (tk.kind == TOK_DEFER)
     {
         return parse_defer(ctx, l);
     }
-    if (tk.type == TOK_ASM)
+    if (tk.kind == TOK_ASM)
     {
         return parse_asm(ctx, l);
     }
-    if (tk.type == TOK_DEF)
+    if (tk.kind == TOK_DEF)
     {
         return parse_def(ctx, l, 0);
     }
 
     // Thread-local variable: @thread_local static let x = 0;
-    if (tk.type == TOK_AT)
+    if (tk.kind == TOK_AT)
     {
         lexer_next(l);
         Token id = lexer_peek(l);
-        if (id.type == TOK_IDENT && id.len == 12 && strncmp(id.start, "thread_local", 12) == 0)
+        if (id.kind == TOK_IDENT && id.len == 12 && strncmp(id.start, "thread_local", 12) == 0)
         {
             lexer_next(l);
             Token next = lexer_peek(l);
-            if (next.type == TOK_IDENT && next.len == 6 && strncmp(next.start, "static", 6) == 0)
+            if (next.kind == TOK_IDENT && next.len == 6 && strncmp(next.start, "static", 6) == 0)
             {
                 lexer_next(l);
                 next = lexer_peek(l);
-                if (next.type == TOK_IDENT && next.len == 3 && strncmp(next.start, "let", 3) == 0)
+                if (next.kind == TOK_IDENT && next.len == 3 && strncmp(next.start, "let", 3) == 0)
                 {
                     ASTNode *v = parse_var_decl(ctx, l, 0);
                     v->var_decl.is_static = 1;
@@ -232,7 +236,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
     }
 
     // Identifiers (Keywords or Expressions)
-    if (tk.type == TOK_IDENT)
+    if (tk.kind == TOK_IDENT)
     {
         // Check for macro invocation: identifier! { code }
         Lexer lookahead = *l;
@@ -240,8 +244,8 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
         Token exclaim = lexer_peek(&lookahead);
         lexer_next(&lookahead);
         Token lbrace = lexer_peek(&lookahead);
-        if (exclaim.type == TOK_OP && exclaim.len == 1 && exclaim.start[0] == '!' &&
-            lbrace.type == TOK_LBRACE)
+        if (exclaim.kind == TOK_OP && exclaim.len == 1 && exclaim.start[0] == '!' &&
+            lbrace.kind == TOK_LBRACE)
         {
             // This is a macro invocation
             char *macro_name = token_strdup(tk);
@@ -256,7 +260,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
         if (strncmp(tk.start, "raw", 3) == 0 && tk.len == 3)
         {
             lexer_next(l); // eat raw
-            if (lexer_peek(l).type != TOK_LBRACE)
+            if (lexer_peek(l).kind != TOK_LBRACE)
             {
                 zpanic_at(lexer_peek(l), "Expected { after raw");
             }
@@ -267,15 +271,16 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             while (depth > 0)
             {
                 Token t = lexer_next(l);
-                if (t.type == TOK_EOF)
+                if (t.kind == TOK_EOF)
                 {
                     zpanic_at(t, "Unexpected EOF in raw block");
+                    return NULL;
                 }
-                if (t.type == TOK_LBRACE)
+                if (t.kind == TOK_LBRACE)
                 {
                     depth++;
                 }
-                if (t.type == TOK_RBRACE)
+                if (t.kind == TOK_RBRACE)
                 {
                     depth--;
                 }
@@ -362,10 +367,10 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             n->token = break_token;
             n->break_stmt.target_label = NULL;
             // Check for 'label or label
-            if (lexer_peek(l).type == TOK_CHAR || lexer_peek(l).type == TOK_IDENT)
+            if (lexer_peek(l).kind == TOK_CHAR || lexer_peek(l).kind == TOK_IDENT)
             {
                 Token label_tok = lexer_next(l);
-                if (label_tok.type == TOK_CHAR)
+                if (label_tok.kind == TOK_CHAR)
                 {
                     // Extract label name (strip quotes)
                     char *label = xmalloc(label_tok.len);
@@ -378,7 +383,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
                     n->break_stmt.target_label = token_strdup(label_tok);
                 }
             }
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
@@ -404,10 +409,10 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             ASTNode *n = ast_create(NODE_CONTINUE);
             n->token = continue_token;
             n->continue_stmt.target_label = NULL;
-            if (lexer_peek(l).type == TOK_CHAR || lexer_peek(l).type == TOK_IDENT)
+            if (lexer_peek(l).kind == TOK_CHAR || lexer_peek(l).kind == TOK_IDENT)
             {
                 Token label_tok = lexer_next(l);
-                if (label_tok.type == TOK_CHAR)
+                if (label_tok.kind == TOK_CHAR)
                 {
                     char *label = xmalloc(label_tok.len);
                     strncpy(label, label_tok.start + 1, label_tok.len - 2);
@@ -419,7 +424,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
                     n->continue_stmt.target_label = token_strdup(label_tok);
                 }
             }
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
@@ -450,14 +455,14 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
 
             // Parse the kernel call expression
             ASTNode *call = parse_expression(ctx, l);
-            if (!call || call->type != NODE_EXPR_CALL)
+            if (!call || call->kind != NODE_EXPR_CALL)
             {
                 zpanic_at(launch_tok, "Expected kernel call after 'launch'");
             }
 
             // Expect 'with'
             Token with_tok = lexer_peek(l);
-            if (with_tok.type != TOK_IDENT || strncmp(with_tok.start, "with", 4) != 0 ||
+            if (with_tok.kind != TOK_IDENT || strncmp(with_tok.start, "with", 4) != 0 ||
                 with_tok.len != 4)
             {
                 zpanic_at(with_tok, "Expected 'with' after kernel call in launch statement");
@@ -465,7 +470,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             lexer_next(l); // eat 'with'
 
             // Expect '{' for configuration block
-            if (lexer_peek(l).type != TOK_LBRACE)
+            if (lexer_peek(l).kind != TOK_LBRACE)
             {
                 zpanic_at(lexer_peek(l), "Expected '{' after 'with' in launch statement");
             }
@@ -477,16 +482,16 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             ASTNode *stream = NULL;
 
             // Parse configuration fields
-            while (lexer_peek(l).type != TOK_RBRACE && lexer_peek(l).type != TOK_EOF)
+            while (lexer_peek(l).kind != TOK_RBRACE && lexer_peek(l).kind != TOK_EOF)
             {
                 Token field_name = lexer_next(l);
-                if (field_name.type != TOK_IDENT)
+                if (field_name.kind != TOK_IDENT)
                 {
                     zpanic_at(field_name, "Expected field name in launch configuration");
                 }
 
                 // Expect ':'
-                if (lexer_peek(l).type != TOK_COLON)
+                if (lexer_peek(l).kind != TOK_COLON)
                 {
                     zpanic_at(lexer_peek(l), "Expected ':' after field name");
                 }
@@ -519,21 +524,21 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
                 }
 
                 // Optional comma
-                if (lexer_peek(l).type == TOK_COMMA)
+                if (lexer_peek(l).kind == TOK_COMMA)
                 {
                     lexer_next(l);
                 }
             }
 
             // Expect '}'
-            if (lexer_peek(l).type != TOK_RBRACE)
+            if (lexer_peek(l).kind != TOK_RBRACE)
             {
                 zpanic_at(lexer_peek(l), "Expected '}' to close launch configuration");
             }
             lexer_next(l); // eat '}'
 
             // Expect ';'
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
@@ -575,11 +580,11 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             Token next = lexer_peek(l);
 
             // Computed goto: goto *ptr;
-            if (next.type == TOK_OP && next.start[0] == '*')
+            if (next.kind == TOK_OP && next.start[0] == '*')
             {
                 lexer_next(l); // eat '*'
                 ASTNode *target = parse_expression(ctx, l);
-                if (lexer_peek(l).type == TOK_SEMICOLON)
+                if (lexer_peek(l).kind == TOK_SEMICOLON)
                 {
                     lexer_next(l);
                 }
@@ -593,11 +598,11 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
 
             // Regular goto
             Token label = lexer_next(l);
-            if (label.type != TOK_IDENT)
+            if (label.kind != TOK_IDENT)
             {
                 zpanic_at(label, "Expected label name after goto");
             }
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
@@ -616,12 +621,12 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             Lexer inner_lookahead = *l;
             Token ident = lexer_next(&inner_lookahead);
             Token maybe_colon = lexer_peek(&inner_lookahead);
-            if (maybe_colon.type == TOK_COLON)
+            if (maybe_colon.kind == TOK_COLON)
             {
                 // Check it's not :: (double colon for namespaces)
                 lexer_next(&inner_lookahead);
                 Token after_colon = lexer_peek(&inner_lookahead);
-                if (after_colon.type != TOK_COLON)
+                if (after_colon.kind != TOK_COLON)
                 {
                     // This is a label!
                     lexer_next(l); // eat identifier
@@ -632,32 +637,32 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
 
                     if (next)
                     {
-                        if (next->type == NODE_WHILE)
+                        if (next->kind == NODE_WHILE)
                         {
                             next->while_stmt.loop_label = label_name;
                             return next;
                         }
-                        else if (next->type == NODE_FOR)
+                        else if (next->kind == NODE_FOR)
                         {
                             next->for_stmt.loop_label = label_name;
                             return next;
                         }
-                        else if (next->type == NODE_FOR_RANGE)
+                        else if (next->kind == NODE_FOR_RANGE)
                         {
                             next->for_range.loop_label = label_name;
                             return next;
                         }
-                        else if (next->type == NODE_LOOP)
+                        else if (next->kind == NODE_LOOP)
                         {
                             next->loop_stmt.loop_label = label_name;
                             return next;
                         }
-                        else if (next->type == NODE_REPEAT)
+                        else if (next->kind == NODE_REPEAT)
                         {
                             next->repeat_stmt.loop_label = label_name;
                             return next;
                         }
-                        else if (next->type == NODE_DO_WHILE)
+                        else if (next->kind == NODE_DO_WHILE)
                         {
                             next->do_while_stmt.loop_label = label_name;
                             return next;
@@ -688,9 +693,9 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             lexer_next(l); // eat keyword
 
             Token t = lexer_next(l);
-            if (t.type != TOK_STRING && t.type != TOK_FSTRING && t.type != TOK_RAW_STRING)
+            if (t.kind != TOK_STRING && t.kind != TOK_FSTRING && t.kind != TOK_RAW_STRING)
             {
-                if (t.type == TOK_LPAREN)
+                if (t.kind == TOK_LPAREN)
                 {
                     zpanic_at(t,
                               "Expected string literal after '%.*s'. Note: '%.*s' is a keyword and "
@@ -704,14 +709,14 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             char **used_syms = NULL;
             int used_count = 0;
             char *code = process_printf_sugar(ctx, t, inner, is_ln, target, &used_syms, &used_count,
-                                              1, (t.type == TOK_RAW_STRING), 0);
+                                              1, (t.kind == TOK_RAW_STRING), 0);
             zfree(inner);
             if (!code)
             {
                 return NULL;
             }
 
-            if (lexer_peek(l).type == TOK_SEMICOLON)
+            if (lexer_peek(l).kind == TOK_SEMICOLON)
             {
                 lexer_next(l);
             }
@@ -737,7 +742,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
     }
 
     int has_semi = 0;
-    if (lexer_peek(l).type == TOK_SEMICOLON)
+    if (lexer_peek(l).kind == TOK_SEMICOLON)
     {
         lexer_next(l);
         has_semi = 1;
@@ -748,7 +753,7 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
     if (ctx->cg.is_repl && s && !has_semi)
     {
         int is_assign = 0;
-        if (s->type == NODE_EXPR_BINARY)
+        if (s->kind == NODE_EXPR_BINARY)
         {
             char *op = s->binary.op;
             if (strcmp(op, "=") == 0 ||
@@ -776,10 +781,10 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
     }
 
     // Check for discarded required result
-    if (s && s->type == NODE_EXPR_CALL)
+    if (s && s->kind == NODE_EXPR_CALL)
     {
         ASTNode *callee = s->call.callee;
-        if (callee && callee->type == NODE_EXPR_VAR)
+        if (callee && callee->kind == NODE_EXPR_VAR)
         {
             FuncSig *sig = find_func(ctx, callee->var_ref.name);
             if (sig && sig->required)
@@ -810,9 +815,9 @@ ASTNode *parse_block(ParserContext *ctx, Lexer *l)
             while (1)
             {
                 Token r = lexer_peek(l);
-                if (r.type == TOK_EOF || r.type == TOK_RBRACE || r.type == TOK_SEMICOLON)
+                if (r.kind == TOK_EOF || r.kind == TOK_RBRACE || r.kind == TOK_SEMICOLON)
                 {
-                    if (r.type == TOK_SEMICOLON)
+                    if (r.kind == TOK_SEMICOLON)
                     {
                         lexer_next(l); // consume the semicolon
                     }
@@ -825,18 +830,18 @@ ASTNode *parse_block(ParserContext *ctx, Lexer *l)
 
         skip_comments(l);
         Token tk = lexer_peek(l);
-        if (tk.type == TOK_RBRACE)
+        if (tk.kind == TOK_RBRACE)
         {
             lexer_next(l);
             break;
         }
 
-        if (tk.type == TOK_EOF)
+        if (tk.kind == TOK_EOF)
         {
             break;
         }
 
-        if (tk.type == TOK_COMPTIME)
+        if (tk.kind == TOK_COMPTIME)
         {
             ASTNode *body = parse_comptime_body(ctx, l);
             ASTNode *ct = ast_create(NODE_COMPTIME);
@@ -873,7 +878,7 @@ ASTNode *parse_block(ParserContext *ctx, Lexer *l)
             }
 
             // Check for control flow interruption
-            if (s->type == NODE_RETURN || s->type == NODE_BREAK || s->type == NODE_CONTINUE)
+            if (s->kind == NODE_RETURN || s->kind == NODE_BREAK || s->kind == NODE_CONTINUE)
             {
                 if (unreachable == 0)
                 {

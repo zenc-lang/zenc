@@ -164,3 +164,33 @@ test "Vec Utils (Reverse, Contains)" {
     assert(v.contains(2), "Contains true");
     assert(!v.contains(99), "Contains false");
 }
+
+test "Vec Iterator Combinators" {
+    let v = Vec<int>::new();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    v.push(4);
+    v.push(5);
+
+    assert(v.iterator().count() == 5, "count");
+
+    let evens = v.iterator().filter(fn(x: int) { return x % 2 == 0; });
+    assert(evens.len == 2, "filter len");
+    assert(evens.get(0) == 2 && evens.get(1) == 4, "filter values");
+
+    let sum = v.iterator().fold(0, fn(a: int, b: int) { return a + b; });
+    assert(sum == 15, "fold sum");
+
+    assert(v.iterator().any(fn(x: int) { return x > 3; }), "any true");
+    assert(!v.iterator().any(fn(x: int) { return x > 99; }), "any false");
+    assert(v.iterator().all(fn(x: int) { return x > 0; }), "all true");
+    assert(!v.iterator().all(fn(x: int) { return x > 3; }), "all false");
+
+    let found = v.iterator().find(fn(x: int) { return x == 3; });
+    assert(found.is_some() && found.unwrap() == 3, "find some");
+    assert(v.iterator().find(fn(x: int) { return x == 99; }).is_none(), "find none");
+
+    let c = v.iterator().collect();
+    assert(c.len == 5 && c.get(4) == 5, "collect");
+}

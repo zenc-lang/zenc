@@ -1,0 +1,37 @@
+
+import "../core.zc"
+
+include <sys/mman.h>
+
+// Protection flags (Z_ prefix to avoid macro collisions)
+def Z_PROT_NONE  = 0x0;
+def Z_PROT_READ  = 0x1;
+def Z_PROT_WRITE = 0x2;
+def Z_PROT_EXEC  = 0x4;
+
+// Visibility flags
+def Z_MAP_SHARED    = 0x01;
+def Z_MAP_PRIVATE   = 0x02;
+def Z_MAP_ANONYMOUS = 0x20;
+
+def Z_MAP_FAILED = -1;
+
+extern fn mmap(addr: void*, len: usize, prot: int, flags: int, fd: int, offset: isize) -> void*;
+extern fn munmap(addr: void*, len: usize) -> int;
+extern fn mprotect(addr: void*, len: usize, prot: int) -> int;
+
+struct Memory {}
+
+impl Memory {
+    fn mmap(len: usize, prot: int, flags: int) -> void* {
+        return mmap(NULL, len, prot, flags, -1, 0);
+    }
+    
+    fn munmap(addr: void*, len: usize) -> bool {
+        return munmap(addr, len) == 0;
+    }
+    
+    fn mprotect(addr: void*, len: usize, prot: int) -> bool {
+        return mprotect(addr, len, prot) == 0;
+    }
+}
