@@ -155,7 +155,6 @@ static char *wait_for_response(int id)
             cJSON *id_item = cJSON_GetObjectItem(json, "id");
             if (id_item)
             {
-                // Check both number and string just in case
                 int got_id = -1;
                 if (cJSON_IsNumber(id_item))
                 {
@@ -169,25 +168,12 @@ static char *wait_for_response(int id)
                 if (got_id == id)
                 {
                     cJSON_Delete(json);
-                    return msg; // Found it
+                    return msg;
                 }
-                else
-                {
-                    printf("Mismatch ID: got %d (type=%d) expected %d\n", got_id, id_item->type,
-                           id);
-                }
-            }
-            else
-            {
-                printf("No ID in message\n");
+                printf("Mismatch ID: got %d expected %d\n", got_id, id);
             }
             cJSON_Delete(json);
         }
-        else
-        {
-            printf("JSON Parse Failed for: '%s'\n", msg);
-        }
-        printf("Ignored message (seq %d): %s\n", i, msg);
         free(msg);
     }
     return NULL;
@@ -476,6 +462,61 @@ static void test_code_action()
     else
     {
         printf("WARN: test_code_action: %s\n", resp ? resp : "no response");
+    }
+    free(resp);
+}
+
+static void test_completion_prefix()
+{
+    printf("Running test_completion_prefix...\n");
+    int fd = open("/tmp/test_prefix.zc", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd >= 0)
+    {
+        // Typing 'pr' should filter completions to print/printf/println
+        const char *code = "fn main() { pr }";
+        write(fd, code, strlen(code));
+        close(fd);
+    }
+
+    send_request(
+        "{\"jsonrpc\": \"2.0\", \"method\": \"textDocument/didOpen\", \"params\": "
+        "{\"textDocument\": {\"uri\": \"file:///tmp/test_prefix.zc\", \"languageId\": "
+        "\"zenc\", \"version\": 1, \"text\": \"fn main() { pr }\"}}}");
+    usleep(100000);
+
+    // Request completion at line 0, character 14 (cursor after 'pr', before ' }')
+    send_request("{\"jsonrpc\": \"2.0\", \"id\": 110, \"method\": \"textDocument/completion\", "
+                 "\"params\": {\"textDocument\": {\"uri\": \"file:///tmp/test_prefix.zc\"}, "
+                 "\"position\": {\"line\": 0, \"character\": 14}}}");
+
+    char *resp = wait_for_response(110);
+    if (!resp)
+    {
+        printf("WARN: No response for prefix completion.\n");
+        return;
+    }
+
+    // Should include print/printf/println
+    int ok = (strstr(resp, "\"label\":\"print\"") != NULL &&
+              strstr(resp, "\"label\":\"printf\"") != NULL &&
+              strstr(resp, "\"label\":\"println\"") != NULL);
+    // Should NOT include keywords not matching 'pr' prefix (e.g. 'malloc')
+    int clean = (strstr(resp, "\"label\":\"malloc\"") == NULL);
+
+    if (ok && clean)
+    {
+        printf("PASS: test_completion_prefix (print/printf/println filtered, no extras)\n");
+    }
+    else
+    {
+        if (!ok)
+        {
+            printf("WARN: test_completion_prefix (missing print/printf/println): %s\n", resp);
+        }
+        if (!clean)
+        {
+            printf("WARN: test_completion_prefix (unexpected extras in result)\n");
+        }
     }
     free(resp);
 }
@@ -923,6 +964,7 @@ int main()
     test_empty_source();
     test_did_change();
     test_code_action();
+    test_completion_prefix();
     test_shutdown();
     send_request("{\"jsonrpc\": \"2.0\", \"method\": \"exit\", \"params\": {}}");
     waitpid(child_pid, NULL, 0);
