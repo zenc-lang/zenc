@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 #include "../constants.h"
+#include "../ast/primitives.h"
 #include "lsp_project.h"
 #include "../utils/cJSON.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 // Legend indices
 #define TOKEN_TYPE_VARIABLE 0
@@ -85,6 +87,108 @@ static int compare_tokens(const void *a, const void *b)
         return ta->line - tb->line;
     }
     return ta->col - tb->col;
+}
+
+// Keyword check: reuse parser's is_reserved_keyword() + primitives table.
+static int is_keyword(const char *w, size_t len)
+{
+    Token t = {.kind = TOK_IDENT, .start = w, .len = len};
+    if (is_reserved_keyword(t))
+    {
+        return 1;
+    }
+
+    static const char *more[] = {"and",     "asm",       "alias",   "assert",   "async",
+                                 "await",   "autofree",  "comptime","def",      "defer",
+                                 "eprint",  "eprintln",  "expect",  "extern",   "false",
+                                 "import",  "inline",    "match",   "module",   "noreturn",
+                                 "not",     "null",      "opaque",  "or",       "print",
+                                 "printf",  "println",   "private", "public",   "sizeof",
+                                 "switch",  "test",      "true",    "typeof",   "union",
+                                 "use",     "volatile",  "impl",    "trait",    "in",
+                                 "external","continue",
+                                 NULL};
+    for (size_t i = 0; more[i]; i++)
+    {
+        size_t klen = strlen(more[i]);
+        if (len == klen && strncmp(w, more[i], len) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int is_type_name(const char *w, size_t len)
+{
+    int count;
+    const ZenPrimitive *prims = get_zen_primitives(&count);
+    for (int i = 0; i < count; i++)
+    {
+        size_t klen = strlen(prims[i].zen_name);
+        if (len == klen && strncmp(w, prims[i].zen_name, len) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Lex source for keyword tokens and push them into the builder.
+// This captures keywords that are not represented as separate AST nodes.
+static void emit_keywords(TokenBuilder *b, const char *source)
+{
+    if (!source)
+    {
+        return;
+    }
+    const char *p = source;
+    while (*p)
+    {
+        // Skip non-word characters
+        if (!isalnum((unsigned char)*p) && *p != '_')
+        {
+            p++;
+            continue;
+        }
+        const char *start = p;
+        while (isalnum((unsigned char)*p) || *p == '_')
+        {
+            p++;
+        }
+        size_t len = (size_t)(p - start);
+
+        int token_type = -1;
+        if (is_type_name(start, len))
+        {
+            token_type = TOKEN_TYPE_TYPE;
+        }
+        else if (is_keyword(start, len))
+        {
+            token_type = TOKEN_TYPE_KEYWORD;
+        }
+
+        if (token_type >= 0)
+        {
+            // Compute line/col by scanning from start of source
+            int line = 0, col = 0;
+            const char *scan = source;
+            while (scan < start)
+            {
+                if (*scan == '\n')
+                {
+                    line++;
+                    col = 0;
+                }
+                else
+                {
+                    col++;
+                }
+                scan++;
+            }
+            builder_push(b, line, col, (int)len, token_type, 0);
+        }
+    }
 }
 
 // AST Traversal
@@ -319,6 +423,9 @@ char *lsp_semantic_tokens_full(const char *uri)
 
     TokenBuilder b;
     builder_init(&b);
+
+    // Emit keyword tokens from source (keywords not captured by AST traversal)
+    emit_keywords(&b, pf->source);
 
     ASTNode *root = pf->ast;
     while (root)
