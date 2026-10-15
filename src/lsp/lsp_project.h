@@ -29,8 +29,10 @@ typedef struct ProjectFile
 typedef struct
 {
     ParserContext *ctx;
-    ProjectFile *files; ///< List of tracked open files.
-    char *root_path;    ///< Project root directory.
+    ProjectFile *files;        ///< List of tracked open files.
+    char *root_path;           ///< Project root directory.
+    zvec_Str exclude_patterns; ///< `exclude` of zenc.server.json, in .gitignore syntax.
+    int use_gitignore;         ///< `use_gitignore` of zenc.server.json (default 1).
 } LSPProject;
 
 // Global project instance

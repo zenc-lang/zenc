@@ -95,6 +95,7 @@ src/lsp/lsp_index.c
 src/lsp/lsp_formatter.c
 src/lsp/lsp_project.c
 src/lsp/lsp_c_headers.c
+src/lsp/lsp_config.c
 src/utils/cJSON.c
 src/tools/tool_common.c
 src/zen/zen_doc.c

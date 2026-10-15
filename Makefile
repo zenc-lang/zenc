@@ -143,7 +143,7 @@ DEFINES += -DZC_HAS_ASTDUMP_BACKEND=$(ZC_BACKENDS)
 
 # Source files read from src-sources.txt, filtered by feature selection.
 ALL_SRCS := $(shell cat src-sources.txt)
-ZC_FILTER_LSP = $(if $(filter-out 1,$(ZC_LSP)),src/lsp/lsp_main.c src/lsp/lsp_analysis.c src/lsp/lsp_semantic.c src/lsp/lsp_index.c src/lsp/lsp_formatter.c src/lsp/lsp_project.c src/lsp/lsp_c_headers.c src/lsp/json_rpc.c)
+ZC_FILTER_LSP = $(if $(filter-out 1,$(ZC_LSP)),src/lsp/lsp_main.c src/lsp/lsp_analysis.c src/lsp/lsp_semantic.c src/lsp/lsp_index.c src/lsp/lsp_formatter.c src/lsp/lsp_project.c src/lsp/lsp_c_headers.c src/lsp/lsp_config.c src/lsp/json_rpc.c)
 ZC_FILTER_REPL = $(if $(filter-out 1,$(ZC_REPL)),src/repl/% src/platform/console.c)
 ZC_FILTER_PLUGINS = $(if $(filter-out 1,$(ZC_PLUGINS)),src/plugins/% src/parser/utils/utils_plugins.c)
 ZC_FILTER_BACKENDS = $(if $(filter-out 1,$(ZC_BACKENDS)),src/codegen/codegen_backend_cpp.c src/codegen/codegen_backend_cuda.c src/codegen/codegen_backend_objc.c src/codegen/codegen_backend_json.c src/codegen/codegen_backend_lisp.c src/codegen/codegen_backend_dot.c src/codegen/codegen_backend_astdump.c)

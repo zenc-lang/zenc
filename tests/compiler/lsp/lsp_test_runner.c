@@ -657,6 +657,92 @@ static void test_workspace_symbol(void)
     printf("PASS: test_workspace_symbol\n");
 }
 
+static void write_index_fixture(const char *path, const char *content)
+{
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0 || write(fd, content, strlen(content)) != (ssize_t)strlen(content))
+    {
+        fail("Could not write an indexing fixture");
+    }
+    close(fd);
+}
+
+// The server lists the symbols of a file it was never sent only if the workspace scan indexed
+// it: `expected` is its symbol, or NULL when the scan must have skipped the file.
+static void expect_indexed(int id, const char *root, const char *relative_path,
+                           const char *expected)
+{
+    char json[512];
+    snprintf(json, sizeof(json),
+             "{\"jsonrpc\": \"2.0\", \"id\": %d, \"method\": \"textDocument/documentSymbol\", "
+             "\"params\": {\"textDocument\": {\"uri\": \"file://%s/%s\"}}}",
+             id, root, relative_path);
+    send_request(json);
+    char *response = wait_for_response(id);
+    cJSON *parsed = response ? cJSON_Parse(response) : NULL;
+    cJSON *name =
+        cJSON_GetObjectItem(cJSON_GetArrayItem(cJSON_GetObjectItem(parsed, "result"), 0), "name");
+    int indexed = cJSON_IsString(name);
+    if (expected ? !indexed || strcmp(name->valuestring, expected) != 0 : indexed)
+    {
+        printf("%s: expected %s, got %s\n", relative_path, expected ? expected : "not indexed",
+               response ? response : "no response");
+        fail("The workspace scan did not index or skip the file as expected");
+    }
+    cJSON_Delete(parsed);
+    free(response);
+}
+
+static void test_index_gitignore(void)
+{
+    printf("Running test_index_gitignore...\n");
+    const char *directories[] = {"/tmp/zc_lsp_index",
+                                 "/tmp/zc_lsp_index/kept",
+                                 "/tmp/zc_lsp_index/ignored",
+                                 "/tmp/zc_lsp_index/nested",
+                                 "/tmp/zc_lsp_index/nested/ignored",
+                                 "/tmp/zc_lsp_index/anchored_dir",
+                                 "/tmp/zc_lsp_index/nested/anchored_dir"};
+    for (size_t i = 0; i < sizeof(directories) / sizeof(directories[0]); i++)
+    {
+        mkdir(directories[i], 0755);
+    }
+    write_index_fixture("/tmp/zc_lsp_index/.gitignore", "# generated\n"
+                                                        "ignored/\n"
+                                                        "*.tmp.zc\n"
+                                                        "/anchored_dir\n");
+    write_index_fixture("/tmp/zc_lsp_index/kept/k.zc", "fn kept_fn() {}\n");
+    write_index_fixture("/tmp/zc_lsp_index/ignored/i.zc", "fn ignored_fn() {}\n");
+    write_index_fixture("/tmp/zc_lsp_index/nested/ignored/deep.zc", "fn deep_fn() {}\n");
+    write_index_fixture("/tmp/zc_lsp_index/x.tmp.zc", "fn tmp_fn() {}\n");
+    write_index_fixture("/tmp/zc_lsp_index/anchored_dir/a.zc", "fn anchored_fn() {}\n");
+    write_index_fixture("/tmp/zc_lsp_index/nested/anchored_dir/b.zc",
+                        "fn nested_anchored_fn() {}\n");
+
+    // A server of its own, rooted there, which indexes the workspace on `initialized`.
+    global_len = 0;
+    global_buf[0] = 0;
+    start_lsp_server();
+    send_request("{\"jsonrpc\": \"2.0\", \"id\": 1000, \"method\": \"initialize\", \"params\": "
+                 "{\"rootUri\": \"file:///tmp/zc_lsp_index\"}}");
+    free(wait_for_response(1000));
+    send_request("{\"jsonrpc\": \"2.0\", \"method\": \"initialized\", \"params\": {}}");
+
+    expect_indexed(1001, "/tmp/zc_lsp_index", "kept/k.zc", "kept_fn");
+    expect_indexed(1002, "/tmp/zc_lsp_index", "ignored/i.zc", NULL);
+    expect_indexed(1003, "/tmp/zc_lsp_index", "nested/ignored/deep.zc", NULL);
+    expect_indexed(1004, "/tmp/zc_lsp_index", "x.tmp.zc", NULL);
+    expect_indexed(1005, "/tmp/zc_lsp_index", "anchored_dir/a.zc", NULL);
+    expect_indexed(1006, "/tmp/zc_lsp_index", "nested/anchored_dir/b.zc", "nested_anchored_fn");
+
+    send_request(
+        "{\"jsonrpc\": \"2.0\", \"id\": 1007, \"method\": \"shutdown\", \"params\": null}");
+    free(wait_for_response(1007));
+    send_request("{\"jsonrpc\": \"2.0\", \"method\": \"exit\", \"params\": {}}");
+    waitpid(child_pid, NULL, 0);
+    printf("PASS: test_index_gitignore\n");
+}
+
 // The name of the first symbol of /tmp/test_close.zc, as the server knows it.
 static char *first_close_symbol(int id)
 {
@@ -1460,6 +1546,136 @@ static void test_signature_help()
     free(resp);
 }
 
+static void write_config_fixture(const char *path, const char *content)
+{
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0 || write(fd, content, strlen(content)) != (ssize_t)strlen(content))
+    {
+        fail("Could not write a config fixture");
+    }
+    close(fd);
+}
+
+// main.zc imports a library that lives outside the workspace root, so the import resolves only
+// through the include_paths of zenc.server.json.
+static void test_project_config(void)
+{
+    printf("Running test_project_config...\n");
+    mkdir("/tmp/zc_lsp_config", 0755);
+    mkdir("/tmp/zc_lsp_config/ws", 0755);
+    mkdir("/tmp/zc_lsp_config/libs", 0755);
+    write_config_fixture("/tmp/zc_lsp_config/ws/zenc.server.json",
+                         "{\"include_paths\": [\"../libs\"]}\n");
+    write_config_fixture("/tmp/zc_lsp_config/libs/mathx.zc",
+                         "fn mathx_double(x: int) -> int { return x * 2; }\n");
+    const char *main_src = "import \\\"mathx.zc\\\"\\nfn main() { let r = mathx_double(4); }\\n";
+    write_config_fixture("/tmp/zc_lsp_config/ws/main.zc",
+                         "import \"mathx.zc\"\nfn main() { let r = mathx_double(4); }\n");
+
+    global_len = 0;
+    global_buf[0] = 0;
+    start_lsp_server();
+    send_request("{\"jsonrpc\": \"2.0\", \"id\": 1100, \"method\": \"initialize\", \"params\": "
+                 "{\"rootUri\": \"file:///tmp/zc_lsp_config/ws\"}}");
+    free(wait_for_response(1100));
+    send_request("{\"jsonrpc\": \"2.0\", \"method\": \"initialized\", \"params\": {}}");
+
+    char json[1024];
+    snprintf(json, sizeof(json),
+             "{\"jsonrpc\": \"2.0\", \"method\": \"textDocument/didOpen\", \"params\": "
+             "{\"textDocument\": {\"uri\": \"file:///tmp/zc_lsp_config/ws/main.zc\", "
+             "\"languageId\": \"zenc\", \"version\": 1, \"text\": \"%s\"}}}",
+             main_src);
+    send_request(json);
+
+    // The diagnostics of main.zc report the import as missing unless include_paths resolved it.
+    // A request after didOpen guarantees they were flushed; they arrive before its response.
+    send_request(
+        "{\"jsonrpc\": \"2.0\", \"id\": 1101, \"method\": \"textDocument/documentSymbol\", "
+        "\"params\": {\"textDocument\": {\"uri\": "
+        "\"file:///tmp/zc_lsp_config/ws/main.zc\"}}}");
+    char *diagnostics = NULL;
+    for (int i = 0; i < 50; i++)
+    {
+        char *msg = read_message();
+        if (!msg)
+        {
+            break;
+        }
+        if (strstr(msg, "textDocument/publishDiagnostics") &&
+            strstr(msg, "zc_lsp_config/ws/main.zc"))
+        {
+            diagnostics = msg;
+        }
+        else if (strstr(msg, "\"id\":1101"))
+        {
+            free(msg);
+            break;
+        }
+        else
+        {
+            free(msg);
+        }
+    }
+    if (!diagnostics)
+    {
+        fail("No diagnostics received for main.zc");
+    }
+    if (strstr(diagnostics, "Could not find module"))
+    {
+        printf("diagnostics: %s\n", diagnostics);
+        fail("An import was not resolved through include_paths of zenc.server.json");
+    }
+    free(diagnostics);
+
+    send_request(
+        "{\"jsonrpc\": \"2.0\", \"id\": 1102, \"method\": \"shutdown\", \"params\": null}");
+    free(wait_for_response(1102));
+    send_request("{\"jsonrpc\": \"2.0\", \"method\": \"exit\", \"params\": {}}");
+    waitpid(child_pid, NULL, 0);
+    printf("PASS: test_project_config\n");
+}
+
+// With `use_gitignore: false` in zenc.server.json, the scan skips only what `exclude` lists.
+static void test_index_exclude(void)
+{
+    printf("Running test_index_exclude...\n");
+    const char *directories[] = {"/tmp/zc_lsp_exclude", "/tmp/zc_lsp_exclude/vendor",
+                                 "/tmp/zc_lsp_exclude/generated", "/tmp/zc_lsp_exclude/src"};
+    for (size_t i = 0; i < sizeof(directories) / sizeof(directories[0]); i++)
+    {
+        mkdir(directories[i], 0755);
+    }
+    write_index_fixture("/tmp/zc_lsp_exclude/.gitignore", "vendor/\n");
+    write_index_fixture(
+        "/tmp/zc_lsp_exclude/zenc.server.json",
+        "{\"use_gitignore\": false, \"exclude\": [\"generated/\", \"*.tmp.zc\"]}\n");
+    write_index_fixture("/tmp/zc_lsp_exclude/vendor/v.zc", "fn vendor_fn() {}\n");
+    write_index_fixture("/tmp/zc_lsp_exclude/generated/g.zc", "fn generated_fn() {}\n");
+    write_index_fixture("/tmp/zc_lsp_exclude/x.tmp.zc", "fn tmp_fn() {}\n");
+    write_index_fixture("/tmp/zc_lsp_exclude/src/s.zc", "fn src_fn() {}\n");
+
+    global_len = 0;
+    global_buf[0] = 0;
+    start_lsp_server();
+    send_request("{\"jsonrpc\": \"2.0\", \"id\": 1200, \"method\": \"initialize\", \"params\": "
+                 "{\"rootUri\": \"file:///tmp/zc_lsp_exclude\"}}");
+    free(wait_for_response(1200));
+    send_request("{\"jsonrpc\": \"2.0\", \"method\": \"initialized\", \"params\": {}}");
+
+    expect_indexed(1201, "/tmp/zc_lsp_exclude", "src/s.zc", "src_fn");
+    expect_indexed(1202, "/tmp/zc_lsp_exclude", "vendor/v.zc", "vendor_fn");
+    expect_indexed(1203, "/tmp/zc_lsp_exclude", "generated/g.zc", NULL);
+    expect_indexed(1204, "/tmp/zc_lsp_exclude", "x.tmp.zc", NULL);
+
+    send_request(
+        "{\"jsonrpc\": \"2.0\", \"id\": 1205, \"method\": \"shutdown\", \"params\": null}");
+    free(wait_for_response(1205));
+    send_request("{\"jsonrpc\": \"2.0\", \"method\": \"exit\", \"params\": {}}");
+    waitpid(child_pid, NULL, 0);
+    printf("PASS: test_index_exclude\n");
+}
+
 int main()
 {
     // Don't die with a cryptic 141 (SIGPIPE) if the LSP server crashes and
@@ -1496,6 +1712,9 @@ int main()
     test_shutdown();
     send_request("{\"jsonrpc\": \"2.0\", \"method\": \"exit\", \"params\": {}}");
     waitpid(child_pid, NULL, 0);
+    test_index_gitignore();
+    test_project_config();
+    test_index_exclude();
     printf("All LSP tests passed!\n");
     return 0;
 }
